@@ -1,0 +1,221 @@
+<!doctype html>
+<!-- 生成物: 直接編集しないでください。元データ: data/*.json。scrum-domain-modeling の scripts/domain-model.mjs render で作り直します。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="generator" content="scrum-domain-modeling/domain-model.mjs">
+<title>全体像 · why-why-mcp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --wall: #fbfbf9; --wall-dot: #dcdcd4; --paper: #ffffff; --ink: #24241f; --ink-soft: #64645b;
+  --line: #d9d9cf; --ring: #6d6d66; --accent: #2f5bd3; --focus: #2563eb; --row: #f4f4ef;
+  --ok: #dbeafe; --bad: #fde2e4; --skip: #ececea; --undef: #fff4cc;
+  --s-event: #ff9e4f; --s-command: #a9cdf1; --s-policy: #b985ca; --s-external: #eda1c6;
+  --s-aggregate: #f4ce2c; --s-readModel: #c6e15c; --s-actor: #fdf6b6; --s-hotspot: #ef7088; --s-ink: #1c1a14; --hot: #ff4030;
+  --f-note: "Klee One", "Hiragino Maru Gothic ProN", "Yu Gothic", cursive;
+  --f-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wall); color: var(--ink); font: 14px/1.65 var(--f-ui); }
+a { color: var(--accent); }
+.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--paper); border-bottom: 1px solid var(--line); }
+.crumb { font-weight: 700; } .crumb span { color: var(--ink-soft); font-weight: 500; margin: 0 6px; }
+.back { text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; color: var(--ink); background: var(--paper); }
+main { padding: 24px max(16px, env(safe-area-inset-left, 0px)) 48px; display: grid; gap: 22px; min-width: 0; }
+h1 { margin: 0; font-size: 26px; line-height: 1.3; text-wrap: balance; }
+h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+.lede { margin: 4px 0 0; color: var(--ink-soft); max-width: 80ch; }
+.meta { font-size: 12px; color: var(--ink-soft); font-family: var(--f-mono); }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--paper); }
+th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+th { background: var(--row); font-weight: 700; white-space: nowrap; }
+code, .path { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0; border-radius: 4px; color: var(--s-ink); font-size: 12px; text-decoration: none; }
+.code { display: inline-block; padding: 0 6px; margin: 2px 4px 2px 0; border-radius: 4px; background: var(--row); border: 1px solid var(--line); font: 12px var(--f-mono); }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; background: rgba(28,26,20,.14); color: var(--s-ink); margin-left: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 18px; border-radius: 2px; vertical-align: -4px; margin-right: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.legend small { color: var(--ink-soft); margin-left: 4px; }
+.foot { font-size: 12px; color: var(--ink-soft); }
+ul.plain { margin: 0; padding-left: 18px; }
+/* What the current plan changes: pulses while main has .show-changed (the toggle on each page). */
+.changes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-left: 4px solid var(--hot); }
+.changes .list { flex: 1 1 320px; min-width: 0; }
+.changes a.item { margin-right: 10px; white-space: nowrap; }
+.toggle { font-size: 13px; white-space: nowrap; }
+.new { display: inline-block; padding: 0 7px; margin-left: 6px; border-radius: 999px; background: var(--hot); color: #fff; font: 700 11px/1.6 var(--f-ui); vertical-align: 1px; }
+@keyframes changed-ping {
+  0% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 4px rgba(255,64,48,.95), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1.15); }
+  20% { filter: brightness(1); }
+  70%, 100% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 40px rgba(255,64,48,0), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1); } }
+@keyframes chip-ping { 0% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 2px rgba(255,64,48,.95); } 70%, 100% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 12px rgba(255,64,48,0); } }
+@keyframes row-flash { 0% { background-color: rgba(255,64,48,.38); } 60%, 100% { background-color: rgba(255,64,48,.1); } }
+@keyframes svg-blink { 50% { stroke-opacity: .25; } }
+.show-changed .chip.changed { box-shadow: 0 0 0 2px var(--ink); animation: chip-ping 1.2s ease-out infinite; }
+.show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { animation: row-flash 1.2s ease-out infinite; }
+.show-changed tr.is-changed > :first-child { box-shadow: inset 4px 0 0 var(--hot); }
+.show-changed .lc.is-changed, .show-changed nav a.is-changed { outline: 3px solid var(--hot); outline-offset: 2px; }
+.show-changed .gbox.is-changed { stroke: var(--hot); stroke-width: 4; animation: svg-blink 1.2s ease-in-out infinite; }
+.show-changed .gedge.is-changed { stroke: var(--hot); stroke-width: 3; animation: svg-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .show-changed .chip.changed, .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed, .show-changed .gbox.is-changed, .show-changed .gedge.is-changed { animation: none; }
+  .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { background-color: rgba(255,64,48,.18); } }
+
+.zoomable { position: relative; min-width: 0; }
+.zoom-view { overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y; max-height: 80vh; }
+.zoom-view:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.zoom-content { width: max-content; }
+.zoom-ctrl { position: absolute; top: 8px; right: 8px; z-index: 25; display: flex; align-items: center; gap: 2px; padding: 3px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.zoom-ctrl button { min-width: 32px; height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: 500 14px var(--f-ui); cursor: pointer; }
+.zoom-ctrl button:hover { background: var(--row); }
+.zoom-ctrl button:focus-visible { outline: 2px solid var(--focus); }
+.zoom-ctrl output { min-width: 3.4em; text-align: center; font: 12px var(--f-mono); color: var(--ink-soft); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; justify-content: space-between; padding: 10px 14px; }
+
+.board-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .board-wrap { grid-template-columns: minmax(0, 1fr); } }
+.wall { border: 1px solid var(--line); border-radius: 8px; background-color: var(--wall); background-image: radial-gradient(var(--wall-dot) 1px, transparent 1px); background-size: 20px 20px; }
+.board { position: relative; }
+.layer { position: absolute; left: 0; top: 0; overflow: visible; }
+.ring { fill: none; stroke: var(--ring); stroke-width: 1.6; }
+.ring-label { font: 700 20px var(--f-ui); fill: var(--ink); paint-order: stroke; stroke: var(--wall); stroke-width: 6px; }
+.timeline { font: 700 16px var(--f-ui); fill: var(--ink); }
+.edge { fill: none; stroke: var(--ink); stroke-width: 2; }
+.edge.result { stroke-width: 2.4; stroke-dasharray: 0.1 6; stroke-linecap: round; }
+.edge.dim { opacity: .15; }
+.headfill { fill: var(--ink); }
+.note { position: absolute; border: 0; margin: 0; padding: 7px 8px; color: var(--s-ink); font: 600 13px/1.4 var(--f-note); text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; overflow-wrap: anywhere;
+  box-shadow: 0 1px 1px rgba(0,0,0,.1), 0 8px 10px -7px rgba(0,0,0,.45); transition: transform .12s ease; }
+.note:hover, .note:focus-visible, .note.sel { transform: translateY(-3px); z-index: 20 !important; }
+.note:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.note.sel { outline: 3px solid var(--accent); outline-offset: 2px; }
+.note .kind { font: 500 10px var(--f-ui); letter-spacing: .04em; opacity: .6; margin-bottom: 2px; }
+.n-actor { font: 500 12px/1.3 var(--f-ui); box-shadow: 0 0 0 1px rgba(0,0,0,.45), 0 6px 8px -6px rgba(0,0,0,.5); }
+.n-actor { background: var(--s-actor); }
+.n-command { background: var(--s-command); }
+.n-event { background: var(--s-event); }
+.n-policy { background: var(--s-policy); }
+.n-aggregate { background: var(--s-aggregate); }
+.n-external { background: var(--s-external); }
+.n-readModel { background: var(--s-readModel); }
+.n-hotspot { background: var(--s-hotspot); }
+.show-changed .note.changed { box-shadow: 0 0 0 4px var(--ink), 0 10px 14px -6px rgba(0,0,0,.5); animation: changed-ping 1.2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .note { transition: none; } .show-changed .note.changed { animation: none; box-shadow: 0 0 0 4px var(--ink), 0 0 0 8px rgba(255,64,48,.9), 0 10px 14px -6px rgba(0,0,0,.5); } }</style>
+</head>
+<body>
+<header class="top"><div class="crumb">why-why-mcp<span>/</span>ドメインモデル<span>/</span>全体像</div><a class="back" href="index.html">← 一覧へ</a></header>
+<main class="show-changed" id="main">
+<div><h1>全体像</h1><p class="lede">エージェントがなぜなぜ分析の木を育て、評価し、Plannotator Inbox で人と見直す流れ。</p><div class="meta">確認したリビジョン b71cb27 · 2026-11-13</div></div>
+<div class="toolbar card"><div class="legend"><span><i style="background:var(--s-actor)"></i>アクター<small>人・役割</small></span><span><i style="background:var(--s-command)"></i>コマンド<small>依頼・操作</small></span><span><i style="background:var(--s-event)"></i>イベント<small>起きたこと</small></span><span><i style="background:var(--s-policy)"></i>ポリシー<small>〜されたら</small></span><span><i style="background:var(--s-aggregate)"></i>集約<small>一緒に更新するデータ</small></span><span><i style="background:var(--s-external)"></i>外部システム<small>外のサービス</small></span><span><i style="background:var(--s-readModel)"></i>リードモデル<small>判断の前に見るもの</small></span><span><i style="background:var(--s-hotspot)"></i>ホットスポット<small>未解決・懸念</small></span></div><label class="toggle"><input type="checkbox" id="show-changed" checked> 今回の計画で変わる付箋（37）を光らせて示す</label></div>
+<div class="board-wrap">
+  <div class="zoomable" data-fit="width">
+<div class="zoom-ctrl" role="toolbar" aria-label="拡大縮小"><button type="button" data-z="out" aria-label="縮小">−</button><output aria-live="polite">100%</output><button type="button" data-z="in" aria-label="拡大">＋</button><button type="button" data-z="fit">全体</button><button type="button" data-z="one">等倍</button></div>
+<div class="zoom-view wall" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小"><div class="zoom-content"><div class="board" id="board" style="width:2651px;height:1395px"><svg class="layer" width="2651" height="1395" aria-hidden="true"><defs><marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L10 5L0 9z" class="headfill"/></marker></defs><text class="timeline" x="40" y="44">時間の流れ</text><path class="edge" d="M40 60 H200" marker-end="url(#head)" style="stroke-width:3"/><ellipse class="ring" cx="532.2" cy="629.5" rx="490.2" ry="464.9"/><text class="ring-label" x="532.2" y="202.6" text-anchor="middle">分析</text><ellipse class="ring" cx="1840.4" cy="477.8" rx="778" ry="381.8"/><text class="ring-label" x="1840.4" y="134" text-anchor="middle">評価</text><ellipse class="ring" cx="1829.4" cy="1121" rx="767.1" ry="241.3"/><text class="ring-label" x="1829.4" y="917.7" text-anchor="middle">共有</text><g transform="translate(0,0)"><path class="edge" data-from="agent-analysis" data-to="cmd-start" d="M253.2 695 C281.2 695,268.2 695,296.2 695" marker-end="url(#head)"/><path class="edge" data-from="cmd-start" data-to="agg-analysis" d="M411.2 695 C439.2 695,426.2 695,454.2 695" marker-end="url(#head)"/><path class="edge" data-from="agg-analysis" data-to="ev-started" d="M569.2 695 C597.2 695,588.2 663,616.2 663" marker-end="url(#head)"/><path class="edge" data-from="ev-started" data-to="cmd-add-whys" d="M731.2 663 C759.2 663,746.2 679,774.2 679" marker-end="url(#head)"/><path class="edge" data-from="cmd-add-whys" data-to="agg-analysis" d="M889.2 679 C917.2 679,485.2 644,513.2 644" marker-end="url(#head)"/><path class="edge" data-from="agg-analysis" data-to="ev-whys-added" d="M569.2 695 C597.2 695,588.2 783,616.2 783" marker-end="url(#head)"/><path class="edge" data-from="ev-whys-added" data-to="cmd-add-evidence" d="M731.2 783 C759.2 783,746.2 799,774.2 799" marker-end="url(#head)"/><path class="edge" data-from="cmd-add-evidence" data-to="agg-analysis" d="M889.2 799 C917.2 799,485.2 644,513.2 644" marker-end="url(#head)"/><path class="edge" data-from="agg-analysis" data-to="ev-evidence-added" d="M569.2 695 C597.2 695,588.2 900,616.2 900" marker-end="url(#head)"/><path class="edge" data-from="ev-evidence-added" data-to="pol-stale" d="M731.2 900 C987.8 900,987.8 601.9,1244.4 601.9" marker-end="url(#head)"/><path class="edge" data-from="pol-stale" data-to="agent-evaluation" d="M1359.4 601.9 C1387.4 601.9,1374.4 601.9,1402.4 601.9" marker-end="url(#head)"/><path class="edge" data-from="ev-whys-added" data-to="agent-evaluation" d="M731.2 783 C1066.8 783,1066.8 601.9,1402.4 601.9" marker-end="url(#head)"/><path class="edge" data-from="agent-evaluation" data-to="cmd-evaluate" d="M1483.4 601.9 C1511.4 601.9,1498.4 601.9,1526.4 601.9" marker-end="url(#head)"/><path class="edge" data-from="cmd-evaluate" data-to="agg-analysis-eval" d="M1641.4 601.9 C1671.9 601.9,1671.9 601.9,1702.4 601.9" marker-end="url(#head)"/><path class="edge" data-from="agg-analysis-eval" data-to="ev-evaluated" d="M1817.4 601.9 C1845.4 601.9,1832.4 319.2,1860.4 319.2" marker-end="url(#head)"/><path class="edge" data-from="ev-evaluated" data-to="pol-low-confidence" d="M1975.4 319.2 C2003.4 319.2,1999.3 303.2,2027.3 303.2" marker-end="url(#head)"/><path class="edge" data-from="pol-low-confidence" data-to="agent-judge" d="M2142.3 303.2 C2170.3 303.2,2166.3 303.2,2194.3 303.2" marker-end="url(#head)"/><path class="edge" data-from="agent-judge" data-to="cmd-record-judgment" d="M2275.3 303.2 C2303.3 303.2,2290.3 319.2,2318.3 319.2" marker-end="url(#head)"/><path class="edge" data-from="cmd-record-judgment" data-to="agg-analysis-eval" d="M2433.3 319.2 C2461.3 319.2,1733.4 550.9,1761.4 550.9" marker-end="url(#head)"/><path class="edge" data-from="agg-analysis-eval" data-to="ev-judged" d="M1817.4 601.9 C1845.4 601.9,1832.4 601.9,1860.4 601.9" marker-end="url(#head)"/><path class="edge result" data-from="ev-evaluated" data-to="rm-next-branch" d="M1975.4 319.2 C2003.4 319.2,1990.4 545.3,2018.4 545.3" marker-end="url(#head)"/><path class="edge result" data-from="ev-judged" data-to="rm-next-branch" d="M1975.4 601.9 C2003.4 601.9,1990.4 545.3,2018.4 545.3" marker-end="url(#head)"/><path class="edge" data-from="rm-next-branch" data-to="agent-dig" d="M2133.4 545.3 C2161.4 545.3,186.2 361,214.2 361" marker-end="url(#head)"/><path class="edge" data-from="agent-dig" data-to="cmd-update-node" d="M253.2 391 C281.2 391,268.2 391,296.2 391" marker-end="url(#head)"/><path class="edge" data-from="cmd-update-node" data-to="agg-analysis-dig" d="M411.2 391 C439.2 391,426.2 391,454.2 391" marker-end="url(#head)"/><path class="edge" data-from="agg-analysis-dig" data-to="ev-node-updated" d="M569.2 391 C597.2 391,584.2 391,612.2 391" marker-end="url(#head)"/><path class="edge" data-from="ev-node-updated" data-to="agent-share" d="M727.2 391 C984.8 391,984.8 1137,1242.5 1137" marker-end="url(#head)"/><path class="edge" data-from="agent-share" data-to="cmd-render" d="M1323.5 1137 C1351.5 1137,1338.5 1137,1366.5 1137" marker-end="url(#head)"/><path class="edge" data-from="cmd-render" data-to="ev-rendered" d="M1481.5 1137 C1509.5 1137,1496.5 1137,1524.5 1137" marker-end="url(#head)"/><path class="edge" data-from="ev-rendered" data-to="cmd-send" d="M1639.5 1137 C1667.5 1137,1654.5 1137,1682.5 1137" marker-end="url(#head)"/><path class="edge" data-from="cmd-send" data-to="ev-sent" d="M1797.5 1137 C1827.9 1137,1827.9 1137,1858.4 1137" marker-end="url(#head)"/><path class="edge" data-from="ev-sent" data-to="person" d="M1973.4 1137 C2001.4 1137,1988.4 1137,2016.4 1137" marker-end="url(#head)"/><path class="edge" data-from="person" data-to="cmd-reply" d="M2097.4 1137 C2125.4 1137,2112.4 1137,2140.4 1137" marker-end="url(#head)"/><path class="edge" data-from="cmd-reply" data-to="ev-replied" d="M2255.4 1137 C2283.4 1137,2270.4 1137,2298.4 1137" marker-end="url(#head)"/><path class="edge" data-from="ev-replied" data-to="agent-close" d="M2413.4 1137 C2441.4 1137,186.2 497,214.2 497" marker-end="url(#head)"/><path class="edge" data-from="agent-close" data-to="cmd-close" d="M253.2 527 C281.2 527,268.2 527,296.2 527" marker-end="url(#head)"/><path class="edge" data-from="cmd-close" data-to="agg-analysis-close" d="M411.2 527 C439.2 527,426.2 527,454.2 527" marker-end="url(#head)"/><path class="edge" data-from="agg-analysis-close" data-to="ev-closed" d="M569.2 527 C597.2 527,584.2 527,612.2 527" marker-end="url(#head)"/></g></svg><button type="button" class="note n-actor changed" id="n-agent-analysis" data-id="agent-analysis" style="left:175.2px;top:668px;width:78px;height:54px;z-index:2" aria-label="アクター: エージェント（分析）"><span class="txt">エージェント</span></button><button type="button" class="note n-command changed" id="n-cmd-start" data-id="cmd-start" style="left:299.2px;top:647px;width:112px;height:96px;z-index:2" aria-label="コマンド: 分析を始める（分析）"><span class="kind">Command</span><span class="txt">分析を始める</span></button><button type="button" class="note n-aggregate changed" id="n-agg-analysis" data-id="agg-analysis" style="left:457.2px;top:647px;width:112px;height:96px;z-index:2" aria-label="集約: 分析（分析）"><span class="kind">Aggregate</span><span class="txt">分析</span></button><button type="button" class="note n-event changed" id="n-ev-started" data-id="ev-started" style="left:619.2px;top:615px;width:112px;height:96px;z-index:2" aria-label="イベント: 分析を始めた（分析）"><span class="kind">Domain Event</span><span class="txt">分析を始めた</span></button><button type="button" class="note n-command changed" id="n-cmd-add-whys" data-id="cmd-add-whys" style="left:777.2px;top:631px;width:112px;height:96px;z-index:2" aria-label="コマンド: なぜの候補を足す（分析）"><span class="kind">Command</span><span class="txt">なぜの候補を足す</span></button><button type="button" class="note n-event changed" id="n-ev-whys-added" data-id="ev-whys-added" style="left:619.2px;top:735px;width:112px;height:96px;z-index:2" aria-label="イベント: なぜの候補を足した（分析）"><span class="kind">Domain Event</span><span class="txt">なぜの候補を足した</span></button><button type="button" class="note n-command changed" id="n-cmd-add-evidence" data-id="cmd-add-evidence" style="left:777.2px;top:751px;width:112px;height:96px;z-index:2" aria-label="コマンド: 事実を記録する（分析）"><span class="kind">Command</span><span class="txt">事実を記録する</span></button><button type="button" class="note n-event changed" id="n-ev-evidence-added" data-id="ev-evidence-added" style="left:619.2px;top:852px;width:112px;height:96px;z-index:2" aria-label="イベント: 事実を記録した（分析）"><span class="kind">Domain Event</span><span class="txt">事実を記録した</span></button><button type="button" class="note n-actor changed" id="n-agent-dig" data-id="agent-dig" style="left:175.2px;top:364px;width:78px;height:54px;z-index:2" aria-label="アクター: エージェント（分析）"><span class="txt">エージェント</span></button><button type="button" class="note n-command changed" id="n-cmd-update-node" data-id="cmd-update-node" style="left:299.2px;top:343px;width:112px;height:96px;z-index:2" aria-label="コマンド: 枝の状態を変える（分析）"><span class="kind">Command</span><span class="txt">枝の状態を変える</span></button><button type="button" class="note n-aggregate changed" id="n-agg-analysis-dig" data-id="agg-analysis-dig" style="left:457.2px;top:343px;width:112px;height:96px;z-index:2" aria-label="集約: 分析（分析）"><span class="kind">Aggregate</span><span class="txt">分析</span></button><button type="button" class="note n-event changed" id="n-ev-node-updated" data-id="ev-node-updated" style="left:615.2px;top:343px;width:112px;height:96px;z-index:2" aria-label="イベント: 枝の状態を変えた（分析）"><span class="kind">Domain Event</span><span class="txt">枝の状態を変えた</span></button><button type="button" class="note n-actor changed" id="n-agent-close" data-id="agent-close" style="left:175.2px;top:500px;width:78px;height:54px;z-index:2" aria-label="アクター: エージェント（分析）"><span class="txt">エージェント</span></button><button type="button" class="note n-command changed" id="n-cmd-close" data-id="cmd-close" style="left:299.2px;top:479px;width:112px;height:96px;z-index:2" aria-label="コマンド: 分析を閉じる（分析）"><span class="kind">Command</span><span class="txt">分析を閉じる</span></button><button type="button" class="note n-aggregate changed" id="n-agg-analysis-close" data-id="agg-analysis-close" style="left:457.2px;top:479px;width:112px;height:96px;z-index:2" aria-label="集約: 分析（分析）"><span class="kind">Aggregate</span><span class="txt">分析</span></button><button type="button" class="note n-event changed" id="n-ev-closed" data-id="ev-closed" style="left:615.2px;top:479px;width:112px;height:96px;z-index:2" aria-label="イベント: 分析を閉じた（分析）"><span class="kind">Domain Event</span><span class="txt">分析を閉じた</span></button><button type="button" class="note n-policy changed" id="n-pol-stale" data-id="pol-stale" style="left:1247.4px;top:553.4px;width:112px;height:97px;z-index:2" aria-label="ポリシー: 評価済みの枝に事実が足されたら（評価）"><span class="kind">Policy</span><span class="txt">評価済みの枝に事実が足されたら</span><span class="badge">同期</span></button><button type="button" class="note n-actor changed" id="n-agent-evaluation" data-id="agent-evaluation" style="left:1405.4px;top:574.9px;width:78px;height:54px;z-index:2" aria-label="アクター: エージェント（評価）"><span class="txt">エージェント</span></button><button type="button" class="note n-command changed" id="n-cmd-evaluate" data-id="cmd-evaluate" style="left:1529.4px;top:553.9px;width:112px;height:96px;z-index:2" aria-label="コマンド: 枝を評価する（評価）"><span class="kind">Command</span><span class="txt">枝を評価する</span></button><button type="button" class="note n-external changed" id="n-ext-clef" data-id="ext-clef" style="left:1547.4px;top:636.5px;width:112px;height:96px;z-index:3" aria-label="外部システム: Cloudflare Clef（評価）"><span class="kind">External System</span><span class="txt">Cloudflare Clef</span></button><button type="button" class="note n-aggregate changed" id="n-agg-analysis-eval" data-id="agg-analysis-eval" style="left:1705.4px;top:553.9px;width:112px;height:96px;z-index:2" aria-label="集約: 分析（評価）"><span class="kind">Aggregate</span><span class="txt">分析</span></button><button type="button" class="note n-event changed" id="n-ev-evaluated" data-id="ev-evaluated" style="left:1863.4px;top:271.2px;width:112px;height:96px;z-index:2" aria-label="イベント: 枝を評価した（評価）"><span class="kind">Domain Event</span><span class="txt">枝を評価した</span></button><button type="button" class="note n-policy changed" id="n-pol-low-confidence" data-id="pol-low-confidence" style="left:2030.3px;top:255.2px;width:112px;height:96px;z-index:2" aria-label="ポリシー: 確信の低い問いがあったら（評価）"><span class="kind">Policy</span><span class="txt">確信の低い問いがあったら</span><span class="badge">同期</span></button><button type="button" class="note n-actor changed" id="n-agent-judge" data-id="agent-judge" style="left:2197.3px;top:276.2px;width:78px;height:54px;z-index:2" aria-label="アクター: エージェント（評価）"><span class="txt">エージェント</span></button><button type="button" class="note n-command changed" id="n-cmd-record-judgment" data-id="cmd-record-judgment" style="left:2321.3px;top:271.2px;width:112px;height:96px;z-index:2" aria-label="コマンド: 判断を記録する（評価）"><span class="kind">Command</span><span class="txt">判断を記録する</span></button><button type="button" class="note n-event changed" id="n-ev-judged" data-id="ev-judged" style="left:1863.4px;top:553.9px;width:112px;height:96px;z-index:2" aria-label="イベント: 判断を記録した（評価）"><span class="kind">Domain Event</span><span class="txt">判断を記録した</span></button><button type="button" class="note n-readModel changed" id="n-rm-next-branch" data-id="rm-next-branch" style="left:2021.4px;top:496.8px;width:112px;height:97px;z-index:2" aria-label="リードモデル: 次に掘る枝(未調査の枝の優先度順)（評価）"><span class="kind">Read Model</span><span class="txt">次に掘る枝(未調査の枝の優先度順)</span></button><button type="button" class="note n-hotspot changed" id="n-hs-threshold" data-id="hs-threshold" style="left:2039.3px;top:580.3px;width:112px;height:135px;z-index:3" aria-label="ホットスポット: 終わりのしきい値 0.2 と優先度の式は、使いながら調整が必要（評価）"><span class="kind">Hotspot</span><span class="txt">終わりのしきい値 0.2 と優先度の式は、使いながら調整が必要</span></button><button type="button" class="note n-actor changed" id="n-agent-share" data-id="agent-share" style="left:1245.5px;top:1110px;width:78px;height:54px;z-index:2" aria-label="アクター: エージェント（共有）"><span class="txt">エージェント</span></button><button type="button" class="note n-command changed" id="n-cmd-render" data-id="cmd-render" style="left:1369.5px;top:1089px;width:112px;height:96px;z-index:2" aria-label="コマンド: 木を描く（共有）"><span class="kind">Command</span><span class="txt">木を描く</span></button><button type="button" class="note n-event changed" id="n-ev-rendered" data-id="ev-rendered" style="left:1527.5px;top:1089px;width:112px;height:96px;z-index:2" aria-label="イベント: 木を描いた（共有）"><span class="kind">Domain Event</span><span class="txt">木を描いた</span></button><button type="button" class="note n-command changed" id="n-cmd-send" data-id="cmd-send" style="left:1685.5px;top:1089px;width:112px;height:96px;z-index:2" aria-label="コマンド: Inbox に木を送る（共有）"><span class="kind">Command</span><span class="txt">Inbox に木を送る</span></button><button type="button" class="note n-external changed" id="n-ext-inbox" data-id="ext-inbox" style="left:1703.4px;top:1171.6px;width:112px;height:96px;z-index:3" aria-label="外部システム: Plannotator Inbox（共有）"><span class="kind">External System</span><span class="txt">Plannotator Inbox</span></button><button type="button" class="note n-event changed" id="n-ev-sent" data-id="ev-sent" style="left:1861.4px;top:1089px;width:112px;height:96px;z-index:2" aria-label="イベント: 木を送った（共有）"><span class="kind">Domain Event</span><span class="txt">木を送った</span></button><button type="button" class="note n-actor changed" id="n-person" data-id="person" style="left:2019.4px;top:1110px;width:78px;height:54px;z-index:2" aria-label="アクター: 人（共有）"><span class="txt">人</span></button><button type="button" class="note n-command changed" id="n-cmd-reply" data-id="cmd-reply" style="left:2143.4px;top:1089px;width:112px;height:96px;z-index:2" aria-label="コマンド: 木に返信・コメントする（共有）"><span class="kind">Command</span><span class="txt">木に返信・コメントする</span></button><button type="button" class="note n-event changed" id="n-ev-replied" data-id="ev-replied" style="left:2301.4px;top:1089px;width:112px;height:96px;z-index:2" aria-label="イベント: 返信がエージェントに届いた（共有）"><span class="kind">Domain Event</span><span class="txt">返信がエージェントに届いた</span></button></div></div></div>
+</div>
+  <aside class="panel card" id="panel" aria-live="polite"><h2>付箋の詳細</h2><p class="foot">付箋を選ぶと、種類・ドメイン・つながり・コードの場所が出ます。</p></aside>
+</div>
+<p class="foot">ピンチ（または Ctrl/⌘ + ホイール、右上のボタン）で拡大縮小できます。実線は流れ、点線はイベントがリードモデルに反映されることを表します。重ねて貼った付箋は、その下の付箋に付く外部システム・懸念などです。</p>
+<script type="application/json" id="nodes">{"agent-analysis":{"type":"アクター","color":"actor","domain":"分析","text":"エージェント","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":[],"to":["分析を始める"],"evidence":[]},"cmd-start":{"type":"コマンド","color":"command","domain":"分析","text":"分析を始める","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["エージェント"],"to":["分析"],"evidence":[{"path":"src/analysis.ts","symbol":"startAnalysis","note":null},{"path":"src/server.ts","symbol":"start_analysis","note":null}]},"agg-analysis":{"type":"集約","color":"aggregate","domain":"分析","text":"分析","execution":null,"invariants":["親のないノードは作らない","同じ親に同じ文のなぜを二重に足さない","枝は消さない(却下・仮説も理由つきで残す)","葉には対策、却下と仮説には理由が必要","掘っている枝が残っていれば閉じられない","閉じた分析は変えられない","保存する前に秘密情報を伏せ字にする"],"note":null,"changed":true,"attachedTo":null,"from":["分析を始める","なぜの候補を足す","事実を記録する"],"to":["分析を始めた","なぜの候補を足した","事実を記録した"],"evidence":[{"path":"src/model.ts","symbol":"Analysis","note":null},{"path":"src/store.ts","symbol":"FileStore","note":null}]},"ev-started":{"type":"イベント","color":"event","domain":"分析","text":"分析を始めた","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["分析"],"to":["なぜの候補を足す"],"evidence":[]},"cmd-add-whys":{"type":"コマンド","color":"command","domain":"分析","text":"なぜの候補を足す","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["分析を始めた"],"to":["分析"],"evidence":[{"path":"src/analysis.ts","symbol":"addWhys","note":null}]},"ev-whys-added":{"type":"イベント","color":"event","domain":"分析","text":"なぜの候補を足した","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["分析"],"to":["事実を記録する","エージェント"],"evidence":[]},"cmd-add-evidence":{"type":"コマンド","color":"command","domain":"分析","text":"事実を記録する","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["なぜの候補を足した"],"to":["分析"],"evidence":[{"path":"src/analysis.ts","symbol":"addEvidence","note":null},{"path":"src/redact.ts","symbol":"redactSecrets","note":null}]},"ev-evidence-added":{"type":"イベント","color":"event","domain":"分析","text":"事実を記録した","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["分析"],"to":["評価済みの枝に事実が足されたら"],"evidence":[]},"pol-stale":{"type":"ポリシー","color":"policy","domain":"評価","text":"評価済みの枝に事実が足されたら","execution":"同期","invariants":[],"note":"評価を古い扱い(stale)にし、次の枝を選ぶ前に評価し直させる","changed":true,"attachedTo":null,"from":["事実を記録した"],"to":["エージェント"],"evidence":[]},"agent-evaluation":{"type":"アクター","color":"actor","domain":"評価","text":"エージェント","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["評価済みの枝に事実が足されたら","なぜの候補を足した"],"to":["枝を評価する"],"evidence":[]},"cmd-evaluate":{"type":"コマンド","color":"command","domain":"評価","text":"枝を評価する","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["エージェント"],"to":["分析"],"evidence":[{"path":"src/clef.ts","symbol":"evaluateWithClef","note":null},{"path":"src/server.ts","symbol":"evaluate","note":null}]},"ext-clef":{"type":"外部システム","color":"external","domain":"評価","text":"Cloudflare Clef","execution":null,"invariants":[],"note":"Workers AI の決定モデル。設定がなければ使わず、エージェントに判断を求める","changed":true,"attachedTo":"枝を評価する","from":[],"to":[],"evidence":[]},"agg-analysis-eval":{"type":"集約","color":"aggregate","domain":"評価","text":"分析","execution":null,"invariants":["評価は問いごとに持ち、上書きした古い値は履歴に残す","Clef の失敗では木に何も書かない"],"note":null,"changed":true,"attachedTo":null,"from":["枝を評価する","判断を記録する"],"to":["枝を評価した","判断を記録した"],"evidence":[{"path":"src/analysis.ts","symbol":"applyFieldValues","note":null}]},"ev-evaluated":{"type":"イベント","color":"event","domain":"評価","text":"枝を評価した","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["分析"],"to":["確信の低い問いがあったら","次に掘る枝(未調査の枝の優先度順)"],"evidence":[]},"pol-low-confidence":{"type":"ポリシー","color":"policy","domain":"評価","text":"確信の低い問いがあったら","execution":"同期","invariants":[],"note":"noul の確率が 0.35〜0.65、または Clef が失敗した問い","changed":true,"attachedTo":null,"from":["枝を評価した"],"to":["エージェント"],"evidence":[]},"agent-judge":{"type":"アクター","color":"actor","domain":"評価","text":"エージェント","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["確信の低い問いがあったら"],"to":["判断を記録する"],"evidence":[]},"cmd-record-judgment":{"type":"コマンド","color":"command","domain":"評価","text":"判断を記録する","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["エージェント"],"to":["分析"],"evidence":[{"path":"src/server.ts","symbol":"record_judgment","note":null}]},"ev-judged":{"type":"イベント","color":"event","domain":"評価","text":"判断を記録した","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["分析"],"to":["次に掘る枝(未調査の枝の優先度順)"],"evidence":[]},"rm-next-branch":{"type":"リードモデル","color":"readModel","domain":"評価","text":"次に掘る枝(未調査の枝の優先度順)","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["枝を評価した","判断を記録した"],"to":["エージェント"],"evidence":[{"path":"src/analysis.ts","symbol":"nextBranch","note":null}]},"hs-threshold":{"type":"ホットスポット","color":"hotspot","domain":"評価","text":"終わりのしきい値 0.2 と優先度の式は、使いながら調整が必要","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":"次に掘る枝(未調査の枝の優先度順)","from":[],"to":[],"evidence":[]},"agent-dig":{"type":"アクター","color":"actor","domain":"分析","text":"エージェント","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["次に掘る枝(未調査の枝の優先度順)"],"to":["枝の状態を変える"],"evidence":[]},"cmd-update-node":{"type":"コマンド","color":"command","domain":"分析","text":"枝の状態を変える","execution":null,"invariants":[],"note":"掘る・葉にする・却下・仮説で止める・候補に戻す","changed":true,"attachedTo":null,"from":["エージェント"],"to":["分析"],"evidence":[{"path":"src/analysis.ts","symbol":"updateNode","note":null}]},"agg-analysis-dig":{"type":"集約","color":"aggregate","domain":"分析","text":"分析","execution":null,"invariants":["状態は決まった移り方しかしない"],"note":null,"changed":true,"attachedTo":null,"from":["枝の状態を変える"],"to":["枝の状態を変えた"],"evidence":[{"path":"src/analysis.ts","symbol":"updateNode","note":null}]},"ev-node-updated":{"type":"イベント","color":"event","domain":"分析","text":"枝の状態を変えた","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["分析"],"to":["エージェント"],"evidence":[]},"agent-share":{"type":"アクター","color":"actor","domain":"共有","text":"エージェント","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["枝の状態を変えた"],"to":["木を描く"],"evidence":[]},"cmd-render":{"type":"コマンド","color":"command","domain":"共有","text":"木を描く","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["エージェント"],"to":["木を描いた"],"evidence":[{"path":"src/render/mermaid.ts","symbol":"renderMermaid","note":null},{"path":"src/render/html.ts","symbol":"renderHtml","note":null}]},"ev-rendered":{"type":"イベント","color":"event","domain":"共有","text":"木を描いた","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["木を描く"],"to":["Inbox に木を送る"],"evidence":[]},"cmd-send":{"type":"コマンド","color":"command","domain":"共有","text":"Inbox に木を送る","execution":null,"invariants":[],"note":"Mermaid を本文に、.mmd と HTML を添付にする","changed":true,"attachedTo":null,"from":["木を描いた"],"to":["木を送った"],"evidence":[{"path":"skills/why-why/SKILL.md","symbol":"Plannotator Inbox","note":null}]},"ext-inbox":{"type":"外部システム","color":"external","domain":"共有","text":"Plannotator Inbox","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":"Inbox に木を送る","from":[],"to":[],"evidence":[]},"ev-sent":{"type":"イベント","color":"event","domain":"共有","text":"木を送った","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["Inbox に木を送る"],"to":["人"],"evidence":[]},"person":{"type":"アクター","color":"actor","domain":"共有","text":"人","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["木を送った"],"to":["木に返信・コメントする"],"evidence":[]},"cmd-reply":{"type":"コマンド","color":"command","domain":"共有","text":"木に返信・コメントする","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["人"],"to":["返信がエージェントに届いた"],"evidence":[]},"ev-replied":{"type":"イベント","color":"event","domain":"共有","text":"返信がエージェントに届いた","execution":null,"invariants":[],"note":"Plannotator の仕組みでセッションに届く。ノードへのコメントにはノード ID が付く","changed":true,"attachedTo":null,"from":["木に返信・コメントする"],"to":["エージェント"],"evidence":[]},"agent-close":{"type":"アクター","color":"actor","domain":"分析","text":"エージェント","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["返信がエージェントに届いた"],"to":["分析を閉じる"],"evidence":[]},"cmd-close":{"type":"コマンド","color":"command","domain":"分析","text":"分析を閉じる","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["エージェント"],"to":["分析"],"evidence":[{"path":"src/analysis.ts","symbol":"closeAnalysis","note":null}]},"agg-analysis-close":{"type":"集約","color":"aggregate","domain":"分析","text":"分析","execution":null,"invariants":["掘っている枝が残っていれば閉じられない"],"note":null,"changed":true,"attachedTo":null,"from":["分析を閉じる"],"to":["分析を閉じた"],"evidence":[{"path":"src/analysis.ts","symbol":"closeAnalysis","note":null}]},"ev-closed":{"type":"イベント","color":"event","domain":"分析","text":"分析を閉じた","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["分析"],"to":[],"evidence":[]}}</script>
+</main>
+<script>document.getElementById('show-changed').addEventListener('change', function (e) { document.getElementById('main').classList.toggle('show-changed', e.target.checked); });</script>
+<script>(function(){
+var data = JSON.parse(document.getElementById('nodes').textContent);
+var board = document.getElementById('board'), panel = document.getElementById('panel');
+var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+function row(k, v) { return v ? '<dt>' + k + '</dt><dd>' + v + '</dd>' : ''; }
+function show(id) {
+  var d = data[id]; if (!d) return;
+  board.querySelectorAll('.note.sel').forEach(function (n) { n.classList.remove('sel'); });
+  var el = document.getElementById('n-' + id); if (el) el.classList.add('sel');
+  board.querySelectorAll('.edge[data-from]').forEach(function (p) { p.classList.toggle('dim', p.dataset.from !== id && p.dataset.to !== id); });
+  var ev = d.evidence.map(function (e) { return '<div class="path">' + esc(e.path) + (e.symbol ? ' <span class="code">' + esc(e.symbol) + '</span>' : '') + (e.note ? '<div class="foot">' + esc(e.note) + '</div>' : '') + '</div>'; }).join('');
+  panel.innerHTML = '<h2>付箋の詳細</h2><div class="head" style="background:var(--s-' + d.color + ')">' + esc(d.text) + '</div><dl>' +
+    row('種類', esc(d.type)) + row('ドメイン', esc(d.domain)) + row('実行', d.execution && esc(d.execution)) + row('不変条件', d.invariants.map(esc).join('<br>')) + row('貼り先', d.attachedTo && esc(d.attachedTo)) +
+    row('前', d.from.map(esc).join('<br>')) + row('次', d.to.map(esc).join('<br>')) + row('メモ', d.note && esc(d.note)) +
+    row('今回の計画', d.changed ? '変わる' : '') + row('証拠', ev || '—') + '</dl>';
+}
+board.addEventListener('click', function (e) { var n = e.target.closest('.note'); if (n) show(n.dataset.id); });
+if (location.hash.indexOf('#n-') === 0) show(location.hash.slice(3));
+})();</script>
+<script>(function(){
+var MIN = 0.1, MAX = 4;
+document.querySelectorAll('.zoomable').forEach(function (box) {
+  var view = box.querySelector('.zoom-view'), content = box.querySelector('.zoom-content'), out = box.querySelector('output');
+  var s = 1, w = content.offsetWidth, h = content.offsetHeight;
+  function clamp(v) { return Math.min(MAX, Math.max(Math.min(MIN, fitAll()), v)); }
+  function fitAll() { return Math.min(view.clientWidth / w, view.clientHeight / h); }
+  function anchor(cx, cy) {
+    var r = view.getBoundingClientRect();
+    if (cx == null) { cx = r.left + view.clientWidth / 2; cy = r.top + view.clientHeight / 2; }
+    var px = cx - r.left, py = cy - r.top;
+    return { px: px, py: py, x: (view.scrollLeft + px) / s, y: (view.scrollTop + py) / s };
+  }
+  // Scale to v, keeping content point a.x/a.y under the screen point a.px/a.py.
+  function set(v, a) {
+    s = clamp(v); content.style.zoom = s; out.textContent = Math.round(s * 100) + '%';
+    if (a) { view.scrollLeft = a.x * s - a.px; view.scrollTop = a.y * s - a.py; }
+  }
+  function zoomAt(v, cx, cy) { set(v, anchor(cx, cy)); }
+  box.querySelector('.zoom-ctrl').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var z = b.dataset.z;
+    if (z === 'in') zoomAt(s * 1.25); else if (z === 'out') zoomAt(s / 1.25);
+    else if (z === 'one') zoomAt(1); else if (z === 'fit') { set(fitAll()); view.scrollLeft = 0; view.scrollTop = 0; }
+  });
+  view.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '+' || e.key === '=') zoomAt(s * 1.25); else if (e.key === '-') zoomAt(s / 1.25); else if (e.key === '0') zoomAt(1); else return;
+    e.preventDefault();
+  });
+  // Trackpad pinch in Chrome, Edge and Firefox arrives as wheel + ctrlKey; so does Ctrl/⌘ + wheel.
+  view.addEventListener('wheel', function (e) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    var d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomAt(s * Math.exp(-Math.max(-50, Math.min(50, d)) * 0.01), e.clientX, e.clientY);
+  }, { passive: false });
+  // Safari trackpad pinch arrives as gesture events.
+  var touching = false, g = null;
+  view.addEventListener('gesturestart', function (e) { e.preventDefault(); if (!touching) g = { s: s, a: anchor(e.clientX, e.clientY) }; });
+  view.addEventListener('gesturechange', function (e) { e.preventDefault(); if (!touching && g) set(g.s * e.scale, g.a); });
+  view.addEventListener('gestureend', function (e) { e.preventDefault(); g = null; });
+  // Two-finger touch pinch: zoom and pan with the fingers' midpoint.
+  var t = null;
+  function mid(ts) { return { x: (ts[0].clientX + ts[1].clientX) / 2, y: (ts[0].clientY + ts[1].clientY) / 2, d: Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY) || 1 }; }
+  view.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 2) return;
+    touching = true; var m = mid(e.touches); t = { s: s, d: m.d, a: anchor(m.x, m.y) };
+  }, { passive: true });
+  view.addEventListener('touchmove', function (e) {
+    if (!t || e.touches.length !== 2) return;
+    e.preventDefault();
+    var m = mid(e.touches), r = view.getBoundingClientRect();
+    set(t.s * m.d / t.d, { x: t.a.x, y: t.a.y, px: m.x - r.left, py: m.y - r.top });
+  }, { passive: false });
+  view.addEventListener('touchend', function (e) { if (e.touches.length < 2) { t = null; touching = false; } });
+  view.addEventListener('touchcancel', function () { t = null; touching = false; });
+  // Start: fit the width (never above 100%) for wide boards; otherwise 100%.
+  var fit = box.dataset.fit;
+  set(fit === 'width' ? Math.min(1, view.clientWidth / w) : fit === 'all' ? Math.min(1, fitAll()) : 1);
+});
+// Bring a linked sticky into view at the current zoom.
+var target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+if (target && target.closest('.zoom-view')) target.scrollIntoView({ block: 'center', inline: 'center' });
+})();</script>
+</body>
+</html>

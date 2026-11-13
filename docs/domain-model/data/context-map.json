@@ -1,0 +1,29 @@
+{
+  "schema": "context-map/v1",
+  "title": "境界",
+  "checked": { "revision": "b71cb27", "date": "2026-11-13" },
+  "contexts": [
+    { "id": "why-why-mcp", "name": "why-why-mcp", "tech": "TypeScript / Node.js / MCP stdio",
+      "responsibility": "なぜなぜの木を保存し、形を守り、評価し、次の枝を選び、描く",
+      "owns": ["分析の JSON(<project>/.why-why/)", "描いた .mmd と .html"],
+      "contract": ["MCP ツール 11 個(start_analysis〜list_analyses)", "説明文は 2,048 文字以内"],
+      "guarantees": ["枝は消さない", "秘密を伏せ字にしてから保存・送信・描画する", "古い保存で他の書き込みを消さない"],
+      "domains": ["analysis", "evaluation", "sharing"], "changed": true,
+      "evidence": [{ "path": "src/server.ts", "symbol": "createWhyWhyServer", "role": "contract" }] },
+    { "id": "agent", "name": "エージェント(Claude Code / Codex)",
+      "responsibility": "なぜの候補を出し、事実を確かめ、判断し、Inbox に送る",
+      "owns": ["候補の文章", "事実の調査"], "contract": ["skills/why-why/SKILL.md の手順"], "changed": true },
+    { "id": "clef", "name": "Cloudflare Workers AI(Clef)",
+      "responsibility": "問いごとの確率を返す", "owns": ["モデル"],
+      "contract": ["POST /accounts/{id}/ai/run/@cf/cloudflare/{model}", "1〜64問、65,536 トークンまで"], "changed": true },
+    { "id": "inbox", "name": "Plannotator Inbox",
+      "responsibility": "木を人に見せ、返信とコメントをエージェントのセッションに届ける",
+      "owns": ["スレッド", "返信の配送"], "contract": ["send_message(mermaid 本文・添付)", "返信はセッションに届く"], "changed": true }
+  ],
+  "relations": [
+    { "from": "agent", "to": "why-why-mcp", "label": "MCP ツールを呼ぶ", "changed": true },
+    { "from": "why-why-mcp", "to": "clef", "label": "評価の問いを送る(設定時のみ)", "changed": true },
+    { "from": "agent", "to": "inbox", "label": "描いた木を送る", "changed": true },
+    { "from": "inbox", "to": "agent", "label": "人の返信を届ける", "changed": true }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "why-why-mcp",
+  "version": "0.1.0",
+  "description": "Why-why (5 Whys) analysis MCP server: branch the whys as a tree, dig best-first, evaluate with Cloudflare Clef, render for Plannotator Inbox.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "why-why-mcp": "dist/index.js" },
+  "files": ["dist", "skills", "README.md", "LICENSE"],
+  "engines": { "node": ">=22.18" },
+  "repository": { "type": "git", "url": "git+https://github.com/nowly-lab/why-why-mcp.git" },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test 'test/**/*.test.ts'"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
+  }
+}

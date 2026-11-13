@@ -1,0 +1,89 @@
+<!doctype html>
+<!-- 生成物: 直接編集しないでください。元データ: data/*.json。scrum-domain-modeling の scripts/domain-model.mjs render で作り直します。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="generator" content="scrum-domain-modeling/domain-model.mjs">
+<title>用語集 · why-why-mcp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --wall: #fbfbf9; --wall-dot: #dcdcd4; --paper: #ffffff; --ink: #24241f; --ink-soft: #64645b;
+  --line: #d9d9cf; --ring: #6d6d66; --accent: #2f5bd3; --focus: #2563eb; --row: #f4f4ef;
+  --ok: #dbeafe; --bad: #fde2e4; --skip: #ececea; --undef: #fff4cc;
+  --s-event: #ff9e4f; --s-command: #a9cdf1; --s-policy: #b985ca; --s-external: #eda1c6;
+  --s-aggregate: #f4ce2c; --s-readModel: #c6e15c; --s-actor: #fdf6b6; --s-hotspot: #ef7088; --s-ink: #1c1a14; --hot: #ff4030;
+  --f-note: "Klee One", "Hiragino Maru Gothic ProN", "Yu Gothic", cursive;
+  --f-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wall); color: var(--ink); font: 14px/1.65 var(--f-ui); }
+a { color: var(--accent); }
+.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--paper); border-bottom: 1px solid var(--line); }
+.crumb { font-weight: 700; } .crumb span { color: var(--ink-soft); font-weight: 500; margin: 0 6px; }
+.back { text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; color: var(--ink); background: var(--paper); }
+main { padding: 24px max(16px, env(safe-area-inset-left, 0px)) 48px; display: grid; gap: 22px; min-width: 0; }
+h1 { margin: 0; font-size: 26px; line-height: 1.3; text-wrap: balance; }
+h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+.lede { margin: 4px 0 0; color: var(--ink-soft); max-width: 80ch; }
+.meta { font-size: 12px; color: var(--ink-soft); font-family: var(--f-mono); }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--paper); }
+th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+th { background: var(--row); font-weight: 700; white-space: nowrap; }
+code, .path { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0; border-radius: 4px; color: var(--s-ink); font-size: 12px; text-decoration: none; }
+.code { display: inline-block; padding: 0 6px; margin: 2px 4px 2px 0; border-radius: 4px; background: var(--row); border: 1px solid var(--line); font: 12px var(--f-mono); }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; background: rgba(28,26,20,.14); color: var(--s-ink); margin-left: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 18px; border-radius: 2px; vertical-align: -4px; margin-right: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.legend small { color: var(--ink-soft); margin-left: 4px; }
+.foot { font-size: 12px; color: var(--ink-soft); }
+ul.plain { margin: 0; padding-left: 18px; }
+/* What the current plan changes: pulses while main has .show-changed (the toggle on each page). */
+.changes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-left: 4px solid var(--hot); }
+.changes .list { flex: 1 1 320px; min-width: 0; }
+.changes a.item { margin-right: 10px; white-space: nowrap; }
+.toggle { font-size: 13px; white-space: nowrap; }
+.new { display: inline-block; padding: 0 7px; margin-left: 6px; border-radius: 999px; background: var(--hot); color: #fff; font: 700 11px/1.6 var(--f-ui); vertical-align: 1px; }
+@keyframes changed-ping {
+  0% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 4px rgba(255,64,48,.95), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1.15); }
+  20% { filter: brightness(1); }
+  70%, 100% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 40px rgba(255,64,48,0), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1); } }
+@keyframes chip-ping { 0% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 2px rgba(255,64,48,.95); } 70%, 100% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 12px rgba(255,64,48,0); } }
+@keyframes row-flash { 0% { background-color: rgba(255,64,48,.38); } 60%, 100% { background-color: rgba(255,64,48,.1); } }
+@keyframes svg-blink { 50% { stroke-opacity: .25; } }
+.show-changed .chip.changed { box-shadow: 0 0 0 2px var(--ink); animation: chip-ping 1.2s ease-out infinite; }
+.show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { animation: row-flash 1.2s ease-out infinite; }
+.show-changed tr.is-changed > :first-child { box-shadow: inset 4px 0 0 var(--hot); }
+.show-changed .lc.is-changed, .show-changed nav a.is-changed { outline: 3px solid var(--hot); outline-offset: 2px; }
+.show-changed .gbox.is-changed { stroke: var(--hot); stroke-width: 4; animation: svg-blink 1.2s ease-in-out infinite; }
+.show-changed .gedge.is-changed { stroke: var(--hot); stroke-width: 3; animation: svg-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .show-changed .chip.changed, .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed, .show-changed .gbox.is-changed, .show-changed .gedge.is-changed { animation: none; }
+  .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { background-color: rgba(255,64,48,.18); } }
+th[scope=row]{background:var(--paper);white-space:normal;min-width:7em}</style>
+</head>
+<body>
+<header class="top"><div class="crumb">why-why-mcp<span>/</span>ドメインモデル<span>/</span>用語集</div><a class="back" href="index.html">← 一覧へ</a></header>
+<main class="show-changed" id="main">
+<div><h1>用語集</h1><div class="meta">確認したリビジョン b71cb27 · 2026-11-13</div></div>
+<section class="card changes"><h2>今回の計画で変わる用語（14）</h2><div class="list"><a class="item" href="#term-0">分析</a><a class="item" href="#term-1">問題</a><a class="item" href="#term-2">なぜ(ノード)</a><a class="item" href="#term-3">観点</a><a class="item" href="#term-4">未調査の枝</a><a class="item" href="#term-5">葉</a><a class="item" href="#term-6">仮説</a><a class="item" href="#term-7">事実</a><a class="item" href="#term-8">裏付けあり</a><a class="item" href="#term-9">評価</a><a class="item" href="#term-10">確信が低い</a><a class="item" href="#term-11">古い評価</a><a class="item" href="#term-12">優先度</a><a class="item" href="#term-13">Clef</a></div><label class="toggle"><input type="checkbox" id="show-changed" checked> 光らせて示す</label></section>
+<div class="scroll"><table><thead><tr><th>用語</th><th>意味</th><th>コード上の名前</th><th>関係する付箋</th><th>証拠</th></tr></thead><tbody><tr id="term-0" class=" is-changed"><th scope="row">分析<span class="new">変更</span></th><td>1つの問題について作るなぜなぜの木。開いている間だけ変えられる。</td><td><span class="code">Analysis</span></td><td><a class="chip changed" href="big-picture.html#n-agg-analysis" style="background:var(--s-aggregate)" title="集約">分析</a></td><td><div class="path">src/model.ts <span class="code">Analysis</span></div></td></tr><tr id="term-1" class=" is-changed"><th scope="row">問題<span class="new">変更</span></th><td>木の根。いつ・どこで・何が・どうなったかを事実で書いたもの。</td><td><span class="code">problem</span><span class="code">n0</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-start" style="background:var(--s-command)" title="コマンド">分析を始める</a></td><td><span class="foot">—</span></td></tr><tr id="term-2" class=" is-changed"><th scope="row">なぜ(ノード)<span class="new">変更</span></th><td>親の現象が起きた理由の候補。観点と状態を持つ。</td><td><span class="code">WhyNode</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-add-whys" style="background:var(--s-command)" title="コマンド">なぜの候補を足す</a></td><td><div class="path">src/model.ts <span class="code">WhyNode</span></div></td></tr><tr id="term-3" class=" is-changed"><th scope="row">観点<span class="new">変更</span></th><td>なぜを多方向に出すためのチェックリスト。仕組み・道具/人・体制/手順・プロセス/検知/前提・外部。</td><td><span class="code">Viewpoint</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-add-whys" style="background:var(--s-command)" title="コマンド">なぜの候補を足す</a></td><td><div class="path">src/model.ts <span class="code">Viewpoint</span></div></td></tr><tr id="term-4" class=" is-changed"><th scope="row">未調査の枝<span class="new">変更</span></th><td>まだ掘っていない候補(状態 candidate)。消さずに残し、後で戻る。</td><td><span class="code">candidate</span></td><td><a class="chip changed" href="big-picture.html#n-rm-next-branch" style="background:var(--s-readModel)" title="リードモデル">次に掘る枝(未調査の枝の優先度順)</a></td><td><span class="foot">—</span></td></tr><tr id="term-5" class=" is-changed"><th scope="row">葉<span class="new">変更</span></th><td>仕組みを変えれば防げる所まで掘った枝。対策を必ず持つ。</td><td><span class="code">leaf</span><span class="code">countermeasure</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-update-node" style="background:var(--s-command)" title="コマンド">枝の状態を変える</a></td><td><span class="foot">—</span></td></tr><tr id="term-6" class=" is-changed"><th scope="row">仮説<span class="new">変更</span></th><td>事実で確かめられず、理由を書いて止めた枝。</td><td><span class="code">hypothesis</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-update-node" style="background:var(--s-command)" title="コマンド">枝の状態を変える</a></td><td><span class="foot">—</span></td></tr><tr id="term-7" class=" is-changed"><th scope="row">事実<span class="new">変更</span></th><td>ログ・コード・git・数値・文書など、枝を裏付けるか否定する記録。保存前に秘密を伏せ字にする。</td><td><span class="code">Evidence</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-add-evidence" style="background:var(--s-command)" title="コマンド">事実を記録する</a></td><td><div class="path">src/model.ts <span class="code">Evidence</span></div></td></tr><tr id="term-8" class=" is-changed"><th scope="row">裏付けあり<span class="new">変更</span></th><td>その枝を支持する事実(supports: true)が1つ以上あること。</td><td><span class="code">isBacked</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-add-evidence" style="background:var(--s-command)" title="コマンド">事実を記録する</a></td><td><div class="path">src/analysis.ts <span class="code">isBacked</span></div></td></tr><tr id="term-9" class=" is-changed"><th scope="row">評価<span class="new">変更</span></th><td>枝ごとの5つの問い(裏付け・単独で起きるか・有力度・影響・防げるか)の値。問いごとに出どころ(Clef かエージェント)を持つ。</td><td><span class="code">Evaluation</span><span class="code">Field</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-evaluate" style="background:var(--s-command)" title="コマンド">枝を評価する</a><a class="chip changed" href="big-picture.html#n-cmd-record-judgment" style="background:var(--s-command)" title="コマンド">判断を記録する</a></td><td><div class="path">src/model.ts <span class="code">Evaluation</span></div></td></tr><tr id="term-10" class=" is-changed"><th scope="row">確信が低い<span class="new">変更</span></th><td>Clef の はい/いいえ の確率が 0.35〜0.65 の問い。エージェントが判断し直す。</td><td><span class="code">lowConfidence</span></td><td><a class="chip changed" href="big-picture.html#n-pol-low-confidence" style="background:var(--s-policy)" title="ポリシー">確信の低い問いがあったら</a></td><td><span class="foot">—</span></td></tr><tr id="term-11" class=" is-changed"><th scope="row">古い評価<span class="new">変更</span></th><td>評価の後に事実が足された枝の評価。次の枝を選ぶ前に評価し直す。</td><td><span class="code">stale</span></td><td><a class="chip changed" href="big-picture.html#n-pol-stale" style="background:var(--s-policy)" title="ポリシー">評価済みの枝に事実が足されたら</a></td><td><span class="foot">—</span></td></tr><tr id="term-12" class=" is-changed"><th scope="row">優先度<span class="new">変更</span></th><td>有力度 × 影響。同じなら裏付けの確率が高い方。しきい値未満だけになったら分析は終わり。</td><td><span class="code">nextBranch</span></td><td><a class="chip changed" href="big-picture.html#n-rm-next-branch" style="background:var(--s-readModel)" title="リードモデル">次に掘る枝(未調査の枝の優先度順)</a></td><td><div class="path">src/analysis.ts <span class="code">nextBranch</span></div></td></tr><tr id="term-13" class=" is-changed"><th scope="row">Clef<span class="new">変更</span></th><td>Cloudflare の決定モデル。文章を作らず、問いごとの確率を返す。</td><td><span class="code">evaluateWithClef</span></td><td><a class="chip changed" href="big-picture.html#n-ext-clef" style="background:var(--s-external)" title="外部システム">Cloudflare Clef</a></td><td><div class="path">src/clef.ts <span class="code">evaluateWithClef</span></div></td></tr></tbody></table></div>
+</main>
+<script>document.getElementById('show-changed').addEventListener('change', function (e) { document.getElementById('main').classList.toggle('show-changed', e.target.checked); });</script>
+
+
+</body>
+</html>

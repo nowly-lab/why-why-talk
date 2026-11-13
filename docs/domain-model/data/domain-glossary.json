@@ -1,0 +1,29 @@
+{
+  "schema": "domain-glossary/v1",
+  "title": "用語集",
+  "checked": { "revision": "b71cb27", "date": "2026-11-13" },
+  "terms": [
+    { "term": "分析", "meaning": "1つの問題について作るなぜなぜの木。開いている間だけ変えられる。", "code": ["Analysis"], "nodes": ["agg-analysis"], "changed": true,
+      "evidence": [{ "path": "src/model.ts", "symbol": "Analysis" }] },
+    { "term": "問題", "meaning": "木の根。いつ・どこで・何が・どうなったかを事実で書いたもの。", "code": ["problem", "n0"], "nodes": ["cmd-start"], "changed": true },
+    { "term": "なぜ(ノード)", "meaning": "親の現象が起きた理由の候補。観点と状態を持つ。", "code": ["WhyNode"], "nodes": ["cmd-add-whys"], "changed": true,
+      "evidence": [{ "path": "src/model.ts", "symbol": "WhyNode" }] },
+    { "term": "観点", "meaning": "なぜを多方向に出すためのチェックリスト。仕組み・道具/人・体制/手順・プロセス/検知/前提・外部。", "code": ["Viewpoint"], "nodes": ["cmd-add-whys"], "changed": true,
+      "evidence": [{ "path": "src/model.ts", "symbol": "Viewpoint" }] },
+    { "term": "未調査の枝", "meaning": "まだ掘っていない候補(状態 candidate)。消さずに残し、後で戻る。", "code": ["candidate"], "nodes": ["rm-next-branch"], "changed": true },
+    { "term": "葉", "meaning": "仕組みを変えれば防げる所まで掘った枝。対策を必ず持つ。", "code": ["leaf", "countermeasure"], "nodes": ["cmd-update-node"], "changed": true },
+    { "term": "仮説", "meaning": "事実で確かめられず、理由を書いて止めた枝。", "code": ["hypothesis"], "nodes": ["cmd-update-node"], "changed": true },
+    { "term": "事実", "meaning": "ログ・コード・git・数値・文書など、枝を裏付けるか否定する記録。保存前に秘密を伏せ字にする。", "code": ["Evidence"], "nodes": ["cmd-add-evidence"], "changed": true,
+      "evidence": [{ "path": "src/model.ts", "symbol": "Evidence" }] },
+    { "term": "裏付けあり", "meaning": "その枝を支持する事実(supports: true)が1つ以上あること。", "code": ["isBacked"], "nodes": ["cmd-add-evidence"], "changed": true,
+      "evidence": [{ "path": "src/analysis.ts", "symbol": "isBacked" }] },
+    { "term": "評価", "meaning": "枝ごとの5つの問い(裏付け・単独で起きるか・有力度・影響・防げるか)の値。問いごとに出どころ(Clef かエージェント)を持つ。", "code": ["Evaluation", "Field"], "nodes": ["cmd-evaluate", "cmd-record-judgment"], "changed": true,
+      "evidence": [{ "path": "src/model.ts", "symbol": "Evaluation" }] },
+    { "term": "確信が低い", "meaning": "Clef の はい/いいえ の確率が 0.35〜0.65 の問い。エージェントが判断し直す。", "code": ["lowConfidence"], "nodes": ["pol-low-confidence"], "changed": true },
+    { "term": "古い評価", "meaning": "評価の後に事実が足された枝の評価。次の枝を選ぶ前に評価し直す。", "code": ["stale"], "nodes": ["pol-stale"], "changed": true },
+    { "term": "優先度", "meaning": "有力度 × 影響。同じなら裏付けの確率が高い方。しきい値未満だけになったら分析は終わり。", "code": ["nextBranch"], "nodes": ["rm-next-branch"], "changed": true,
+      "evidence": [{ "path": "src/analysis.ts", "symbol": "nextBranch" }] },
+    { "term": "Clef", "meaning": "Cloudflare の決定モデル。文章を作らず、問いごとの確率を返す。", "code": ["evaluateWithClef"], "nodes": ["ext-clef"], "changed": true,
+      "evidence": [{ "path": "src/clef.ts", "symbol": "evaluateWithClef" }] }
+  ]
+}
