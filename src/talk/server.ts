@@ -8,7 +8,7 @@ import { renderResultMarkdown } from "./result.ts";
 import type { TalkSession } from "./session.ts";
 
 export type Outcome = { kind: "sent"; markdown: string } | { kind: "cancelled"; reason: string };
-export type TalkServer = { url: string; outcome: Promise<Outcome>; close(): Promise<void> };
+export type TalkServer = { url: string; outcome: Promise<Outcome>; cancel(reason: string): void; close(): Promise<void> };
 export type ServerDeps = {
   webRoot: string;
   mint: (opts: { fallback: boolean }) => Promise<TokenInfo>;
@@ -123,15 +123,16 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
           await s.persist();
           return json(res, 200, { ok: true });
         }
+        // Answer the page first, then settle: the caller may close the server as soon as the outcome is known.
         case "/api/submit": {
           s.submit(DirectionBody.parse(body));
-          await finish({ kind: "sent", markdown: renderResultMarkdown(s) });
-          return json(res, 200, { ok: true });
+          await respondThen(res, () => finish({ kind: "sent", markdown: renderResultMarkdown(s) }));
+          return;
         }
         case "/api/cancel": {
           s.cancel("取りやめを押した");
-          await finish({ kind: "cancelled", reason: "取りやめを押した" });
-          return json(res, 200, { ok: true });
+          await respondThen(res, () => finish({ kind: "cancelled", reason: "取りやめを押した" }));
+          return;
         }
         default:
           return json(res, 404, { error: "not found" });
@@ -164,6 +165,11 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
   return {
     url: `http://127.0.0.1:${port}`,
     outcome,
+    cancel: (reason: string) => {
+      if (s.status !== "talking") return;
+      s.cancel(reason);
+      void finish({ kind: "cancelled", reason });
+    },
     close: async () => {
       clearInterval(heartbeat);
       if (graceTimer) clearTimeout(graceTimer);
@@ -172,6 +178,14 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
       await new Promise<void>((r) => server.close(() => r()));
     },
   };
+}
+
+async function respondThen(res: ServerResponse, after: () => Promise<void>): Promise<void> {
+  await new Promise<void>((r) => {
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", connection: "close" });
+    res.end(JSON.stringify({ ok: true }), r);
+  });
+  await after();
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {

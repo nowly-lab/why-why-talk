@@ -146,3 +146,17 @@ test("reload within grace keeps session", async () => {
   close2();
   await srv.close();
 });
+
+test("the submit response reaches the page even if the caller closes the server at once", async () => {
+  const { srv, post } = await setup();
+  void srv.outcome.then(() => srv.close());
+  const r = await post("/api/submit", direction);
+  assert.equal(r.status, 200);
+});
+
+test("server cancel settles the outcome", async () => {
+  const { srv } = await setup();
+  srv.cancel("コマンドが止められた");
+  assert.deepEqual(await srv.outcome, { kind: "cancelled", reason: "コマンドが止められた" });
+  await srv.close();
+});
