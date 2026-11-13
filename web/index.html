@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>深掘り</title>
+<style>
+:root {
+  --bg: #f6f7f9; --fg: #111827; --muted: #6b7280; --card: #ffffff; --border: #e5e7eb; --line: #d1d5db;
+  --accent: #4f46e5; --accent-fg: #ffffff; --ok: #15803d; --warn: #b45309; --err: #b91c1c; --dig: #2563eb;
+  --person: #eef2ff; --gemini: #f3f4f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f17; --fg: #e5e7eb; --muted: #9ca3af; --card: #111827; --border: #1f2937; --line: #374151;
+    --accent: #818cf8; --accent-fg: #0b0f17; --ok: #4ade80; --warn: #fbbf24; --err: #f87171; --dig: #60a5fa;
+    --person: #1e1b4b; --gemini: #1f2937;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; display: flex; flex-direction: column; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
+header .label { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+header h1 { margin: 0; font-size: 18px; font-weight: 650; flex: 1 1 320px; }
+#status { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+#status[data-kind="live"] { color: var(--ok); border-color: var(--ok); }
+#status[data-kind="warn"] { color: var(--warn); border-color: var(--warn); }
+#status[data-kind="error"] { color: var(--err); border-color: var(--err); }
+button { font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--fg); padding: 8px 14px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; padding: 16px 20px; min-height: 0; }
+section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 0; }
+section h2 { margin: 0; padding: 10px 14px; font-size: 13px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+.scroll { overflow: auto; padding: 12px 14px; flex: 1; min-height: 0; }
+.line { display: flex; gap: 10px; margin: 6px 0; padding: 8px 10px; border-radius: 10px; }
+.line.person { background: var(--person); }
+.line.gemini { background: var(--gemini); }
+.line .who { font-size: 12px; color: var(--muted); flex: 0 0 52px; padding-top: 2px; }
+.line .said { white-space: pre-wrap; }
+.node { margin: 6px 0 6px calc(var(--depth) * 22px); padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 10px; position: relative; }
+.node::before { content: ""; position: absolute; left: -14px; top: 18px; width: 12px; border-top: 1.5px solid var(--line); }
+.node.s-root { border-color: var(--fg); font-weight: 600; }
+.node.s-root::before { display: none; }
+.node.s-candidate { border-style: dashed; }
+.node.s-digging { border-color: var(--dig); }
+.node.s-leaf { border-color: var(--ok); border-width: 2px; }
+.node.s-rejected { opacity: .55; }
+.node.s-hypothesis { border-color: var(--warn); border-style: dashed; }
+.node.fresh { animation: fresh 2s ease-out; }
+@keyframes fresh { from { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent); } to { box-shadow: none; } }
+.head { display: flex; gap: 6px; align-items: baseline; }
+.mark { color: var(--muted); font-size: 13px; }
+.mark.ok { color: var(--ok); }
+.meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.tag { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; color: var(--muted); }
+.fact { font-size: 13px; margin-top: 4px; }
+.fact.neg, .reason { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.cm { color: var(--ok); font-weight: 600; font-size: 13px; margin-top: 4px; }
+form { padding: 14px 20px 18px; border-top: 1px solid var(--border); background: var(--card); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+form label.wide { grid-column: span 1; }
+textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px; min-height: 72px; resize: vertical; }
+textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
+.actions .hint { margin-right: auto; font-size: 12px; color: var(--muted); }
+body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
+@media (max-width: 860px) {
+  main { grid-template-columns: 1fr; }
+  section { min-height: 260px; }
+  form { grid-template-columns: 1fr; padding: 12px 16px; }
+  header, main { padding-left: 16px; padding-right: 16px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div style="flex: 1 1 320px">
+    <div class="label">深掘り(Gemini Live との壁打ち)</div>
+    <h1 id="topic">読み込んでいます…</h1>
+  </div>
+  <span id="status" data-kind="idle">読み込んでいます…</span>
+  <button id="mic" class="primary" type="button">マイクを開始</button>
+</header>
+<main>
+  <section aria-labelledby="h-talk">
+    <h2 id="h-talk">会話</h2>
+    <div id="transcript" class="scroll" aria-live="polite"></div>
+  </section>
+  <section aria-labelledby="h-tree">
+    <h2 id="h-tree">なぜの木(✓ 事実で裏付けあり / ? まだ裏付けなし)</h2>
+    <div id="tree" class="scroll"></div>
+  </section>
+</main>
+<form id="direction-form">
+  <label>方針(必須)<textarea id="f-direction" name="direction" required></textarea></label>
+  <label>理由<textarea name="reasons"></textarea></label>
+  <label>見送った案<textarea name="rejected"></textarea></label>
+  <label>残った疑問<textarea name="openQuestions"></textarea></label>
+  <div class="actions">
+    <span class="hint">「整理する」で Gemini が下書きを作ります。直してから送信してください。</span>
+    <button id="organise" type="button">整理する</button>
+    <button id="cancel" type="button">取りやめ</button>
+    <button id="send" class="primary" type="submit">送信</button>
+  </div>
+</form>
+<script type="module" src="/main.js"></script>
+</body>
+</html>
