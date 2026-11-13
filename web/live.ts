@@ -1,4 +1,4 @@
-import { GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai";
+import { GoogleGenAI, type LiveCallbacks, type LiveConnectConfig, type LiveServerMessage } from "@google/genai";
 import type { TokenInfo } from "./api.ts";
 import { createRetryBudget, nextConnection, type Connection, type LinkEvent, type LinkState } from "./reconnect.ts";
 
@@ -12,14 +12,31 @@ export type LiveHandlers = {
 
 const QUICK_CLOSE_MS = 3_000;
 
+/** The part of a Live session this page uses. */
+export type LiveSession = {
+  sendClientContent(p: { turns: Array<{ role: string; parts: Array<{ text: string }> }>; turnComplete: boolean }): void;
+  sendRealtimeInput(p: { audio: { data: string; mimeType: string } }): void;
+  sendToolResponse(p: { functionResponses: Array<{ id?: string; name?: string; response: Record<string, unknown> }> }): void;
+  close(): void;
+};
+export type LiveConnect = (token: TokenInfo, config: LiveConnectConfig, callbacks: LiveCallbacks) => Promise<LiveSession>;
+
+const sdkConnect: LiveConnect = (token, config, callbacks) =>
+  new GoogleGenAI({ apiKey: token.token, httpOptions: { apiVersion: "v1beta" } }).live.connect({ model: token.model, config, callbacks });
+
 /**
  * One talk with Gemini Live, across several WebSocket connections. Each connection uses a fresh
  * single-use token from the local server; the session-resumption handle carries the conversation over.
  * Only one (re)connect runs at a time; each connection answers its own tool calls; failures back off.
  */
-export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>, h: LiveHandlers, opts: { hasHistory: boolean }) {
+export function connectLive(
+  getToken: (fallback: boolean) => Promise<TokenInfo>,
+  h: LiveHandlers,
+  opts: { hasHistory: boolean; connect?: LiveConnect },
+) {
+  const connect = opts.connect ?? sdkConnect;
   const state: LinkState = { handle: null, connectedAt: null };
-  let current: Session | null = null;
+  let current: LiveSession | null = null;
   let closedByUs = false;
   let busy = false;
   const budget = createRetryBudget();
@@ -28,26 +45,23 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
   async function open(conn: Connection): Promise<void> {
     h.onStatus(state.connectedAt === null ? "connecting" : "reconnecting");
     const token = await getToken(conn.fallback);
-    const ai = new GoogleGenAI({ apiKey: token.token, httpOptions: { apiVersion: "v1beta" } });
-    let mine: Session | null = null;
+    let mine: LiveSession | null = null;
     let openedAt = 0;
-    const config = { ...token.config, sessionResumption: { handle: conn.handle ?? undefined } };
-    mine = await ai.live.connect({
-      model: token.model,
-      config,
-      callbacks: {
+    let alive = true;
+    const config = { ...token.config, sessionResumption: { handle: conn.handle ?? undefined } } as LiveConnectConfig;
+    mine = await connect(token, config, {
         onmessage: (m: LiveServerMessage) => void onMessage(mine!, m),
         onerror: (e: ErrorEvent) => {
           if (mine === current) h.onStatus("error", e.message);
         },
         onclose: (e: CloseEvent) => {
+          alive = false;
           if (mine !== current || closedByUs) return;
           const quick = Date.now() - openedAt < QUICK_CLOSE_MS;
           if (quick && conn.handle !== null) void event({ kind: "handleRejected" }, e.reason);
           else if (quick) scheduleRetry(conn, e.reason || "closed right after connecting");
           else void event({ kind: "closed" }, e.reason);
         },
-      },
     });
     openedAt = Date.now();
     const previous = current;
@@ -55,8 +69,9 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
     state.connectedAt = openedAt;
     previous?.close();
     budget.connected();
+    // Only a connection that is still open after QUICK_CLOSE_MS earns back the retry budget.
     setTimeout(() => {
-      if (current === mine) budget.stable();
+      if (current === mine && alive) budget.stable();
     }, QUICK_CLOSE_MS);
     h.onStatus("connected");
     if (conn.fallback) {
@@ -67,7 +82,7 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
   }
 
   // Messages from an older connection that is still draining are handled too (a tool call there must still land).
-  async function onMessage(from: Session, m: LiveServerMessage): Promise<void> {
+  async function onMessage(from: LiveSession, m: LiveServerMessage): Promise<void> {
     const sc = m.serverContent;
     if (sc?.interrupted) h.onInterrupted();
     for (const part of sc?.modelTurn?.parts ?? []) {
