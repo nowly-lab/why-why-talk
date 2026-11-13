@@ -124,8 +124,28 @@ function readAnswer(raw: unknown, f: Field): { value: number; lowConfidence: boo
   if (typeof ans.score !== "number") return null;
   const max = q.criteria.length - 1;
   const value = Math.min(1, Math.max(0, ans.score / max));
+  const upper = upperHalf((raw as { probabilities?: unknown }).probabilities, q.criteria.length);
+  if (upper !== null) return { value, lowConfidence: upper >= LOW_NOUL[0] && upper <= LOW_NOUL[1] };
   const confidence = typeof ans.confidence === "number" ? ans.confidence : 1;
   return { value, lowConfidence: confidence < LOW_SCORE_CONFIDENCE };
+}
+
+/**
+ * Probability that the level is in the upper half of the scale. Clef's own `confidence` is low whenever the
+ * mass is split between two neighbouring levels (高い vs ほぼ確実), which still ranks a branch clearly; what makes a
+ * score unsure for ranking is a split between the lower and the upper half, judged like a yes/no question.
+ */
+function upperHalf(probabilities: unknown, levels: number): number | null {
+  if (!probabilities || typeof probabilities !== "object") return null;
+  let upper = 0;
+  let total = 0;
+  for (const [k, p] of Object.entries(probabilities as Record<string, unknown>)) {
+    const level = Number(k);
+    if (!Number.isInteger(level) || typeof p !== "number") continue;
+    total += p;
+    if (level >= levels / 2) upper += p;
+  }
+  return total > 0 ? upper / total : null;
 }
 
 function stateFor(a: Analysis, nodeIds: string[]): unknown {

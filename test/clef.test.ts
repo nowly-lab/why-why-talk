@@ -62,7 +62,7 @@ test("parses noul and score answers", async () => {
   assert.equal(v.supported?.lowConfidence, false);
   assert.ok(Math.abs((v.likelihood?.value ?? 0) - 0.8) < 1e-9);
   assert.equal(v.likelihood?.lowConfidence, false);
-  assert.ok(Math.abs((v.impact?.value ?? 0) - 0.3) < 1e-9);
+  assert.ok(Math.abs((v.impact?.value ?? 0) - 1.45 / 3) < 1e-9);
   assert.equal(v.impact?.lowConfidence, true);
   assert.equal(v.preventable?.value, 0.12);
 });
@@ -100,4 +100,20 @@ test("network failure gives needsJudgment", async () => {
   }) as typeof fetch;
   const r = await evaluateWithClef(cfg, analysis(1), ["n1"], failing);
   assert.match(r.needsJudgment[0].why, /fetch failed/);
+});
+
+test("score confidence comes from the lower vs upper half, not the top level", async () => {
+  const answer = (probabilities: Record<string, number>, confidence: number) => ({
+    result: { answers: { "n1.likelihood": { type: "score", score: 2, legend: {}, probabilities, confidence } } },
+    success: true,
+  });
+  // Split between 高い and ほぼ確実: clearly likely, even though Clef's own confidence is low.
+  let r = await evaluateWithClef(cfg, analysis(1), ["n1"], fakeFetch(200, answer({ 0: 0.02, 1: 0.06, 2: 0.55, 3: 0.37 }, 0.26)));
+  assert.equal(r.values.n1.likelihood?.lowConfidence, false);
+  // Split between the lower and upper halves: genuinely unsure.
+  r = await evaluateWithClef(cfg, analysis(1), ["n1"], fakeFetch(200, answer({ 0: 0.24, 1: 0.2, 2: 0.23, 3: 0.33 }, 0.01)));
+  assert.equal(r.values.n1.likelihood?.lowConfidence, true);
+  // No probabilities: fall back to Clef's confidence.
+  r = await evaluateWithClef(cfg, analysis(1), ["n1"], fakeFetch(200, { result: { answers: { "n1.likelihood": { type: "score", score: 2, confidence: 0.2 } } }, success: true }));
+  assert.equal(r.values.n1.likelihood?.lowConfidence, true);
 });

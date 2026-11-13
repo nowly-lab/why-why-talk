@@ -8,13 +8,13 @@
         "type": "score", "score": 2.4,
         "legend": { "0": "低い", "1": "中くらい", "2": "高い", "3": "ほぼ確実" },
         "probabilities": { "0": 0.02, "1": 0.08, "2": 0.38, "3": 0.52 },
-        "confidence": 0.52
+        "confidence": 0.26
       },
       "n1.impact": {
-        "type": "score", "score": 0.9,
+        "type": "score", "score": 1.45,
         "legend": { "0": "小さい", "1": "中くらい", "2": "大きい", "3": "重大" },
-        "probabilities": { "0": 0.35, "1": 0.4, "2": 0.15, "3": 0.1 },
-        "confidence": 0.4
+        "probabilities": { "0": 0.25, "1": 0.25, "2": 0.3, "3": 0.2 },
+        "confidence": 0.05
       },
       "n1.preventable": { "type": "noul", "noul": 0.12 }
     },
