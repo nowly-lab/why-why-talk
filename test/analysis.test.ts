@@ -188,3 +188,8 @@ test("nextBranch done below 0.2 keeps nodes", () => {
 test("nextBranch done when no candidates", () => {
   assert.deepEqual(nextBranch(base(), 0.2), { kind: "done", below: [] });
 });
+
+test("addEvidence keeps commit hashes in git refs", () => {
+  const a = addEvidence(withTwo(), "n1", { kind: "git", ref: "0123456789abcdef0123456789abcdef01234567", summary: "key rotated", supports: true }, now);
+  assert.equal(a.nodes[1].evidence[0].ref, "0123456789abcdef0123456789abcdef01234567");
+});

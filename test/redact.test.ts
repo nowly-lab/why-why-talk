@@ -25,3 +25,34 @@ test("redactSecrets keeps a normal sentence", () => {
   const s = "決済APIのキーが期限切れで、認証エラーが 2026-11-13 10:00 から増えた";
   assert.equal(redactSecrets(s), s);
 });
+
+test("redactSecrets masks a key in text with colons and equals", () => {
+  for (const s of [
+    "key sk-abcdefghijklmnopqrstuvwx leaked at 10:30",
+    "a=1 token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123 b=2",
+    "at 10:30 hash 0123456789abcdef0123456789abcdef0123456789abcdef",
+    "x: QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9w y=z",
+  ]) {
+    const out = redactSecrets(s);
+    assert.ok(out.includes("[REDACTED]"), out);
+    assert.ok(!/sk-abcdefghij|ghp_ABCDEF|0123456789abcdef0123|QUJDREVGR0hJ/.test(out), out);
+    assert.ok(out.length < s.length + 20, `text was duplicated: ${out}`);
+  }
+});
+
+test("redactSecrets keeps paths and URLs", () => {
+  for (const s of [
+    "/Users/me/src/payments/payment_webhook_handler_v2_final.ts",
+    "https://github.com/nowly-lab/why-why-mcp/blob/main/src/analysis_and_rendering_helpers.ts",
+    "apps/voice-service/src/handlers/settle_usage_log_after_ticket_redeemed.ts",
+  ]) {
+    assert.equal(redactSecrets(s), s);
+  }
+});
+
+test("redactSecrets keeps git object names when asked", () => {
+  const sha = "commit 0123456789abcdef0123456789abcdef01234567";
+  assert.equal(redactSecrets(sha, { keepHashes: true }), sha);
+  assert.ok(redactSecrets(sha).includes("[REDACTED]"));
+  assert.ok(redactSecrets("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123", { keepHashes: true }).includes("[REDACTED]"));
+});

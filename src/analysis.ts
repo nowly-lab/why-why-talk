@@ -74,7 +74,8 @@ export function addWhys(
 export function addEvidence(a: Analysis, nodeId: string, ev: Evidence, now: Clock): Analysis {
   assertOpen(a);
   const node = findNode(a, nodeId);
-  const evidence = [...node.evidence, { ...ev, ref: redactSecrets(ev.ref), summary: redactSecrets(ev.summary) }];
+  const ref = redactSecrets(ev.ref, { keepHashes: ev.kind === "git" });
+  const evidence = [...node.evidence, { ...ev, ref, summary: redactSecrets(ev.summary) }];
   const ranks = node.state === "candidate" || node.state === "digging";
   const evaluation = node.evaluation && ranks ? { ...node.evaluation, stale: true } : node.evaluation;
   return replaceNode(a, { ...node, evidence, evaluation }, now);

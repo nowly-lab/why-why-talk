@@ -1,22 +1,38 @@
 const MASK = "[REDACTED]";
 
-const PATTERNS: RegExp[] = [
-  /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi,
-  /\bsk[-_][A-Za-z0-9_-]{16,}/g,
-  /\bgh[pousr]_[A-Za-z0-9]{20,}/g,
-  /\b(password|passwd|secret|token|api[_-]?key)(\s*[=:]\s*)("[^"]*"|'[^']*'|\S+)/gi,
-  /\b[0-9a-fA-F]{32,}\b/g,
-  /[A-Za-z0-9+/_-]{40,}={0,2}/g,
+type Rule = { re: RegExp; replace: (match: string, ...groups: string[]) => string; hash?: true };
+
+const RULES: Rule[] = [
+  // Authorization headers: keep the scheme, mask the credential.
+  { re: /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, replace: (_m, scheme) => `${scheme} ${MASK}` },
+  // key=value / key: value for secret-looking keys: keep the key and separator.
+  {
+    re: /\b(password|passwd|secret|token|api[_-]?key)(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi,
+    replace: (_m, key, sep) => `${key}${sep}${MASK}`,
+  },
+  { re: /\bsk[-_][A-Za-z0-9_-]{16,}/g, replace: () => MASK },
+  { re: /\bgh[pousr]_[A-Za-z0-9]{20,}/g, replace: () => MASK },
+  // Long hex strings (keys, signatures). Git object names look the same; see `keepHashes`.
+  { re: /\b[0-9a-fA-F]{32,}\b/g, replace: () => MASK, hash: true },
+  // Long base64-like tokens: one unbroken run of 40+ characters mixing upper case, lower case and digits.
+  // Paths and URLs split at "/" into short segments, so they are left alone.
+  {
+    re: /[A-Za-z0-9+/_-]{40,}={0,2}/g,
+    replace: (m) => (m.split("/").some((seg) => seg.length >= 40 && /[A-Z]/.test(seg) && /[a-z]/.test(seg) && /\d/.test(seg)) ? MASK : m),
+  },
 ];
 
-/** Replaces common credential shapes with `[REDACTED]`. Applied before anything is stored, sent or drawn. */
-export function redactSecrets(text: string): string {
+/**
+ * Replaces common credential shapes with `[REDACTED]`. Applied before anything is stored, sent or drawn.
+ * `keepHashes` leaves long hex strings (git commit and object names) alone; use it only for git references.
+ */
+export function redactSecrets(text: string, opts: { keepHashes?: boolean } = {}): string {
   let out = text;
-  for (const re of PATTERNS) {
-    out = out.replace(re, (match, ...groups: unknown[]) => {
-      if (/^(Bearer|Basic)\s/i.test(match)) return `${String(groups[0])} ${MASK}`;
-      if (typeof groups[1] === "string" && /[=:]/.test(groups[1])) return `${String(groups[0])}${groups[1]}${MASK}`;
-      return MASK;
+  for (const rule of RULES) {
+    if (rule.hash && opts.keepHashes) continue;
+    out = out.replace(rule.re, (match: string, ...rest: unknown[]) => {
+      const groups = rest.filter((g): g is string => typeof g === "string").slice(0, -1);
+      return rule.replace(match, ...groups);
     });
   }
   return out;
