@@ -1,0 +1,26 @@
+{
+  "result": {
+    "model": "clef-flash",
+    "answers": {
+      "n1.supported": { "type": "noul", "noul": 0.91 },
+      "n1.sufficient": { "type": "noul", "noul": 0.5 },
+      "n1.likelihood": {
+        "type": "score", "score": 2.4,
+        "legend": { "0": "低い", "1": "中くらい", "2": "高い", "3": "ほぼ確実" },
+        "probabilities": { "0": 0.02, "1": 0.08, "2": 0.38, "3": 0.52 },
+        "confidence": 0.52
+      },
+      "n1.impact": {
+        "type": "score", "score": 0.9,
+        "legend": { "0": "小さい", "1": "中くらい", "2": "大きい", "3": "重大" },
+        "probabilities": { "0": 0.35, "1": 0.4, "2": 0.15, "3": 0.1 },
+        "confidence": 0.4
+      },
+      "n1.preventable": { "type": "noul", "noul": 0.12 }
+    },
+    "usage": { "input_tokens": 812, "output_tokens": 0 }
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
