@@ -148,3 +148,9 @@ test("context is redacted on the way in", async () => {
   const s = new TalkSession({ topic: "t", context: "token=supersecretvalue123", outDir });
   assert.ok(!s.context.includes("supersecretvalue123"));
 });
+
+test("concurrent persists do not collide", async () => {
+  const { s } = await session();
+  for (let i = 0; i < 5; i++) s.appendTranscript("person", `発言${i}`);
+  await Promise.all(Array.from({ length: 8 }, () => s.persist()));
+});

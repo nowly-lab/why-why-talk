@@ -33,6 +33,7 @@ export class TalkSession {
   status: SessionStatus = "talking";
   cancelReason: string | null = null;
   private readonly now: Clock;
+  private saving: Promise<void> = Promise.resolve();
 
   constructor(input: { topic: string; context: string; outDir: string; now?: Clock }) {
     this.now = input.now ?? (() => new Date().toISOString());
@@ -135,8 +136,14 @@ export class TalkSession {
     this.cancelReason = reason;
   }
 
-  /** Writes the record under outDir, redacted, each file atomically. */
-  async persist(): Promise<void> {
+  /** Writes the record under outDir, redacted, each file atomically. Saves run one at a time. */
+  persist(): Promise<void> {
+    const run = this.saving.then(() => this.writeRecord());
+    this.saving = run.catch(() => undefined);
+    return run;
+  }
+
+  private async writeRecord(): Promise<void> {
     await mkdir(this.outDir, { recursive: true });
     const files: Array<[string, string]> = [
       ["session.json", JSON.stringify({ ...this.snapshot(), context: this.context, cancelReason: this.cancelReason }, null, 2)],
