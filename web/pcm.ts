@@ -21,3 +21,18 @@ export function pcm16Base64ToFloat(b64: string): Float32Array<ArrayBuffer> {
   for (let i = 0; i < out.length; i++) out[i] = view.getInt16(i * 2, true) / 0x8000;
   return out;
 }
+
+/** Averages blocks of samples to go from the device rate to 16 kHz (Firefox will not open a 16 kHz mic context). */
+export function downsample(input: Float32Array, fromRate: number, toRate: number): Float32Array {
+  if (fromRate === toRate) return input;
+  const ratio = fromRate / toRate;
+  const out = new Float32Array(Math.floor(input.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const start = Math.floor(i * ratio);
+    const end = Math.min(input.length, Math.floor((i + 1) * ratio));
+    let sum = 0;
+    for (let j = start; j < end; j++) sum += input[j];
+    out[i] = sum / Math.max(1, end - start);
+  }
+  return out;
+}

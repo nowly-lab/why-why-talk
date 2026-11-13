@@ -1,6 +1,7 @@
 import { createApi, loadSession, type Direction } from "./api.ts";
 import { createPlayer, startMic } from "./audio.ts";
 import { connectLive } from "./live.ts";
+import { createSerialQueue } from "./queue.ts";
 import { appendFragment, type Line } from "./transcript.ts";
 import type { TreeNode } from "./tree-rows.ts";
 import { fillDirection, readDirection, renderTranscript, renderTree } from "./ui.ts";
@@ -41,13 +42,15 @@ export async function boot(): Promise<void> {
   let mic: Awaited<ReturnType<typeof startMic>> | null = null;
   let muted = false;
 
+  const sendInOrder = createSerialQueue();
+  const hasHistory = view.transcript.length > 0 || view.tree.length > 1;
   const live = connectLive((fallback) => api.token(fallback), {
     onAudio: (b64) => player.play(b64),
     onInterrupted: () => player.interrupt(),
     onTranscript: (speaker, text) => {
       lines = appendFragment(lines, speaker, text, Date.now());
       renderTranscript(transcriptEl, lines);
-      void api.transcript(speaker, text).catch(() => undefined);
+      void sendInOrder(() => api.transcript(speaker, text)).catch(() => undefined);
     },
     onToolCall: async (calls) => {
       const out = [];
@@ -69,9 +72,15 @@ export async function boot(): Promise<void> {
       else if (s === "connecting") setStatus("Gemini につないでいます…", "idle");
       else if (s === "reconnecting") setStatus("つなぎ直しています…", "warn");
       else if (s === "error") setStatus(`接続のエラー: ${detail ?? ""}`, "error");
+      else if (s === "failed") {
+        setStatus(`つなげませんでした: ${detail ?? ""}`, "error");
+        micBtn.textContent = "つなぎ直す";
+        retryMode = true;
+      }
       else setStatus("会話を止めました", "idle");
     },
-  });
+  }, { hasHistory });
+  let retryMode = false;
 
   async function refresh(fresh: Set<string>): Promise<void> {
     const v = await loadSession();
@@ -81,9 +90,16 @@ export async function boot(): Promise<void> {
   }
 
   micBtn.addEventListener("click", async () => {
+    if (retryMode) {
+      retryMode = false;
+      micBtn.textContent = muted ? "ミュート解除" : "ミュート";
+      live.retry();
+      return;
+    }
     if (!mic) {
       micBtn.disabled = true;
       try {
+        await player.resume();
         mic = await startMic((b64) => live.sendAudio(b64));
         await live.start();
         micBtn.textContent = "ミュート";

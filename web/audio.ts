@@ -1,17 +1,19 @@
-import { floatToPcm16Base64, pcm16Base64ToFloat } from "./pcm.ts";
+import { downsample, floatToPcm16Base64, pcm16Base64ToFloat } from "./pcm.ts";
 
 /** Microphone at 16 kHz, delivered as base64 PCM16 chunks (~100 ms). */
 export async function startMic(onChunk: (base64: string) => void): Promise<{ stop(): void; setMuted(m: boolean): void }> {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
   });
-  const ctx = new AudioContext({ sampleRate: 16_000 });
+  // Open the mic at the device rate (Firefox refuses a 16 kHz context for a 48 kHz device) and downsample.
+  const ctx = new AudioContext();
+  await ctx.resume();
   await ctx.audioWorklet.addModule("/audio-worklet.js");
   const source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, "mic-chunker");
   let muted = false;
   node.port.onmessage = (e: MessageEvent<Float32Array>) => {
-    if (!muted) onChunk(floatToPcm16Base64(e.data));
+    if (!muted) onChunk(floatToPcm16Base64(downsample(e.data, ctx.sampleRate, 16_000)));
   };
   source.connect(node);
   return {
@@ -28,7 +30,7 @@ export async function startMic(onChunk: (base64: string) => void): Promise<{ sto
 }
 
 /** Plays Gemini's 24 kHz PCM16 audio back to back; `interrupt` stops what is queued (the person spoke over it). */
-export function createPlayer(): { play(base64: string): void; interrupt(): void; close(): void } {
+export function createPlayer(): { play(base64: string): void; interrupt(): void; resume(): Promise<void>; close(): void } {
   const ctx = new AudioContext({ sampleRate: 24_000 });
   let playhead = 0;
   const playing = new Set<AudioBufferSourceNode>();
@@ -52,6 +54,8 @@ export function createPlayer(): { play(base64: string): void; interrupt(): void;
       playing.clear();
       playhead = ctx.currentTime;
     },
+    // Safari keeps a context made before a click suspended; call this from the click that starts the talk.
+    resume: () => ctx.resume(),
     close() {
       void ctx.close();
     },

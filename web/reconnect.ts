@@ -1,9 +1,18 @@
 /** A Live connection lasts about 10 minutes and a token 30; reconnect before either runs out. */
 export const PROACTIVE_RECONNECT_MS = 25 * 60_000;
+export const MAX_RETRIES = 6;
+const BASE_DELAY_MS = 1_000;
+const MAX_DELAY_MS = 30_000;
+
+/** Wait before retry number `attempt` (0-based): 1 s, 2 s, 4 s … capped at 30 s; null after MAX_RETRIES. */
+export function retryDelay(attempt: number): number | null {
+  if (attempt >= MAX_RETRIES) return null;
+  return Math.min(MAX_DELAY_MS, BASE_DELAY_MS * 2 ** attempt);
+}
 
 export type LinkState = { handle: string | null; connectedAt: number | null };
 export type LinkEvent =
-  | { kind: "start" }
+  | { kind: "start"; hasHistory: boolean }
   | { kind: "goAway" }
   | { kind: "closed" }
   | { kind: "handleRejected" }
@@ -17,7 +26,8 @@ export type Connection = { handle: string | null; fallback: boolean };
 export function nextConnection(state: LinkState, event: LinkEvent): Connection | null {
   switch (event.kind) {
     case "start":
-      return { handle: null, fallback: false };
+      // A reloaded page has no handle; when the talk already has history, seed the new Live session with it.
+      return { handle: null, fallback: event.hasHistory };
     case "goAway":
     case "closed":
       return state.handle ? { handle: state.handle, fallback: false } : { handle: null, fallback: true };

@@ -1,8 +1,8 @@
-// Collects mic samples into ~100 ms chunks and posts them to the page. Runs in an AudioContext at 16 kHz.
+// Collects mic samples into ~100 ms chunks (at the context's own rate) and posts them to the page.
 class MicChunker extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.buffer = new Float32Array(1600);
+    this.buffer = new Float32Array(Math.round(sampleRate / 10));
     this.length = 0;
   }
   process(inputs) {

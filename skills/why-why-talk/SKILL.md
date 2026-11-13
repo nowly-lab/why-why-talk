@@ -34,7 +34,7 @@ npx -y github:nowly-lab/why-why-talk --topic "<the point>" --context <file.md>
 ```
 
 - **Claude Code:** run it with the Bash tool and `run_in_background: true`, `timeout: 7200000`, then end your turn. You are notified when the person sends or cancels; read the output then.
-- **Codex:** run it in the foreground with the longest timeout available.
+- **Codex:** run it in the foreground with the longest timeout available. It needs network access (fetching from GitHub, and the local server mints Gemini tokens), so it may need sandbox approval.
 - Options: `--out <dir>` (default `.why-why/<time>-<slug>/` in the working folder), `--no-open` (print the URL only; the URL is always on stderr).
 
 ## Result
@@ -43,7 +43,9 @@ npx -y github:nowly-lab/why-why-talk --topic "<the point>" --context <file.md>
 | --- | --- | --- |
 | 0 | The person sent it | Markdown: 方針, 理由, 見送った案, 残った疑問, なぜの木 (Mermaid + node list), 会話の全文, then a `files:` line |
 | 1 | Cancelled, or the tab was closed for 60 s | `取りやめ (<reason>) record: <dir>` |
-| 2 | Could not start (no key, bad arguments) | message on stderr |
+| 2 | Could not start (no key, bad arguments, unwritable `--out`) | message on stderr |
+
+Treat exit 0 with an empty or malformed body (no `# 深掘りの結果:` heading) as a failure, not as the person's answer. If no page connects within 10 minutes the command gives up with exit 1 (`画面が開かれなかった`).
 
 ## After
 

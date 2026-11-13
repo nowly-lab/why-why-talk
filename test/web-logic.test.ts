@@ -4,6 +4,9 @@ import { appendFragment, type Line } from "../web/transcript.ts";
 import { nextConnection, PROACTIVE_RECONNECT_MS, type LinkState } from "../web/reconnect.ts";
 import { floatToPcm16Base64, pcm16Base64ToFloat } from "../web/pcm.ts";
 import { treeRows } from "../web/tree-rows.ts";
+import { retryDelay, MAX_RETRIES } from "../web/reconnect.ts";
+import { downsample } from "../web/pcm.ts";
+import { createSerialQueue } from "../web/queue.ts";
 
 test("transcript fragments merge per speaker within 4s", () => {
   let lines: Line[] = [];
@@ -20,7 +23,7 @@ test("transcript fragments merge per speaker within 4s", () => {
 
 test("reconnect: first connect has no handle", () => {
   const s: LinkState = { handle: null, connectedAt: null };
-  assert.deepEqual(nextConnection(s, { kind: "start" }), { handle: null, fallback: false });
+  assert.deepEqual(nextConnection(s, { kind: "start", hasHistory: false }), { handle: null, fallback: false });
 });
 
 test("reconnect: goAway or close resumes with the handle", () => {
@@ -62,4 +65,34 @@ test("tree rows are depth-first with depth", () => {
     { id: "n3", parentId: "n1", text: "a1", state: "candidate" },
   ];
   assert.deepEqual(treeRows(nodes).map((r) => [r.node.id, r.depth]), [["n0", 0], ["n1", 1], ["n3", 2], ["n2", 1]]);
+});
+
+
+test("reconnect: a reloaded page with history starts seeded", () => {
+  assert.deepEqual(nextConnection({ handle: null, connectedAt: null }, { kind: "start", hasHistory: true }), { handle: null, fallback: true });
+  assert.deepEqual(nextConnection({ handle: null, connectedAt: null }, { kind: "start", hasHistory: false }), { handle: null, fallback: false });
+});
+
+test("reconnect: backoff doubles and caps, then gives up", () => {
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(retryDelay), [1000, 2000, 4000, 8000, 16000, 30000]);
+  assert.equal(retryDelay(MAX_RETRIES), null);
+});
+
+test("downsample 48 kHz to 16 kHz keeps a third of the samples and averages", () => {
+  const input = new Float32Array([0.3, 0.3, 0.3, -0.6, -0.6, -0.6, 0.9, 0.9, 0.9]);
+  const out = downsample(input, 48_000, 16_000);
+  assert.equal(out.length, 3);
+  assert.ok(Math.abs(out[0] - 0.3) < 1e-6 && Math.abs(out[1] + 0.6) < 1e-6 && Math.abs(out[2] - 0.9) < 1e-6);
+  assert.equal(downsample(input, 16_000, 16_000), input);
+});
+
+test("serial queue runs tasks in order even when earlier ones are slower", async () => {
+  const q = createSerialQueue();
+  const order: number[] = [];
+  const slow = q(async () => { await new Promise((r) => setTimeout(r, 30)); order.push(1); });
+  const fast = q(async () => { order.push(2); });
+  const failing = q(async () => { throw new Error("x"); });
+  const after = q(async () => { order.push(3); });
+  await Promise.allSettled([slow, fast, failing, after]);
+  assert.deepEqual(order, [1, 2, 3]);
 });
