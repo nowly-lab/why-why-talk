@@ -35,12 +35,15 @@ export class TalkSession {
   private readonly now: Clock;
   private saving: Promise<void> = Promise.resolve();
 
-  constructor(input: { topic: string; context: string; outDir: string; now?: Clock }) {
+  private readonly secrets: string[];
+
+  constructor(input: { topic: string; context: string; outDir: string; now?: Clock; secrets?: string[] }) {
+    this.secrets = input.secrets ?? [];
     this.now = input.now ?? (() => new Date().toISOString());
     this.id = randomBytes(6).toString("hex");
     this.nonce = randomBytes(16).toString("hex");
-    this.topic = redactSecrets(input.topic.trim());
-    this.context = redactSecrets(input.context);
+    this.topic = redactSecrets(input.topic.trim(), { extra: this.secrets });
+    this.context = redactSecrets(input.context, { extra: this.secrets });
     this.outDir = input.outDir;
     this.startedAt = this.now();
     this.analysis = startAnalysis({ id: `talk-${this.id}`, title: this.topic, problem: this.topic }, this.now);
@@ -156,7 +159,7 @@ export class TalkSession {
     for (const [name, text] of files) {
       const file = join(this.outDir, name);
       const tmp = `${file}.tmp-${process.pid}`;
-      await writeFile(tmp, redactSecrets(text), "utf8");
+      await writeFile(tmp, redactSecrets(text, { extra: this.secrets }), "utf8");
       await rename(tmp, file);
     }
   }

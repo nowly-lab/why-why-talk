@@ -88,3 +88,10 @@ test("minted payload never contains the api key", async () => {
   );
   assert.ok(!JSON.stringify(info).includes("AIza-secret-key"));
 });
+
+test("fallback seed is redacted", async () => {
+  const s = await session();
+  s.appendTranscript("person", "トークンは ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123 です");
+  const text = systemInstruction(s, { fallback: true });
+  assert.ok(!text.includes("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123"));
+});

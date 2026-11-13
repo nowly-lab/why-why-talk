@@ -110,3 +110,32 @@ test("SIGTERM cancels and exits 1", async () => {
   assert.equal(code, 1);
   assert.match(stdout, /^取りやめ \(コマンドが止められた\)/);
 });
+
+test("runs when started through a symlink (npm bin)", async () => {
+  const { symlink } = await import("node:fs/promises");
+  const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
+  const link = join(cwd, "why-why-talk");
+  await symlink(CLI, link);
+  const child = spawn(process.execPath, [link, "--help"], { cwd, env: { PATH: process.env.PATH } });
+  let stdout = "";
+  child.stdout.on("data", (d) => (stdout += d));
+  const code = await new Promise<number | null>((r) => child.on("close", r));
+  assert.equal(code, 0);
+  assert.match(stdout, /why-why-talk --topic/);
+});
+
+test("unwritable out dir exits 2 instead of hanging", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
+  const file = join(cwd, "not-a-dir");
+  await writeFile(file, "x");
+  const r = await run(["--topic", "論点", "--no-open", "--out", join(file, "sub")], { GEMINI_API_KEY: "k" }, cwd).done;
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /out/);
+});
+
+test("no page within the first-connect limit cancels with exit 1", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
+  const r = await run(["--topic", "論点", "--no-open"], { GEMINI_API_KEY: "k", WHY_WHY_FIRST_CONNECT_MS: "300" }, cwd).done;
+  assert.equal(r.code, 1);
+  assert.match(r.stdout, /画面が開かれなかった/);
+});

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,8 @@ Usage:
   why-why-talk --topic "<question>" [--context <file>] [--out <dir>] [--no-open]
 
 Exit codes: 0 sent (result Markdown on stdout), 1 cancelled or tab closed, 2 failure.
-Env: GEMINI_API_KEY (required), WHY_WHY_LIVE_MODEL (default ${DEFAULT_MODEL}), WHY_WHY_VOICE (default ${DEFAULT_VOICE}), WHY_WHY_BROWSER=none.
+Env: GEMINI_API_KEY (required), WHY_WHY_LIVE_MODEL (default ${DEFAULT_MODEL}), WHY_WHY_VOICE (default ${DEFAULT_VOICE}), WHY_WHY_BROWSER=none,
+     WHY_WHY_FIRST_CONNECT_MS (default 600000: give up when no page connects).
 `;
 
 type IO = { out: (s: string) => void; err: (s: string) => void };
@@ -63,14 +64,22 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
   }
   const outDir = values.out ? resolve(cwd, values.out) : join(cwd, ".why-why", `${stamp(new Date())}-${slug(topic)}`);
-  const session = new TalkSession({ topic, context, outDir });
+  const session = new TalkSession({ topic, context, outDir, secrets: [apiKey] });
   const model = env.WHY_WHY_LIVE_MODEL?.trim() || DEFAULT_MODEL;
   const voice = env.WHY_WHY_VOICE?.trim() || DEFAULT_VOICE;
 
-  const server = await startTalkServer(session, {
-    webRoot: webRoot(),
-    mint: (opts) => mintToken({ apiKey, model, voice }, session, opts),
-  });
+  const firstConnectMs = env.WHY_WHY_FIRST_CONNECT_MS ? Number(env.WHY_WHY_FIRST_CONNECT_MS) : undefined;
+  let server: Awaited<ReturnType<typeof startTalkServer>>;
+  try {
+    server = await startTalkServer(session, {
+      webRoot: webRoot(),
+      mint: (opts) => mintToken({ apiKey, model, voice }, session, opts),
+      firstConnectMs,
+    });
+  } catch (e) {
+    io.err(`why-why-talk: cannot start (out dir ${outDir}): ${(e as Error).message}\n`);
+    return 2;
+  }
   io.err(`why-why-talk: open ${server.url}\n`);
   if (!values["no-open"] && env.WHY_WHY_BROWSER !== "none") openBrowser(server.url);
 
@@ -112,7 +121,15 @@ function slug(topic: string): string {
   return s || "talk";
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+// npm runs bins through a symlink (node_modules/.bin), so compare real paths.
+const isMain = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
 if (isMain) {
   main(process.argv.slice(2), process.env, process.cwd(), {
     out: (s) => process.stdout.write(s),

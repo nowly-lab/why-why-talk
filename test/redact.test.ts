@@ -72,3 +72,18 @@ test("redactSecrets keeps mixed-case paths", () => {
     assert.equal(redactSecrets(s), s);
   }
 });
+
+test("redactSecrets masks Google API keys and *_API_KEY assignments", () => {
+  const key = "AIzaSyA1b2C3d4E5f6G7h8I9j0KlMnOpQrStUvW";
+  assert.equal(key.length, 39);
+  assert.ok(!redactSecrets(`key ${key} here`).includes(key));
+  for (const s of ["GEMINI_API_KEY=abc123def456", "OPENAI_API_KEY: sk1234567890", "MY_TOKEN=xyz987654321"]) {
+    const out = redactSecrets(s);
+    assert.ok(out.includes("[REDACTED]"), out);
+    assert.ok(!/abc123def456|sk1234567890|xyz987654321/.test(out), out);
+  }
+});
+
+test("redactSecrets masks extra exact values", () => {
+  assert.equal(redactSecrets("the key is shortkey1", { extra: ["shortkey1"] }), "the key is [REDACTED]");
+});

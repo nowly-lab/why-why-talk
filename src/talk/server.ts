@@ -14,6 +14,8 @@ export type ServerDeps = {
   mint: (opts: { fallback: boolean }) => Promise<TokenInfo>;
   /** How long the page may be gone (closed tab, reload) before the talk counts as abandoned. */
   leaseGraceMs?: number;
+  /** How long to wait for the first page to connect before giving up. */
+  firstConnectMs?: number;
 };
 
 const HEARTBEAT_MS = 15_000;
@@ -34,6 +36,8 @@ const TokenBody = z.object({ fallback: z.boolean().default(false) });
 /** Local server for one talk, bound to 127.0.0.1. Resolves `outcome` once: sent or cancelled. */
 export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise<TalkServer> {
   const leaseGraceMs = deps.leaseGraceMs ?? 60_000;
+  // Fails before anything listens when the record cannot be written (bad --out).
+  await s.persist();
   const webRoot = resolve(deps.webRoot);
   let settle!: (o: Outcome) => void;
   const outcome = new Promise<Outcome>((r) => (settle = r));
@@ -160,7 +164,13 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const address = server.address();
   port = typeof address === "object" && address ? address.port : 0;
-  await s.persist();
+
+  const firstConnect = setTimeout(() => {
+    if (!everLeased && s.status === "talking") {
+      s.cancel("画面が開かれなかった");
+      void finish({ kind: "cancelled", reason: "画面が開かれなかった" });
+    }
+  }, deps.firstConnectMs ?? 10 * 60_000);
 
   return {
     url: `http://127.0.0.1:${port}`,
@@ -172,6 +182,7 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
     },
     close: async () => {
       clearInterval(heartbeat);
+      clearTimeout(firstConnect);
       if (graceTimer) clearTimeout(graceTimer);
       for (const res of leases) res.end();
       server.closeAllConnections();

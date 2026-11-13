@@ -7,10 +7,11 @@ const RULES: Rule[] = [
   { re: /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, replace: (_m, scheme) => `${scheme} ${MASK}` },
   // key=value / key: value for secret-looking keys: keep the key and separator.
   {
-    re: /\b(password|passwd|secret|token|api[_-]?key)(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi,
+    re: /\b([A-Za-z0-9_]*(?:password|passwd|secret|token|api[_-]?key))(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi,
     replace: (_m, key, sep) => `${key}${sep}${MASK}`,
   },
   { re: /\bsk[-_][A-Za-z0-9_-]{16,}/g, replace: () => MASK },
+  { re: /\bAIza[0-9A-Za-z_-]{30,}/g, replace: () => MASK },
   { re: /\bgh[pousr]_[A-Za-z0-9]{20,}/g, replace: () => MASK },
   // Long hex strings (keys, signatures). Git object names look the same; see `keepHashes`.
   { re: /\b[0-9a-fA-F]{32,}\b/g, replace: () => MASK, hash: true },
@@ -22,9 +23,13 @@ const RULES: Rule[] = [
 /**
  * Replaces common credential shapes with `[REDACTED]`. Applied before anything is stored, sent or drawn.
  * `keepHashes` leaves long hex strings (git commit and object names) alone; use it only for git references.
+ * `extra` masks exact values the caller knows are secret (for example the API key it holds).
  */
-export function redactSecrets(text: string, opts: { keepHashes?: boolean } = {}): string {
+export function redactSecrets(text: string, opts: { keepHashes?: boolean; extra?: string[] } = {}): string {
   let out = text;
+  for (const value of opts.extra ?? []) {
+    if (value.length >= 6) out = out.split(value).join(MASK);
+  }
   for (const rule of RULES) {
     if (rule.hash && opts.keepHashes) continue;
     out = out.replace(rule.re, (match: string, ...rest: unknown[]) => {

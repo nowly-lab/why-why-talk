@@ -1,5 +1,6 @@
 import { GoogleGenAI, Modality, type CreateAuthTokenConfig, type LiveConnectConfig } from "@google/genai";
 import { treeSummary } from "../analysis.ts";
+import { redactSecrets } from "../redact.ts";
 import { STATE_LABEL } from "../render/tree.ts";
 import type { TalkSession } from "./session.ts";
 import { FUNCTION_DECLARATIONS } from "./tools.ts";
@@ -56,7 +57,7 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
       .map((n) => `${n.id} (親 ${n.parentId ?? "-"}, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}`)
       .join("\n");
     const all = s.transcript.map((t) => `${t.speaker === "person" ? "相手" : "あなた"}: ${t.text}`).join("\n");
-    const tail = all.length > FALLBACK_TAIL ? all.slice(-FALLBACK_TAIL) : all;
+    const tail = redactSecrets(all.length > FALLBACK_TAIL ? all.slice(-FALLBACK_TAIL) : all);
     parts.push(
       "",
       "これまでの会話(接続が切れたので続きから再開する。最初の確かめは不要。直前の話題から続ける):",

@@ -4,15 +4,27 @@
   "description": "Deep-dive one planning question by voice with Gemini Live: it asks why and what else, grows a why tree, and sends the final direction back to the agent.",
   "license": "MIT",
   "type": "module",
-  "bin": { "why-why-talk": "dist/cli.js" },
-  "files": ["dist", "skills", "README.md", "LICENSE"],
-  "engines": { "node": ">=22.18" },
-  "repository": { "type": "git", "url": "git+https://github.com/nowly-lab/why-why-talk.git" },
+  "bin": {
+    "why-why-talk": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nowly-lab/why-why-talk.git"
+  },
   "scripts": {
     "build": "tsc && node scripts/build-web.mjs",
     "prepare": "tsc && node scripts/build-web.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web/tsconfig.json",
-    "test": "node --test 'test/**/*.test.ts'"
+    "test": "node --test --test-timeout=30000 'test/**/*.test.ts'"
   },
   "dependencies": {
     "@google/genai": "3.3.0",
