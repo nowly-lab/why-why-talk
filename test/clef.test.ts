@@ -117,3 +117,20 @@ test("score confidence comes from the lower vs upper half, not the top level", a
   r = await evaluateWithClef(cfg, analysis(1), ["n1"], fakeFetch(200, { result: { answers: { "n1.likelihood": { type: "score", score: 2, confidence: 0.2 } } }, success: true }));
   assert.equal(r.values.n1.likelihood?.lowConfidence, true);
 });
+
+test("chunks are sent in parallel and results keep node order", async () => {
+  let inFlight = 0;
+  let peak = 0;
+  const slow = (async () => {
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    await new Promise((r) => setTimeout(r, 20));
+    inFlight--;
+    return new Response("{}", { status: 503 });
+  }) as typeof fetch;
+  const a = analysis(25);
+  const ids = a.nodes.slice(1).map((n) => n.id);
+  const r = await evaluateWithClef(cfg, a, ids, slow);
+  assert.equal(peak, 3);
+  assert.deepEqual(r.needsJudgment.map((x) => x.nodeId), ids);
+});

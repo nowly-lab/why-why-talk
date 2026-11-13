@@ -193,3 +193,28 @@ test("addEvidence keeps commit hashes in git refs", () => {
   const a = addEvidence(withTwo(), "n1", { kind: "git", ref: "0123456789abcdef0123456789abcdef01234567", summary: "key rotated", supports: true }, now);
   assert.equal(a.nodes[1].evidence[0].ref, "0123456789abcdef0123456789abcdef01234567");
 });
+
+test("nextBranch skips candidates under a stopped branch", () => {
+  let a = withTwo();
+  a = updateNode(a, "n1", { state: "digging" }, now);
+  a = addWhys(a, "n1", [{ text: "期限を誰も知らない", viewpoint: "人・体制" }], now).analysis;
+  a = updateNode(a, "n1", { state: "rejected", reason: "外れ" }, now);
+  a = applyFieldValues(a, "n2", { likelihood: { value: 0.5, lowConfidence: false }, impact: { value: 0.5, lowConfidence: false } }, "agent", now);
+  assert.deepEqual(nextBranch(a, 0.2), { kind: "dig", nodeId: "n2", priority: 0.25 });
+  assert.match(code(() => updateNode(a, "n3", { state: "digging" }, now)), /^invalid_state: .*n1/);
+});
+
+test("nextBranch on a closed analysis is done", () => {
+  const a = closeAnalysis(withTwo(), now);
+  assert.deepEqual(nextBranch(a, 0.2), { kind: "done", below: [] });
+});
+
+test("applyFieldValues needs at least one value and keeps stale until likelihood and impact are both renewed", () => {
+  assert.match(code(() => applyFieldValues(withTwo(), "n1", {}, "agent", now)), /^invalid_input/);
+  let a = applyFieldValues(withTwo(), "n1", { likelihood: { value: 0.5, lowConfidence: false }, impact: { value: 0.5, lowConfidence: false } }, "agent", now);
+  a = addEvidence(a, "n1", { kind: "log", ref: "r", summary: "new", supports: true }, now);
+  a = applyFieldValues(a, "n1", { supported: { value: 0.9, lowConfidence: false } }, "agent", now);
+  assert.equal(a.nodes[1].evaluation?.stale, true);
+  a = applyFieldValues(a, "n1", { likelihood: { value: 0.6, lowConfidence: false }, impact: { value: 0.6, lowConfidence: false } }, "agent", now);
+  assert.equal(a.nodes[1].evaluation?.stale, false);
+});

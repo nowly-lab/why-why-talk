@@ -58,5 +58,6 @@ function escape(text: string): string {
     .replace(/\[/g, "#91;")
     .replace(/]/g, "#93;")
     .replace(/\|/g, "#124;")
+    .replace(/`/g, "#96;")
     .replace(/\r?\n/g, "<br/>");
 }

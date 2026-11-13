@@ -84,6 +84,7 @@ export function addEvidence(a: Analysis, nodeId: string, ev: Evidence, now: Cloc
 export function applyFieldValues(a: Analysis, nodeId: string, values: FieldInput, source: Source, now: Clock): Analysis {
   assertOpen(a);
   const node = findNode(a, nodeId);
+  if (Object.keys(values).length === 0) throw new WhyError("invalid_input", "give at least one evaluation value");
   const at = now();
   const prev: Evaluation = node.evaluation ?? { fields: {}, stale: false, history: [] };
   const fields = { ...prev.fields };
@@ -96,7 +97,9 @@ export function applyFieldValues(a: Analysis, nodeId: string, values: FieldInput
     if (old) history.push({ field, ...old });
     fields[field] = { value: input.value, source, lowConfidence: input.lowConfidence, at };
   }
-  return replaceNode(a, { ...node, evaluation: { fields, stale: false, history } }, () => at);
+  const renewed = values.likelihood !== undefined && values.impact !== undefined;
+  const stale = node.evaluation?.stale === true && !renewed;
+  return replaceNode(a, { ...node, evaluation: { fields, stale, history } }, () => at);
 }
 
 export function updateNode(
@@ -110,6 +113,12 @@ export function updateNode(
   if (node.parentId === null) throw new WhyError("invalid_input", "the root (the problem itself) has no state to change");
   if (!ALLOWED[node.state].includes(change.state)) {
     throw new WhyError("invalid_state", `node ${nodeId} cannot go from ${node.state} to ${change.state}; allowed: ${ALLOWED[node.state].join(", ")}`);
+  }
+  if (change.state === "digging" || change.state === "candidate") {
+    const stopped = stoppedAncestor(a, node);
+    if (stopped) {
+      throw new WhyError("invalid_state", `node ${nodeId} is under ${stopped.id}, which is ${stopped.state}; set ${stopped.id} back first`);
+    }
   }
   const reason = change.reason?.trim() ? redactSecrets(change.reason.trim()) : undefined;
   const countermeasure = change.countermeasure?.trim() ? redactSecrets(change.countermeasure.trim()) : undefined;
@@ -139,7 +148,8 @@ export function isBacked(node: WhyNode): boolean {
 
 /** Best-first choice of the next branch to dig. Never removes a node. */
 export function nextBranch(a: Analysis, threshold: number): NextBranch {
-  const candidates = a.nodes.filter((n) => n.parentId !== null && n.state === "candidate");
+  if (a.status === "closed") return { kind: "done", below: [] };
+  const candidates = a.nodes.filter((n) => n.parentId !== null && n.state === "candidate" && !stoppedAncestor(a, n));
   const unevaluated = candidates.filter((n) => !n.evaluation || n.evaluation.stale || !n.evaluation.fields.likelihood || !n.evaluation.fields.impact);
   if (unevaluated.length > 0) return { kind: "evaluate", nodeIds: unevaluated.map((n) => n.id) };
   const judge = candidates
@@ -163,6 +173,17 @@ export function nextBranch(a: Analysis, threshold: number): NextBranch {
   const best = ranked[0];
   if (best && best.priority >= threshold) return { kind: "dig", nodeId: best.id, priority: best.priority };
   return { kind: "done", below: ranked.map((r) => r.id).sort((x, y) => Number(x.slice(1)) - Number(y.slice(1))) };
+}
+
+/** The nearest ancestor whose branch was stopped (leaf, rejected or hypothesis), if any. */
+export function stoppedAncestor(a: Analysis, node: WhyNode): WhyNode | null {
+  let cur = node.parentId === null ? undefined : a.nodes.find((n) => n.id === node.parentId);
+  while (cur && cur.parentId !== null) {
+    if (cur.state === "leaf" || cur.state === "rejected" || cur.state === "hypothesis") return cur;
+    const parentId: string = cur.parentId;
+    cur = a.nodes.find((n) => n.id === parentId);
+  }
+  return null;
 }
 
 export function findNode(a: Analysis, nodeId: string): WhyNode {

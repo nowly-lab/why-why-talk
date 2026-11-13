@@ -67,38 +67,20 @@ export async function evaluateWithClef(
 ): Promise<ClefEvaluation> {
   const result: ClefEvaluation = { values: {}, needsJudgment: [] };
   const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cfg.accountId)}/ai/run/@cf/cloudflare/${cfg.model}`;
-  for (const req of buildClefRequest(a, nodeIds, cfg.model)) {
-    const fail = (why: string) => {
-      for (const nodeId of req.nodeIds) result.needsJudgment.push({ nodeId, fields: [...FIELDS], why });
-    };
-    let answers: Record<string, unknown>;
-    try {
-      const res = await fetchFn(url, {
-        method: "POST",
-        headers: { authorization: `Bearer ${cfg.token}`, "content-type": "application/json" },
-        body: JSON.stringify(req.body),
-        signal: AbortSignal.timeout(30_000),
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        fail(`Clef HTTP ${res.status}: ${errorText(text)}`);
-        continue;
-      }
-      const json = parseJson(text) as { success?: boolean; result?: { answers?: Record<string, unknown> } } | null;
-      if (!json || json.success === false || !json.result?.answers) {
-        fail(`Clef returned an unexpected body: ${text.slice(0, 120)}`);
-        continue;
-      }
-      answers = json.result.answers;
-    } catch (e) {
-      fail(`Clef request failed: ${(e as Error).message}`);
+  // Chunks go out together, so a large evaluation takes one round trip, not one per 12 nodes.
+  const outcomes = await Promise.all(
+    buildClefRequest(a, nodeIds, cfg.model).map(async (req) => ({ req, outcome: await askClef(cfg, url, req, fetchFn) })),
+  );
+  for (const { req, outcome } of outcomes) {
+    if ("why" in outcome) {
+      for (const nodeId of req.nodeIds) result.needsJudgment.push({ nodeId, fields: [...FIELDS], why: outcome.why });
       continue;
     }
     for (const nodeId of req.nodeIds) {
       const values: FieldInput = {};
       const missing: Field[] = [];
       for (const f of FIELDS) {
-        const v = readAnswer(answers[`${nodeId}.${f}`], f);
+        const v = readAnswer(outcome.answers[`${nodeId}.${f}`], f);
         if (v) values[f] = v;
         else missing.push(f);
       }
@@ -111,6 +93,29 @@ export async function evaluateWithClef(
     }
   }
   return result;
+}
+
+async function askClef(
+  cfg: ClefConfig,
+  url: string,
+  req: ClefRequest,
+  fetchFn: typeof fetch,
+): Promise<{ answers: Record<string, unknown> } | { why: string }> {
+  try {
+    const res = await fetchFn(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${cfg.token}`, "content-type": "application/json" },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const text = await res.text();
+    if (!res.ok) return { why: `Clef HTTP ${res.status}: ${errorText(text)}` };
+    const json = parseJson(text) as { success?: boolean; result?: { answers?: Record<string, unknown> } } | null;
+    if (!json || json.success === false || !json.result?.answers) return { why: `Clef returned an unexpected body: ${text.slice(0, 120)}` };
+    return { answers: json.result.answers };
+  } catch (e) {
+    return { why: `Clef request failed: ${(e as Error).message}` };
+  }
 }
 
 function readAnswer(raw: unknown, f: Field): { value: number; lowConfidence: boolean } | null {

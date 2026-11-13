@@ -81,3 +81,12 @@ test("render output has no token", () => {
     assert.ok(!out.includes("supersecretvalue"));
   }
 });
+
+test("mermaid escapes a leading backtick", () => {
+  let a = startAnalysis({ id: "bt", title: "t", problem: "p" }, now);
+  a = addWhys(a, "n0", [{ text: "`retry` was 0", viewpoint: "検知" }], now).analysis;
+  a = updateNode(a, "n1", { state: "digging" }, now);
+  const mmd = renderMermaid(a);
+  assert.ok(!mmd.includes("`"), mmd);
+  assert.ok(mmd.includes("#96;retry#96; was 0"));
+});

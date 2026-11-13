@@ -43,9 +43,14 @@ export class FileStore {
               : `analysis ${a.id} changed since it was read (now ${onDisk}); read it again and retry`,
         );
       }
+      // The version stamp must move forward, or a change made in the same millisecond as the one it was
+      // based on would look unchanged and a stale writer could overwrite it.
+      const toWrite = expectedUpdatedAt !== null && a.updatedAt <= expectedUpdatedAt
+        ? { ...a, updatedAt: new Date(Date.parse(expectedUpdatedAt) + 1).toISOString() }
+        : a;
       const file = this.file(a.id);
       const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
-      await writeFile(tmp, `${JSON.stringify(a, null, 2)}\n`, "utf8");
+      await writeFile(tmp, `${JSON.stringify(toWrite, null, 2)}\n`, "utf8");
       await rename(tmp, file);
     } finally {
       await release();

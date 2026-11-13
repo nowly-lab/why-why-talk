@@ -76,3 +76,15 @@ test("resolveDir uses WHY_WHY_DIR or cwd/.why-why", () => {
   assert.equal(resolveDir({ WHY_WHY_DIR: "/data/why" }, "/proj"), "/data/why");
   assert.equal(resolveDir({ WHY_WHY_DIR: "rel" }, "/proj"), "/proj/rel");
 });
+
+test("save bumps updatedAt so a same-millisecond change cannot hide a conflict", async () => {
+  const s = await store();
+  const a = startAnalysis({ id: "ms", title: "t", problem: "p" }, t0);
+  await s.save(a, null);
+  const sameMs = addWhys(a, "n0", [{ text: "x", viewpoint: "検知" }], t0).analysis;
+  await s.save(sameMs, a.updatedAt);
+  const loaded = await s.load("ms");
+  assert.ok(loaded.updatedAt > a.updatedAt, loaded.updatedAt);
+  const other = addWhys(a, "n0", [{ text: "y", viewpoint: "検知" }], t0).analysis;
+  assert.equal(await code(s.save(other, a.updatedAt)), "conflict");
+});
