@@ -1,75 +1,62 @@
-# why-why-mcp
+# why-why-talk
 
-An MCP server for **why-why (5 Whys) root-cause analysis as a tree**. Instead of one chain of "why?", the agent asks why in several directions at every level, checks facts, and digs the most likely branch first (best-first search) while the other branches wait. Branches can be evaluated with Cloudflare's decision model **Clef**, and the tree is drawn as Mermaid and HTML to review with a person in the [Plannotator](https://github.com/backnotprop/plannotator) Inbox, whose replies come back into the agent's session.
+Deep-dive one planning question **by voice**. An agent runs one command; a local page opens; you talk with **Gemini Live**, which plays the interviewer: it asks "why?" to go deeper and "what else?" to go wider, and grows a **why tree** on screen as you talk (through function calls). When you are done, Gemini drafts the direction, you edit it and press 送信, and the command prints the result for the agent and exits — the same shape as a [Plannotator](https://github.com/backnotprop/plannotator) plan review.
 
 [日本語は下にあります](#日本語)
 
-## Install
-
-Requires Node.js 22.18 or later.
-
-```bash
-# Claude Code
-claude mcp add --scope user why-why -- npx -y github:nowly-lab/why-why-mcp
-# Codex
-codex mcp add why-why -- npx -y github:nowly-lab/why-why-mcp
+```
+agent ──why-why-talk──▶ local server (127.0.0.1) ──page + short-lived token──▶ browser ◀──voice──▶ Gemini Live
+  ▲                                                                              │ tool calls grow the tree
+  └──────────── result on stdout (direction, reasons, rejected, open questions, tree, transcript) ◀── 送信
 ```
 
-The agent procedure is in [`skills/why-why/SKILL.md`](skills/why-why/SKILL.md); the server also sends a short version as MCP instructions.
+## Use
 
-## Configuration
+Requires Node.js 22.18+, a microphone, and `GEMINI_API_KEY` (Google AI Studio).
 
-| Variable | Default | Meaning |
+```bash
+npx -y github:nowly-lab/why-why-talk --topic "How do we stop payment errors from recurring?" --context notes.md
+```
+
+| Exit | Meaning | stdout |
 | --- | --- | --- |
-| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | unset | Enable Clef. The token needs Workers AI permission. Without them the agent judges every question itself. |
-| `WHY_WHY_CLEF_MODEL` | `clef-flash` | `clef` (more accurate) or `clef-flash` (faster). |
-| `WHY_WHY_DIR` | `<cwd>/.why-why` | Where analyses (`<id>.json`) and renders (`<id>.mmd`, `<id>.html`) are stored. |
-| `WHY_WHY_THRESHOLD` | `0.2` | An analysis is done when every remaining candidate's likelihood × impact is below this. |
+| 0 | Sent | Result Markdown |
+| 1 | Cancelled, or the tab was closed for 60 s | `取りやめ (<reason>) record: <dir>` |
+| 2 | Could not start | — (message on stderr) |
 
-Clef bills input tokens only ($0.24 per million at the time of writing); one evaluation of a dozen branches is well under a cent.
+The record (`result.md`, `result.json`, `tree.mmd`, `transcript.md`, `session.json`) is written to `--out` (default `.why-why/<time>-<slug>/`). Agents: see [`skills/why-why-talk/SKILL.md`](skills/why-why-talk/SKILL.md).
 
-Whether to commit `.why-why/` is up to your project: commit it to keep the analysis with the code, or add it to `.gitignore`. Common secret shapes are masked before anything is stored, sent to Clef or drawn, but do not record secrets.
+| Env | Default | |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | — | Stays in the command; the browser only gets single-use tokens |
+| `WHY_WHY_LIVE_MODEL` | `gemini-3.8-live` | |
+| `WHY_WHY_VOICE` | `Kore` | Any Gemini voice name |
+| `WHY_WHY_BROWSER` | — | `none` to never open a browser |
 
-## Tools
+Long talks keep going: each Live connection (about 10 minutes) is renewed with a fresh token and the session-resumption handle, and if that fails the talk restarts seeded with the tree and the end of the transcript. Gemini Live pricing is roughly $0.005/min for audio in and $0.018/min out. On the free tier, Google may use what you send to improve its products.
 
-| Tool | What it does |
-| --- | --- |
-| `start_analysis` | Start with the problem written as facts (node `n0`). |
-| `add_whys` | Add candidate causes under a node, each with a viewpoint. |
-| `add_evidence` | Record a fact that supports or argues against a node. |
-| `evaluate` | Ask Clef (or return the questions for the agent) about supported / sufficient / likelihood / impact / preventable. |
-| `record_judgment` | Store the agent's own answers. |
-| `next_branch` | Propose the next branch to dig, best first, or say done. |
-| `update_node` | digging, leaf (with countermeasure), hypothesis / rejected (with reason), or back to candidate. |
-| `close_analysis` | Close when nothing is digging; returns the countermeasures. |
-| `render` | Write `.mmd` and `.html` and return the Mermaid text. |
-| `get_analysis`, `list_analyses` | Read. |
-
-Branches are never deleted. Two agents writing the same analysis cannot overwrite each other: a write made from an older version is refused.
-
-## Development
+## Develop
 
 ```bash
 npm install
-npm test          # node:test on the TypeScript sources
-npm run typecheck
-npm run build     # dist/
+npm test           # node:test on the TypeScript sources
+npm run typecheck  # server and web
+npm run build      # dist/ and the page bundle dist/web/
+node scripts/live-smoke.ts   # real Gemini Live check (costs a few cents)
 ```
 
-The domain model (event storming board, glossary, state machines, context map) is in [`docs/domain-model/`](docs/domain-model/index.html).
+Design: [`docs/superpowers/specs/2026-11-13-why-why-talk-design.md`](docs/superpowers/specs/2026-11-13-why-why-talk-design.md). Domain model: [`docs/domain-model/`](docs/domain-model/index.html).
 
 ---
 
 ## 日本語
 
-障害やバグの原因を、エージェントが**なぜなぜ分析**で掘るための MCP サーバーです。
+計画の途中で**一点を深掘り**したいときに、エージェントが呼び出す道具です。
 
-- 各段で、いろいろな方向の「なぜ」を候補として出します(観点:仕組み・道具/人・体制/手順・プロセス/検知/前提・外部)。
-- 事実(ログ・コード・git など)で確かめ、有力な枝から掘ります(最良優先)。掘らなかった枝も「未調査の枝」として残ります。
-- 有力かどうかは、Cloudflare の決定モデル **Clef** に聞けます。設定がなければ、エージェントが判断します。
-- 木は Mermaid と HTML に描かれます。Plannotator Inbox に送ると、ブラウザで木を見てノードにコメントでき、返信はエージェントのセッションに届きます。
-
-インストールは上の `claude mcp add` / `codex mcp add` の行を実行してください。手順の詳細は [`skills/why-why/SKILL.md`](skills/why-why/SKILL.md) にあります。
+- コマンドを実行すると、手元の画面がブラウザで開きます。
+- **Gemini Live** が聞き手になり、「なぜ?」「他には?」と声で質問します。あなたの答えから、**なぜの木**が画面にその場で育ちます。
+- 「整理する」で Gemini が方針の下書きを作ります。直して**送信**すると、方針・理由・見送った案・残った疑問・なぜの木・会話の全文がエージェントに届き、コマンドが終わります。
+- API キーは手元のコマンドの中だけに置き、ブラウザには使い捨ての短期トークンだけを渡します。
 
 ## License
 

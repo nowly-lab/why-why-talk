@@ -36,7 +36,7 @@
     { "id": "pol-new-reason", "type": "policy", "domain": "talk", "text": "新しい理由や事実が出たら", "execution": "external", "changed": true,
       "note": "Gemini が判断して関数を呼ぶ" },
     { "id": "cmd-grow-tree", "type": "command", "domain": "talk", "text": "木を育てる(add_whys / add_fact / update_branch)", "changed": true,
-      "evidence": [{ "path": "src/talk/tools.ts", "symbol": "applyTool", "role": "entry" }] },
+      "evidence": [{ "path": "src/talk/session.ts", "symbol": "applyTool", "role": "entry" }, { "path": "src/talk/tools.ts", "symbol": "FUNCTION_DECLARATIONS", "role": "contract" }] },
     { "id": "agg-tree", "type": "aggregate", "domain": "talk", "text": "なぜの木", "changed": true,
       "invariants": [
         "親のないノードは作らない",
@@ -51,7 +51,7 @@
       "evidence": [{ "path": "web/ui.ts", "symbol": "renderTree", "role": "ui" }] },
     { "id": "pol-goaway", "type": "policy", "domain": "talk", "text": "接続が切れそうになったら(goAway・25分)", "execution": "sync", "changed": true,
       "note": "新しいトークンを取り、引き継ぎの番号でつなぎ直す。番号が使えなければ木の要約と会話の最後を渡して続ける",
-      "evidence": [{ "path": "web/live.ts", "symbol": "reconnectPlan", "role": "rule" }] },
+      "evidence": [{ "path": "web/reconnect.ts", "symbol": "nextConnection", "role": "rule" }] },
     { "id": "hs-voice", "type": "hotspot", "domain": "talk", "text": "日本語で聞きやすい声の既定は、試して決める", "attach": { "to": "cmd-connect", "pos": "above" }, "changed": true },
     { "id": "person-organise", "type": "actor", "domain": "handoff", "text": "人", "changed": true },
     { "id": "cmd-organise", "type": "command", "domain": "handoff", "text": "整理する", "changed": true },

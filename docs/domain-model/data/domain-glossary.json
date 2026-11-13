@@ -16,7 +16,7 @@
     { "term": "事実", "meaning": "人が話した、枝を支持するか否定する事柄。", "code": ["Fact"], "nodes": ["cmd-grow-tree"], "changed": true,
       "evidence": [{ "path": "src/model.ts", "symbol": "Fact" }] },
     { "term": "止めた枝", "meaning": "葉(対策あり)・却下(理由あり)・仮説(理由あり)にした枝。その下は掘らない。", "code": ["stoppedAncestor"], "nodes": ["agg-tree"], "changed": true },
-    { "term": "つなぎ直し", "meaning": "Gemini の接続が切れる前(goAway、または25分)に、新しいトークンと引き継ぎの番号で会話を続けること。", "code": ["reconnectPlan", "sessionResumption"], "nodes": ["pol-goaway"], "changed": true },
+    { "term": "つなぎ直し", "meaning": "Gemini の接続が切れる前(goAway、または25分)に、新しいトークンと引き継ぎの番号で会話を続けること。", "code": ["nextConnection", "sessionResumption"], "nodes": ["pol-goaway"], "changed": true },
     { "term": "方針の下書き", "meaning": "Gemini が propose_direction で作る、方針・理由・見送った案・残った疑問。人が直してから送る。", "code": ["Direction", "propose_direction"], "nodes": ["ev-draft", "rm-draft"], "changed": true },
     { "term": "結果", "meaning": "送信で出力するもの。方針・理由・見送った案・残った疑問・なぜの木・会話の全文。", "code": ["renderResultMarkdown", "result.json"], "nodes": ["ev-sent"], "changed": true,
       "evidence": [{ "path": "src/talk/result.ts", "symbol": "renderResultMarkdown" }] },
