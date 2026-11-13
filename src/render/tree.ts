@@ -12,12 +12,6 @@ export function childrenOf(a: Analysis, id: string): WhyNode[] {
   return a.nodes.filter((n) => n.parentId === id);
 }
 
-export function priorityOf(n: WhyNode): number | null {
-  const l = n.evaluation?.fields.likelihood?.value;
-  const i = n.evaluation?.fields.impact?.value;
-  return l === undefined || i === undefined ? null : l * i;
-}
-
 /** Ids of the nodes in the subtrees rooted at the given nodes (roots included). */
 export function subtreeIds(a: Analysis, roots: string[]): Set<string> {
   const out = new Set<string>();

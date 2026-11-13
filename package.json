@@ -1,25 +1,26 @@
 {
-  "name": "why-why-mcp",
-  "version": "0.1.0",
-  "description": "Why-why (5 Whys) analysis MCP server: branch the whys as a tree, dig best-first, evaluate with Cloudflare Clef, render for Plannotator Inbox.",
+  "name": "why-why-talk",
+  "version": "0.2.0",
+  "description": "Deep-dive one planning question by voice with Gemini Live: it asks why and what else, grows a why tree, and sends the final direction back to the agent.",
   "license": "MIT",
   "type": "module",
-  "bin": { "why-why-mcp": "dist/index.js" },
+  "bin": { "why-why-talk": "dist/cli.js" },
   "files": ["dist", "skills", "README.md", "LICENSE"],
   "engines": { "node": ">=22.18" },
-  "repository": { "type": "git", "url": "git+https://github.com/nowly-lab/why-why-mcp.git" },
+  "repository": { "type": "git", "url": "git+https://github.com/nowly-lab/why-why-talk.git" },
   "scripts": {
-    "build": "tsc",
-    "prepare": "tsc",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc && node scripts/build-web.mjs",
+    "prepare": "tsc && node scripts/build-web.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p web/tsconfig.json",
     "test": "node --test 'test/**/*.test.ts'"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@google/genai": "3.3.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
   }
 }

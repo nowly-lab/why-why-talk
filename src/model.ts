@@ -9,44 +9,11 @@ export const NODE_STATES = ["candidate", "digging", "leaf", "rejected", "hypothe
 export const NodeStateSchema = z.enum(NODE_STATES);
 export type NodeState = z.infer<typeof NodeStateSchema>;
 
-export const EvidenceKindSchema = z.enum(["log", "code", "git", "metric", "doc", "other"]);
-export type EvidenceKind = z.infer<typeof EvidenceKindSchema>;
-
-export const EvidenceSchema = z.object({
-  kind: EvidenceKindSchema,
-  ref: z.string(),
+export const FactSchema = z.object({
   summary: z.string(),
   supports: z.boolean(),
 });
-export type Evidence = z.infer<typeof EvidenceSchema>;
-
-export const FIELDS = ["supported", "sufficient", "likelihood", "impact", "preventable"] as const;
-export const FieldSchema = z.enum(FIELDS);
-export type Field = z.infer<typeof FieldSchema>;
-
-export const SourceSchema = z.enum(["clef", "agent"]);
-export type Source = z.infer<typeof SourceSchema>;
-
-export const FieldValueSchema = z.object({
-  value: z.number().min(0).max(1),
-  source: SourceSchema,
-  lowConfidence: z.boolean(),
-  at: z.string(),
-});
-export type FieldValue = z.infer<typeof FieldValueSchema>;
-
-export const EvaluationSchema = z.object({
-  fields: z.object({
-    supported: FieldValueSchema.optional(),
-    sufficient: FieldValueSchema.optional(),
-    likelihood: FieldValueSchema.optional(),
-    impact: FieldValueSchema.optional(),
-    preventable: FieldValueSchema.optional(),
-  }),
-  stale: z.boolean(),
-  history: z.array(FieldValueSchema.extend({ field: FieldSchema })),
-});
-export type Evaluation = z.infer<typeof EvaluationSchema>;
+export type Fact = z.infer<typeof FactSchema>;
 
 export const WhyNodeSchema = z.object({
   id: z.string(),
@@ -54,8 +21,7 @@ export const WhyNodeSchema = z.object({
   text: z.string(),
   viewpoint: ViewpointSchema.nullable(),
   state: NodeStateSchema,
-  evidence: z.array(EvidenceSchema),
-  evaluation: EvaluationSchema.nullable(),
+  facts: z.array(FactSchema),
   reason: z.string().optional(),
   countermeasure: z.string().optional(),
 });

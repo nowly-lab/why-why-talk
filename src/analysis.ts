@@ -1,24 +1,8 @@
-import {
-  WhyError,
-  type Analysis,
-  type Evidence,
-  type Evaluation,
-  type Field,
-  type NodeState,
-  type Source,
-  type Viewpoint,
-  type WhyNode,
-} from "./model.ts";
+import { WhyError, type Analysis, type Fact, type NodeState, type Viewpoint, type WhyNode } from "./model.ts";
 import { redactSecrets } from "./redact.ts";
 
 export type Clock = () => string;
-export type FieldInput = Partial<Record<Field, { value: number; lowConfidence: boolean }>>;
-
-export type NextBranch =
-  | { kind: "evaluate"; nodeIds: string[] }
-  | { kind: "judge"; items: Array<{ nodeId: string; fields: Field[] }> }
-  | { kind: "dig"; nodeId: string; priority: number }
-  | { kind: "done"; below: string[] };
+export type TreeSummary = Array<{ id: string; parentId: string | null; text: string; state: NodeState; viewpoint: Viewpoint | null }>;
 
 const ALLOWED: Record<NodeState, NodeState[]> = {
   candidate: ["digging", "rejected", "hypothesis"],
@@ -36,7 +20,7 @@ export function startAnalysis(input: { id: string; title: string; problem: strin
     title: redactSecrets(input.title),
     problem,
     status: "open",
-    nodes: [{ id: "n0", parentId: null, text: problem, viewpoint: null, state: "digging", evidence: [], evaluation: null }],
+    nodes: [{ id: "n0", parentId: null, text: problem, viewpoint: null, state: "digging", facts: [] }],
     createdAt: at,
     updatedAt: at,
   };
@@ -65,41 +49,18 @@ export function addWhys(
       continue;
     }
     const id = `n${seq++}`;
-    nodes.push({ id, parentId, text, viewpoint: item.viewpoint, state: "candidate", evidence: [], evaluation: null });
+    nodes.push({ id, parentId, text, viewpoint: item.viewpoint, state: "candidate", facts: [] });
     added.push(id);
   }
   return { analysis: { ...a, nodes, updatedAt: now() }, added, skipped };
 }
 
-export function addEvidence(a: Analysis, nodeId: string, ev: Evidence, now: Clock): Analysis {
+export function addFact(a: Analysis, nodeId: string, fact: Fact, now: Clock): Analysis {
   assertOpen(a);
   const node = findNode(a, nodeId);
-  const ref = redactSecrets(ev.ref, { keepHashes: ev.kind === "git" });
-  const evidence = [...node.evidence, { ...ev, ref, summary: redactSecrets(ev.summary) }];
-  const ranks = node.state === "candidate" || node.state === "digging";
-  const evaluation = node.evaluation && ranks ? { ...node.evaluation, stale: true } : node.evaluation;
-  return replaceNode(a, { ...node, evidence, evaluation }, now);
-}
-
-export function applyFieldValues(a: Analysis, nodeId: string, values: FieldInput, source: Source, now: Clock): Analysis {
-  assertOpen(a);
-  const node = findNode(a, nodeId);
-  if (Object.keys(values).length === 0) throw new WhyError("invalid_input", "give at least one evaluation value");
-  const at = now();
-  const prev: Evaluation = node.evaluation ?? { fields: {}, stale: false, history: [] };
-  const fields = { ...prev.fields };
-  const history = [...prev.history];
-  for (const [field, input] of Object.entries(values) as Array<[Field, { value: number; lowConfidence: boolean }]>) {
-    if (!Number.isFinite(input.value) || input.value < 0 || input.value > 1) {
-      throw new WhyError("invalid_input", `${field} must be between 0 and 1, got ${input.value}`);
-    }
-    const old = fields[field];
-    if (old) history.push({ field, ...old });
-    fields[field] = { value: input.value, source, lowConfidence: input.lowConfidence, at };
-  }
-  const renewed = values.likelihood !== undefined && values.impact !== undefined;
-  const stale = node.evaluation?.stale === true && !renewed;
-  return replaceNode(a, { ...node, evaluation: { fields, stale, history } }, () => at);
+  const summary = redactSecrets(fact.summary.trim());
+  if (summary === "") throw new WhyError("invalid_input", "a fact needs a summary");
+  return replaceNode(a, { ...node, facts: [...node.facts, { summary, supports: fact.supports }] }, now);
 }
 
 export function updateNode(
@@ -143,36 +104,11 @@ export function closeAnalysis(a: Analysis, now: Clock): Analysis {
 }
 
 export function isBacked(node: WhyNode): boolean {
-  return node.evidence.some((e) => e.supports);
+  return node.facts.some((f) => f.supports);
 }
 
-/** Best-first choice of the next branch to dig. Never removes a node. */
-export function nextBranch(a: Analysis, threshold: number): NextBranch {
-  if (a.status === "closed") return { kind: "done", below: [] };
-  const candidates = a.nodes.filter((n) => n.parentId !== null && n.state === "candidate" && !stoppedAncestor(a, n));
-  const unevaluated = candidates.filter((n) => !n.evaluation || n.evaluation.stale || !n.evaluation.fields.likelihood || !n.evaluation.fields.impact);
-  if (unevaluated.length > 0) return { kind: "evaluate", nodeIds: unevaluated.map((n) => n.id) };
-  const judge = candidates
-    .map((n) => ({
-      nodeId: n.id,
-      fields: (["likelihood", "impact"] as const).filter((f) => {
-        const v = n.evaluation?.fields[f];
-        return v?.lowConfidence === true && v.source === "clef";
-      }) as Field[],
-    }))
-    .filter((j) => j.fields.length > 0);
-  if (judge.length > 0) return { kind: "judge", items: judge };
-  const ranked = candidates
-    .map((n) => ({
-      id: n.id,
-      priority: n.evaluation!.fields.likelihood!.value * n.evaluation!.fields.impact!.value,
-      supported: n.evaluation!.fields.supported?.value ?? 0,
-      seq: Number(n.id.slice(1)),
-    }))
-    .sort((x, y) => y.priority - x.priority || y.supported - x.supported || x.seq - y.seq);
-  const best = ranked[0];
-  if (best && best.priority >= threshold) return { kind: "dig", nodeId: best.id, priority: best.priority };
-  return { kind: "done", below: ranked.map((r) => r.id).sort((x, y) => Number(x.slice(1)) - Number(y.slice(1))) };
+export function treeSummary(a: Analysis): TreeSummary {
+  return a.nodes.map((n) => ({ id: n.id, parentId: n.parentId, text: n.text, state: n.state, viewpoint: n.viewpoint }));
 }
 
 /** The nearest ancestor whose branch was stopped (leaf, rejected or hypothesis), if any. */

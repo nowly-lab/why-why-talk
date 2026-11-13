@@ -1,8 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderMermaid } from "../src/render/mermaid.ts";
-import { renderHtml } from "../src/render/html.ts";
-import { addEvidence, addWhys, applyFieldValues, startAnalysis, updateNode } from "../src/analysis.ts";
+import { addFact, addWhys, startAnalysis, updateNode } from "../src/analysis.ts";
 import type { Analysis } from "../src/model.ts";
 
 const now = () => "2026-11-13T00:00:00.000Z";
@@ -37,7 +36,7 @@ test("mermaid escapes quotes brackets and pipes", () => {
 });
 
 test("mermaid marks backed nodes and state classes", () => {
-  let a = addEvidence(tricky(), "n1", { kind: "log", ref: "r", summary: "401", supports: true }, now);
+  let a = addFact(tricky(), "n1", { summary: "401", supports: true }, now);
   a = updateNode(a, "n2", { state: "rejected", reason: "関係なし" }, now);
   const mmd = renderMermaid(a);
   assert.match(mmd, /n1\["✓ /);
@@ -56,27 +55,11 @@ test("mermaid summary when over 40 nodes", () => {
   assert.ok(labels(mmd).length <= 41);
 });
 
-test("html escapes script tag", () => {
-  const html = renderHtml(tricky());
-  assert.ok(!html.includes("<script>alert(1)</script>"));
-  assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
-  assert.ok(!/<script\b/i.test(html));
-});
 
-test("html shows node ids, evaluation and countermeasure", () => {
-  let a = applyFieldValues(tricky(), "n1", { likelihood: { value: 0.8, lowConfidence: false }, impact: { value: 0.5, lowConfidence: false } }, "clef", now);
-  a = updateNode(a, "n1", { state: "digging" }, now);
-  a = updateNode(a, "n1", { state: "leaf", countermeasure: "期限を監視する" }, now);
-  const html = renderHtml(a);
-  for (const id of ["N0", "N1", "N2"]) assert.ok(html.includes(`>${id}<`), id);
-  assert.ok(html.includes("期限を監視する"));
-  assert.ok(html.includes("0.80"));
-  assert.match(html, /<!doctype html>/i);
-});
 
 test("render output has no token", () => {
-  const a = addEvidence(tricky(), "n1", { kind: "code", ref: "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123", summary: "token=supersecretvalue", supports: true }, now);
-  for (const out of [renderMermaid(a), renderHtml(a)]) {
+  const a = addFact(tricky(), "n1", { summary: "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123 token=supersecretvalue", supports: true }, now);
+  for (const out of [renderMermaid(a)]) {
     assert.ok(!out.includes("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123"));
     assert.ok(!out.includes("supersecretvalue"));
   }

@@ -1,6 +1,6 @@
 import { isBacked } from "../analysis.ts";
 import type { Analysis, NodeState, WhyNode } from "../model.ts";
-import { priorityOf, STATE_LABEL, subtreeIds } from "./tree.ts";
+import { STATE_LABEL, subtreeIds } from "./tree.ts";
 
 const CLASS_DEFS: Array<[NodeState | "root", string]> = [
   ["root", "fill:#334155,color:#fff,stroke:#334155"],
@@ -42,8 +42,6 @@ function label(n: WhyNode): string {
   if (n.parentId === null) return `${escape(n.id)} 問題<br/>${escape(n.text)}`;
   const mark = isBacked(n) ? "✓ " : n.state === "candidate" ? "? " : "";
   const meta = [n.id, STATE_LABEL[n.state], n.viewpoint ?? ""];
-  const p = priorityOf(n);
-  if (p !== null) meta.push(`優先度 ${p.toFixed(2)}`);
   let out = `${mark}${escape(n.text)}<br/>${escape(meta.filter(Boolean).join(" · "))}`;
   if (n.countermeasure) out += `<br/>${escape(`対策: ${n.countermeasure}`)}`;
   return out;
