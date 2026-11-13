@@ -95,3 +95,13 @@ test("fallback seed is redacted", async () => {
   const text = systemInstruction(s, { fallback: true });
   assert.ok(!text.includes("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123"));
 });
+
+test("speech detection waits through Japanese pauses and ignores short noise", async () => {
+  const c = liveConfig(await session(), { fallback: false, voice: "Kore" });
+  assert.deepEqual(c.realtimeInputConfig?.automaticActivityDetection, {
+    startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
+    endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+    prefixPaddingMs: 300,
+    silenceDurationMs: 1000,
+  });
+});

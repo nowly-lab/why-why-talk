@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality, type CreateAuthTokenConfig, type LiveConnectConfig } from "@google/genai";
+import { EndSensitivity, GoogleGenAI, Modality, StartSensitivity, type CreateAuthTokenConfig, type LiveConnectConfig } from "@google/genai";
 import { treeSummary } from "../analysis.ts";
 import { redactSecrets } from "../redact.ts";
 import { STATE_LABEL } from "../render/tree.ts";
@@ -79,6 +79,16 @@ export function liveConfig(s: TalkSession, opts: { fallback: boolean; voice: str
     inputAudioTranscription: {},
     outputAudioTranscription: {},
     contextWindowCompression: { slidingWindow: {} },
+    // Gemini Live's defaults (high start/end sensitivity) cut Japanese speech at short pauses and start on noise;
+    // the fragments were heard as other languages in the first voice trials (2026-11-14).
+    realtimeInputConfig: {
+      automaticActivityDetection: {
+        startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+        endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
+        prefixPaddingMs: 300,
+        silenceDurationMs: 1000,
+      },
+    },
     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice } } },
   };
 }
