@@ -139,3 +139,10 @@ test("no page within the first-connect limit cancels with exit 1", async () => {
   assert.equal(r.code, 1);
   assert.match(r.stdout, /画面が開かれなかった/);
 });
+
+test("a non-numeric first-connect limit is refused with exit 2", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
+  const r = await run(["--topic", "論点", "--no-open"], { GEMINI_API_KEY: "k", WHY_WHY_FIRST_CONNECT_MS: "10m" }, cwd).done;
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /WHY_WHY_FIRST_CONNECT_MS/);
+});

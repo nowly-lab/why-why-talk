@@ -1,6 +1,6 @@
 import { GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai";
 import type { TokenInfo } from "./api.ts";
-import { nextConnection, retryDelay, type Connection, type LinkEvent, type LinkState } from "./reconnect.ts";
+import { createRetryBudget, nextConnection, type Connection, type LinkEvent, type LinkState } from "./reconnect.ts";
 
 export type LiveHandlers = {
   onAudio(base64: string): void;
@@ -22,7 +22,7 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
   let current: Session | null = null;
   let closedByUs = false;
   let busy = false;
-  let attempt = 0;
+  const budget = createRetryBudget();
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function open(conn: Connection): Promise<void> {
@@ -54,6 +54,10 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
     current = mine;
     state.connectedAt = openedAt;
     previous?.close();
+    budget.connected();
+    setTimeout(() => {
+      if (current === mine) budget.stable();
+    }, QUICK_CLOSE_MS);
     h.onStatus("connected");
     if (conn.fallback) {
       mine.sendClientContent({ turns: [{ role: "user", parts: [{ text: "接続が切れました。直前の話の続きから、短く確かめて再開してください。" }] }], turnComplete: true });
@@ -71,7 +75,7 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
     }
     if (sc?.inputTranscription?.text) h.onTranscript("person", sc.inputTranscription.text);
     if (sc?.outputTranscription?.text) h.onTranscript("gemini", sc.outputTranscription.text);
-    if (m.sessionResumptionUpdate?.resumable && m.sessionResumptionUpdate.newHandle) {
+    if (from === current && m.sessionResumptionUpdate?.resumable && m.sessionResumptionUpdate.newHandle) {
       state.handle = m.sessionResumptionUpdate.newHandle;
     }
     if (m.toolCall?.functionCalls?.length) {
@@ -86,7 +90,7 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
   }
 
   async function event(e: LinkEvent, detail?: string): Promise<void> {
-    if (closedByUs || busy) return;
+    if (closedByUs || busy || retryTimer) return;
     if (e.kind === "handleRejected") state.handle = null;
     const conn = nextConnection(state, e);
     if (!conn) return;
@@ -98,7 +102,6 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
     busy = true;
     try {
       await open(conn);
-      attempt = 0;
     } catch (err) {
       busy = false;
       scheduleRetry(conn, (err as Error).message);
@@ -108,7 +111,7 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
   }
 
   function scheduleRetry(conn: Connection, why: string): void {
-    const delay = retryDelay(attempt++);
+    const delay = budget.failed();
     if (delay === null) {
       h.onStatus("failed", why);
       return;
@@ -127,7 +130,7 @@ export function connectLive(getToken: (fallback: boolean) => Promise<TokenInfo>,
     start: () => event({ kind: "start", hasHistory: opts.hasHistory }),
     /** After "failed": try again from the start of the backoff. */
     retry() {
-      attempt = 0;
+      budget.reset();
       void attemptOpen(state.handle ? { handle: state.handle, fallback: false } : { handle: null, fallback: true });
     },
     sendAudio(base64: string) {

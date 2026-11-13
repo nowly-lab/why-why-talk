@@ -10,6 +10,27 @@ export function retryDelay(attempt: number): number | null {
   return Math.min(MAX_DELAY_MS, BASE_DELAY_MS * 2 ** attempt);
 }
 
+/**
+ * Counts failed connection attempts. A connection only resets the count once it has stayed up
+ * (`stable`), so one that opens and closes right away still uses up the budget.
+ */
+export function createRetryBudget() {
+  let attempt = 0;
+  return {
+    connected(): void {},
+    stable(): void {
+      attempt = 0;
+    },
+    /** The wait before the next try, or null when the budget is spent. */
+    failed(): number | null {
+      return retryDelay(attempt++);
+    },
+    reset(): void {
+      attempt = 0;
+    },
+  };
+}
+
 export type LinkState = { handle: string | null; connectedAt: number | null };
 export type LinkEvent =
   | { kind: "start"; hasHistory: boolean }

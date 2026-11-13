@@ -2,12 +2,14 @@ import { downsample, floatToPcm16Base64, pcm16Base64ToFloat } from "./pcm.ts";
 
 /** Microphone at 16 kHz, delivered as base64 PCM16 chunks (~100 ms). */
 export async function startMic(onChunk: (base64: string) => void): Promise<{ stop(): void; setMuted(m: boolean): void }> {
+  // Create the context before the first await so it is still inside the click (Safari), at the device rate
+  // (Firefox refuses a 16 kHz context for a 48 kHz mic), and downsample to 16 kHz.
+  const ctx = new AudioContext();
+  const resumed = ctx.resume();
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
   });
-  // Open the mic at the device rate (Firefox refuses a 16 kHz context for a 48 kHz device) and downsample.
-  const ctx = new AudioContext();
-  await ctx.resume();
+  await resumed;
   await ctx.audioWorklet.addModule("/audio-worklet.js");
   const source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, "mic-chunker");

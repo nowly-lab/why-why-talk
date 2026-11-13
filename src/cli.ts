@@ -69,6 +69,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
   const voice = env.WHY_WHY_VOICE?.trim() || DEFAULT_VOICE;
 
   const firstConnectMs = env.WHY_WHY_FIRST_CONNECT_MS ? Number(env.WHY_WHY_FIRST_CONNECT_MS) : undefined;
+  if (firstConnectMs !== undefined && !(Number.isFinite(firstConnectMs) && firstConnectMs > 0)) {
+    io.err(`why-why-talk: WHY_WHY_FIRST_CONNECT_MS must be a positive number of milliseconds, got ${env.WHY_WHY_FIRST_CONNECT_MS}\n`);
+    return 2;
+  }
   let server: Awaited<ReturnType<typeof startTalkServer>>;
   try {
     server = await startTalkServer(session, {

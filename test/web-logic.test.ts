@@ -4,7 +4,7 @@ import { appendFragment, type Line } from "../web/transcript.ts";
 import { nextConnection, PROACTIVE_RECONNECT_MS, type LinkState } from "../web/reconnect.ts";
 import { floatToPcm16Base64, pcm16Base64ToFloat } from "../web/pcm.ts";
 import { treeRows } from "../web/tree-rows.ts";
-import { retryDelay, MAX_RETRIES } from "../web/reconnect.ts";
+import { retryDelay, MAX_RETRIES, createRetryBudget } from "../web/reconnect.ts";
 import { downsample } from "../web/pcm.ts";
 import { createSerialQueue } from "../web/queue.ts";
 
@@ -95,4 +95,23 @@ test("serial queue runs tasks in order even when earlier ones are slower", async
   const after = q(async () => { order.push(3); });
   await Promise.allSettled([slow, fast, failing, after]);
   assert.deepEqual(order, [1, 2, 3]);
+});
+
+test("retry budget: connections that open then close quickly still run out", () => {
+  const b = createRetryBudget();
+  const delays: Array<number | null> = [];
+  for (let i = 0; i < 7; i++) {
+    b.connected();
+    delays.push(b.failed());
+  }
+  assert.deepEqual(delays, [1000, 2000, 4000, 8000, 16000, 30000, null]);
+});
+
+test("retry budget: a connection that stayed up resets the budget", () => {
+  const b = createRetryBudget();
+  b.failed();
+  b.failed();
+  b.connected();
+  b.stable();
+  assert.equal(b.failed(), 1000);
 });

@@ -99,8 +99,10 @@ export async function boot(): Promise<void> {
     if (!mic) {
       micBtn.disabled = true;
       try {
-        await player.resume();
+        // Both audio contexts must start inside this click (Safari): start them before awaiting anything.
+        const playerReady = player.resume();
         mic = await startMic((b64) => live.sendAudio(b64));
+        await playerReady;
         await live.start();
         micBtn.textContent = "ミュート";
       } catch (e) {
