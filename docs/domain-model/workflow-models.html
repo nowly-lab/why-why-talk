@@ -1,0 +1,194 @@
+<!doctype html>
+<!-- 生成物: 直接編集しないでください。元データ: data/*.json。scrum-domain-modeling の scripts/domain-model.mjs render で作り直します。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="generator" content="scrum-domain-modeling/domain-model.mjs">
+<title>ワークフロー · why-why-talk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --wall: #fbfbf9; --wall-dot: #dcdcd4; --paper: #ffffff; --ink: #24241f; --ink-soft: #64645b;
+  --line: #d9d9cf; --ring: #6d6d66; --accent: #2f5bd3; --focus: #2563eb; --row: #f4f4ef;
+  --ok: #dbeafe; --bad: #fde2e4; --skip: #ececea; --undef: #fff4cc;
+  --s-event: #ff9e4f; --s-command: #a9cdf1; --s-policy: #b985ca; --s-external: #eda1c6;
+  --s-aggregate: #f4ce2c; --s-readModel: #c6e15c; --s-actor: #fdf6b6; --s-hotspot: #ef7088; --s-ink: #1c1a14; --hot: #ff4030;
+  --f-note: "Klee One", "Hiragino Maru Gothic ProN", "Yu Gothic", cursive;
+  --f-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wall); color: var(--ink); font: 14px/1.65 var(--f-ui); }
+a { color: var(--accent); }
+.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--paper); border-bottom: 1px solid var(--line); }
+.crumb { font-weight: 700; } .crumb span { color: var(--ink-soft); font-weight: 500; margin: 0 6px; }
+.back { text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; color: var(--ink); background: var(--paper); }
+main { padding: 24px max(16px, env(safe-area-inset-left, 0px)) 48px; display: grid; gap: 22px; min-width: 0; }
+h1 { margin: 0; font-size: 26px; line-height: 1.3; text-wrap: balance; }
+h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+.lede { margin: 4px 0 0; color: var(--ink-soft); max-width: 80ch; }
+.meta { font-size: 12px; color: var(--ink-soft); font-family: var(--f-mono); }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--paper); }
+th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+th { background: var(--row); font-weight: 700; white-space: nowrap; }
+code, .path { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0; border-radius: 4px; color: var(--s-ink); font-size: 12px; text-decoration: none; }
+.code { display: inline-block; padding: 0 6px; margin: 2px 4px 2px 0; border-radius: 4px; background: var(--row); border: 1px solid var(--line); font: 12px var(--f-mono); }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; background: rgba(28,26,20,.14); color: var(--s-ink); margin-left: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 18px; border-radius: 2px; vertical-align: -4px; margin-right: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.legend small { color: var(--ink-soft); margin-left: 4px; }
+.foot { font-size: 12px; color: var(--ink-soft); }
+ul.plain { margin: 0; padding-left: 18px; }
+/* What the current plan changes: pulses while main has .show-changed (the toggle on each page). */
+.changes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-left: 4px solid var(--hot); }
+.changes .list { flex: 1 1 320px; min-width: 0; }
+.changes a.item { margin-right: 10px; white-space: nowrap; }
+.toggle { font-size: 13px; white-space: nowrap; }
+.new { display: inline-block; padding: 0 7px; margin-left: 6px; border-radius: 999px; background: var(--hot); color: #fff; font: 700 11px/1.6 var(--f-ui); vertical-align: 1px; }
+@keyframes changed-ping {
+  0% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 4px rgba(255,64,48,.95), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1.15); }
+  20% { filter: brightness(1); }
+  70%, 100% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 40px rgba(255,64,48,0), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1); } }
+@keyframes chip-ping { 0% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 2px rgba(255,64,48,.95); } 70%, 100% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 12px rgba(255,64,48,0); } }
+@keyframes row-flash { 0% { background-color: rgba(255,64,48,.38); } 60%, 100% { background-color: rgba(255,64,48,.1); } }
+@keyframes svg-blink { 50% { stroke-opacity: .25; } }
+.show-changed .chip.changed { box-shadow: 0 0 0 2px var(--ink); animation: chip-ping 1.2s ease-out infinite; }
+.show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { animation: row-flash 1.2s ease-out infinite; }
+.show-changed tr.is-changed > :first-child { box-shadow: inset 4px 0 0 var(--hot); }
+.show-changed .lc.is-changed, .show-changed nav a.is-changed { outline: 3px solid var(--hot); outline-offset: 2px; }
+.show-changed .gbox.is-changed { stroke: var(--hot); stroke-width: 4; animation: svg-blink 1.2s ease-in-out infinite; }
+.show-changed .gedge.is-changed { stroke: var(--hot); stroke-width: 3; animation: svg-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .show-changed .chip.changed, .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed, .show-changed .gbox.is-changed, .show-changed .gedge.is-changed { animation: none; }
+  .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { background-color: rgba(255,64,48,.18); } }
+
+.zoomable { position: relative; min-width: 0; }
+.zoom-view { overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y; max-height: 80vh; }
+.zoom-view:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.zoom-content { width: max-content; }
+.zoom-ctrl { position: absolute; top: 8px; right: 8px; z-index: 25; display: flex; align-items: center; gap: 2px; padding: 3px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.zoom-ctrl button { min-width: 32px; height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: 500 14px var(--f-ui); cursor: pointer; }
+.zoom-ctrl button:hover { background: var(--row); }
+.zoom-ctrl button:focus-visible { outline: 2px solid var(--focus); }
+.zoom-ctrl output { min-width: 3.4em; text-align: center; font: 12px var(--f-mono); color: var(--ink-soft); }
+.graph { display: block; max-width: none; }
+.gbox { fill: var(--paper); stroke: var(--ring); stroke-width: 1.5; }
+.gbox.initial { stroke-width: 3; } .gbox.final { stroke-dasharray: 5 3; }
+.gtext { font: 700 15px var(--f-ui); fill: var(--ink); } .gsub { font: 11px var(--f-mono); fill: var(--ink-soft); }
+.gedge { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.glabel { font: 12px var(--f-ui); fill: var(--ink); } .glabel-bg { fill: var(--wall); }
+.headfill { fill: var(--ink); }
+.lc { display: grid; gap: 12px; } .diagram { background: var(--wall); border: 1px solid var(--line); border-radius: 6px; }
+.matrix td, .matrix th { text-align: center; } .matrix th[scope=row] { text-align: left; }
+.m-ok { background: var(--ok); } .m-bad { background: var(--bad); } .m-skip { background: var(--skip); } .m-undef { background: var(--undef); color: var(--ink-soft); }
+.show-changed .matrix td.is-changed { box-shadow: inset 0 0 0 3px var(--hot); }
+.matrix small { display: block; font-size: 11px; color: var(--ink-soft); }
+.mlegend i { box-shadow: none; border: 1px solid var(--line); }</style>
+</head>
+<body>
+<header class="top"><div class="crumb">why-why-talk<span>/</span>ドメインモデル<span>/</span>ワークフロー</div><a class="back" href="index.html">← 一覧へ</a></header>
+<main class="show-changed" id="main">
+<div><h1>状態の移り方</h1><div class="meta">確認したリビジョン 312b216 · 2026-11-13</div></div>
+<section class="card changes"><h2>今回の計画で変わるライフサイクル（2）</h2><div class="list"><a class="item" href="#lc-session-life">壁打ちのセッション（18）</a><a class="item" href="#lc-node-life">なぜ(ノード)（15）</a></div><label class="toggle"><input type="checkbox" id="show-changed" checked> 光らせて示す</label></section>
+<nav class="card"><b>ライフサイクル</b>: <a class=" is-changed" href="#lc-session-life">壁打ちのセッション</a> · <a class=" is-changed" href="#lc-node-life">なぜ(ノード)</a></nav>
+<section class="card lc is-changed" id="lc-session-life"><h2>壁打ちのセッション<span class="new">変更</span></h2><div class="meta">ドメイン: 送信</div><p class="lede">結果は一度だけ決まる。送信には方針が要る。</p>
+<h3>状態遷移図</h3><div class="zoomable" data-fit="width">
+<div class="zoom-ctrl" role="toolbar" aria-label="拡大縮小"><button type="button" data-z="out" aria-label="縮小">−</button><output aria-live="polite">100%</output><button type="button" data-z="in" aria-label="拡大">＋</button><button type="button" data-z="fit">全体</button><button type="button" data-z="one">等倍</button></div>
+<div class="zoom-view diagram" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小"><div class="zoom-content"><svg class="graph" viewBox="0 0 729 204" width="729" height="204" role="img" aria-label="壁打ちのセッション"><defs><marker id="gh-9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L10 5L0 9z" class="headfill"/></marker></defs><polyline class="gedge is-changed" points="184.1,124 184.1,114 199.9,114 199.9,124" marker-end="url(#gh-9)"/><rect class="glabel-bg" x="138.5" y="92" width="107" height="18" rx="3"/><text class="glabel" x="192" y="105" text-anchor="middle">Gemini とつなぐ</text><polyline class="gedge is-changed" points="168.2,124 168.2,82 215.8,82 215.8,124" marker-end="url(#gh-9)"/><rect class="glabel-bg" x="28" y="60" width="328" height="18" rx="3"/><text class="glabel" x="192" y="73" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="152.4,124 152.4,50 231.6,50 231.6,124" marker-end="url(#gh-9)"/><rect class="glabel-bg" x="163" y="28" width="58" height="18" rx="3"/><text class="glabel" x="192" y="41" text-anchor="middle">整理する</text><polyline class="gedge is-changed" points="247.5,138.7 366,138.7 366,69.3 590,69.3" marker-end="url(#gh-9)"/><rect class="glabel-bg" x="426" y="46.3" width="94" height="18" rx="3"/><text class="glabel" x="473" y="59.3" text-anchor="middle">直して送信する</text><polyline class="gedge is-changed" points="247.5,153.3 590,153.3" marker-end="url(#gh-9)"/><rect class="glabel-bg" x="438" y="130.3" width="70" height="18" rx="3"/><text class="glabel" x="473" y="143.3" text-anchor="middle">取りやめる</text><rect class="gbox initial is-changed" x="136.5" y="124" width="111" height="44" rx="8"/><text class="gtext" x="192" y="151" text-anchor="middle">話している</text><rect class="gbox final is-changed" x="590" y="47.3" width="96" height="44" rx="8"/><text class="gtext" x="638" y="74.3" text-anchor="middle">送った</text><rect class="gbox final is-changed" x="590" y="131.3" width="111" height="44" rx="8"/><text class="gtext" x="645.5" y="158.3" text-anchor="middle">取りやめた</text></svg></div></div>
+</div>
+<h3>遷移表</h3><div class="scroll"><table><thead><tr><th>遷移前</th><th>コマンド・イベント</th><th>条件</th><th>遷移後</th><th>起きること</th><th>証拠</th></tr></thead><tbody><tr class=" is-changed"><td>話している</td><td><a class="chip changed" href="big-picture.html#n-cmd-connect" style="background:var(--s-command)" title="コマンド">Gemini とつなぐ</a></td><td>—</td><td>話している</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>話している</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>—</td><td>話している</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>話している</td><td><a class="chip changed" href="big-picture.html#n-cmd-organise" style="background:var(--s-command)" title="コマンド">整理する</a></td><td>—</td><td>話している</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>話している</td><td><a class="chip changed" href="big-picture.html#n-cmd-send" style="background:var(--s-command)" title="コマンド">直して送信する</a></td><td>方針が空でない</td><td>送った</td><td>—</td><td><div class="path">src/talk/session.ts <span class="code">submit</span></div></td></tr><tr class=" is-changed"><td>話している</td><td><a class="chip changed" href="big-picture.html#n-cmd-cancel" style="background:var(--s-command)" title="コマンド">取りやめる</a></td><td>—</td><td>取りやめた</td><td>—</td><td><span class="foot">—</span></td></tr></tbody></table></div>
+<h3>早見表（状態 × コマンド・イベント）</h3><div class="scroll"><table class="matrix"><thead><tr><th>状態 ＼ コマンド・イベント</th><th><a class="chip changed" href="big-picture.html#n-cmd-connect" style="background:var(--s-command)" title="コマンド">Gemini とつなぐ</a></th><th><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></th><th><a class="chip changed" href="big-picture.html#n-cmd-organise" style="background:var(--s-command)" title="コマンド">整理する</a></th><th><a class="chip changed" href="big-picture.html#n-cmd-send" style="background:var(--s-command)" title="コマンド">直して送信する</a></th><th><a class="chip changed" href="big-picture.html#n-cmd-cancel" style="background:var(--s-command)" title="コマンド">取りやめる</a></th></tr></thead><tbody><tr><th scope="row" class=" is-changed">話している<span class="new">変更</span></th><td class="m-ok is-changed" title="">→ 話している</td><td class="m-ok is-changed" title="">→ 話している</td><td class="m-ok is-changed" title="">→ 話している</td><td class="m-ok is-changed" title="方針が空でない">→ 送った<small>（条件あり）</small></td><td class="m-ok is-changed" title="">→ 取りやめた</td></tr><tr><th scope="row" class=" is-changed">送った<span class="new">変更</span></th><td class="m-bad is-changed" title="送った後は会話しない">無効<small>送った後は会話しない</small></td><td class="m-bad is-changed" title="送った後は木を変えない">無効<small>送った後は木を変えない</small></td><td class="m-bad is-changed" title="送った後は整理しない">無効<small>送った後は整理しない</small></td><td class="m-bad is-changed" title="送信は一度だけ">無効<small>送信は一度だけ</small></td><td class="m-bad is-changed" title="もう送った">無効<small>もう送った</small></td></tr><tr><th scope="row" class=" is-changed">取りやめた<span class="new">変更</span></th><td class="m-bad is-changed" title="取りやめた">無効<small>取りやめた</small></td><td class="m-bad is-changed" title="取りやめた">無効<small>取りやめた</small></td><td class="m-bad is-changed" title="取りやめた">無効<small>取りやめた</small></td><td class="m-bad is-changed" title="取りやめた">無効<small>取りやめた</small></td><td class="m-skip is-changed" title="すでに取りやめた">無視<small>すでに取りやめた</small></td></tr></tbody></table></div>
+<div class="legend mlegend"><span><i class="m-ok"></i>遷移</span><span><i class="m-bad"></i>無効（受け付けない）</span><span><i class="m-skip"></i>無視（受け付けるが変わらない）</span><span><i class="m-undef"></i>未定義（0 マス）</span></div>
+</section>
+<section class="card lc is-changed" id="lc-node-life"><h2>なぜ(ノード)<span class="new">変更</span></h2><div class="meta">ドメイン: 壁打ち</div><p class="lede">枝は消えない。却下と仮説は理由を付ければ候補に戻せる。止めた枝の下は掘らない。</p>
+<h3>状態遷移図</h3><div class="zoomable" data-fit="width">
+<div class="zoom-ctrl" role="toolbar" aria-label="拡大縮小"><button type="button" data-z="out" aria-label="縮小">−</button><output aria-live="polite">100%</output><button type="button" data-z="in" aria-label="拡大">＋</button><button type="button" data-z="fit">全体</button><button type="button" data-z="one">等倍</button></div>
+<div class="zoom-view diagram" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小"><div class="zoom-content"><svg class="graph" viewBox="0 0 2136 329" width="2136" height="329" role="img" aria-label="なぜ(ノード)"><defs><marker id="gh-7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L10 5L0 9z" class="headfill"/></marker></defs><polyline class="gedge is-changed" points="1403,103.7 1353,103.7 1353,51 149,51 149,262.6 139,262.6" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="607" y="28" width="328" height="18" rx="3"/><text class="glabel" x="771" y="41" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="1403,112.5 1343,112.5 1343,87.3 945,87.3 945,106.7 857.7,106.7" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="1005" y="64.3" width="328" height="18" rx="3"/><text class="glabel" x="1169" y="77.3" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="1514,109.6 1524,109.6 1524,90.3 1922,90.3 1922,113.3 1982,113.3" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="1584" y="67.3" width="328" height="18" rx="3"/><text class="glabel" x="1748" y="80.3" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="139,281.4 179,281.4 179,235.3 547,235.3 547,254.7 607,254.7" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="209" y="212.3" width="328" height="18" rx="3"/><text class="glabel" x="373" y="225.3" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="139,268.9 159,268.9 159,114 761.7,114" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="209" y="91" width="328" height="18" rx="3"/><text class="glabel" x="373" y="104" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="139,294 1922,294 1922,135.3 1982,135.3" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="1005" y="271" width="328" height="18" rx="3"/><text class="glabel" x="1169" y="284" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="139,275.1 169,275.1 169,199 1343,199 1343,130.1 1403,130.1" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="607" y="176" width="328" height="18" rx="3"/><text class="glabel" x="771" y="189" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="857.7,121.3 1403,121.3" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="1005" y="98.3" width="328" height="18" rx="3"/><text class="glabel" x="1169" y="111.3" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="1982,124.3 1514,124.3" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="1584" y="101.3" width="328" height="18" rx="3"/><text class="glabel" x="1748" y="114.3" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><polyline class="gedge is-changed" points="607,269.3 189,269.3 189,287.7 139,287.7" marker-end="url(#gh-7)"/><rect class="glabel-bg" x="209" y="246.3" width="328" height="18" rx="3"/><text class="glabel" x="373" y="259.3" text-anchor="middle">木を育てる(add_whys / add_fact / update_branch)</text><rect class="gbox initial is-changed" x="1403" y="94.9" width="111" height="44" rx="8"/><text class="gtext" x="1458.5" y="121.9" text-anchor="middle">未調査の枝</text><rect class="gbox is-changed" x="28" y="256.3" width="111" height="44" rx="8"/><text class="gtext" x="83.5" y="283.3" text-anchor="middle">掘っている</text><rect class="gbox is-changed" x="607" y="240" width="96" height="44" rx="8"/><text class="gtext" x="655" y="267" text-anchor="middle">葉</text><rect class="gbox is-changed" x="761.7" y="92" width="96" height="44" rx="8"/><text class="gtext" x="809.7" y="119" text-anchor="middle">却下</text><rect class="gbox is-changed" x="1982" y="102.3" width="126" height="44" rx="8"/><text class="gtext" x="2045" y="129.3" text-anchor="middle">仮説で止めた</text></svg></div></div>
+</div>
+<h3>遷移表</h3><div class="scroll"><table><thead><tr><th>遷移前</th><th>コマンド・イベント</th><th>条件</th><th>遷移後</th><th>起きること</th><th>証拠</th></tr></thead><tbody><tr class=" is-changed"><td>未調査の枝</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=digging かつ止めた枝の下でない</td><td>掘っている</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>未調査の枝</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=rejected かつ理由あり</td><td>却下</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>未調査の枝</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=hypothesis かつ理由あり</td><td>仮説で止めた</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>掘っている</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=leaf かつ対策あり</td><td>葉</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>掘っている</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=rejected かつ理由あり</td><td>却下</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>掘っている</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=hypothesis かつ理由あり</td><td>仮説で止めた</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>掘っている</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=candidate</td><td>未調査の枝</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>却下</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=candidate かつ理由あり</td><td>未調査の枝</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>仮説で止めた</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=candidate かつ理由あり</td><td>未調査の枝</td><td>—</td><td><span class="foot">—</span></td></tr><tr class=" is-changed"><td>葉</td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td>update_branch state=digging</td><td>掘っている</td><td>—</td><td><span class="foot">—</span></td></tr></tbody></table></div>
+<h3>早見表（状態 × コマンド・イベント）</h3><div class="scroll"><table class="matrix"><thead><tr><th>状態 ＼ コマンド・イベント</th><th><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></th></tr></thead><tbody><tr><th scope="row" class=" is-changed">未調査の枝<span class="new">変更</span></th><td class="m-ok is-changed" title="update_branch state=digging かつ止めた枝の下でない / update_branch state=rejected かつ理由あり / update_branch state=hypothesis かつ理由あり">→ 掘っている<small>（条件あり）</small><br>→ 却下<small>（条件あり）</small><br>→ 仮説で止めた<small>（条件あり）</small></td></tr><tr><th scope="row" class=" is-changed">掘っている<span class="new">変更</span></th><td class="m-ok is-changed" title="update_branch state=leaf かつ対策あり / update_branch state=rejected かつ理由あり / update_branch state=hypothesis かつ理由あり / update_branch state=candidate">→ 葉<small>（条件あり）</small><br>→ 却下<small>（条件あり）</small><br>→ 仮説で止めた<small>（条件あり）</small><br>→ 未調査の枝<small>（条件あり）</small></td></tr><tr><th scope="row" class=" is-changed">葉<span class="new">変更</span></th><td class="m-ok is-changed" title="update_branch state=digging">→ 掘っている<small>（条件あり）</small></td></tr><tr><th scope="row" class=" is-changed">却下<span class="new">変更</span></th><td class="m-ok is-changed" title="update_branch state=candidate かつ理由あり">→ 未調査の枝<small>（条件あり）</small></td></tr><tr><th scope="row" class=" is-changed">仮説で止めた<span class="new">変更</span></th><td class="m-ok is-changed" title="update_branch state=candidate かつ理由あり">→ 未調査の枝<small>（条件あり）</small></td></tr></tbody></table></div>
+<div class="legend mlegend"><span><i class="m-ok"></i>遷移</span><span><i class="m-bad"></i>無効（受け付けない）</span><span><i class="m-skip"></i>無視（受け付けるが変わらない）</span><span><i class="m-undef"></i>未定義（0 マス）</span></div>
+</section>
+</main>
+<script>document.getElementById('show-changed').addEventListener('change', function (e) { document.getElementById('main').classList.toggle('show-changed', e.target.checked); });</script>
+
+<script>(function(){
+var MIN = 0.1, MAX = 4;
+document.querySelectorAll('.zoomable').forEach(function (box) {
+  var view = box.querySelector('.zoom-view'), content = box.querySelector('.zoom-content'), out = box.querySelector('output');
+  var s = 1, w = content.offsetWidth, h = content.offsetHeight;
+  function clamp(v) { return Math.min(MAX, Math.max(Math.min(MIN, fitAll()), v)); }
+  function fitAll() { return Math.min(view.clientWidth / w, view.clientHeight / h); }
+  function anchor(cx, cy) {
+    var r = view.getBoundingClientRect();
+    if (cx == null) { cx = r.left + view.clientWidth / 2; cy = r.top + view.clientHeight / 2; }
+    var px = cx - r.left, py = cy - r.top;
+    return { px: px, py: py, x: (view.scrollLeft + px) / s, y: (view.scrollTop + py) / s };
+  }
+  // Scale to v, keeping content point a.x/a.y under the screen point a.px/a.py.
+  function set(v, a) {
+    s = clamp(v); content.style.zoom = s; out.textContent = Math.round(s * 100) + '%';
+    if (a) { view.scrollLeft = a.x * s - a.px; view.scrollTop = a.y * s - a.py; }
+  }
+  function zoomAt(v, cx, cy) { set(v, anchor(cx, cy)); }
+  box.querySelector('.zoom-ctrl').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var z = b.dataset.z;
+    if (z === 'in') zoomAt(s * 1.25); else if (z === 'out') zoomAt(s / 1.25);
+    else if (z === 'one') zoomAt(1); else if (z === 'fit') { set(fitAll()); view.scrollLeft = 0; view.scrollTop = 0; }
+  });
+  view.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '+' || e.key === '=') zoomAt(s * 1.25); else if (e.key === '-') zoomAt(s / 1.25); else if (e.key === '0') zoomAt(1); else return;
+    e.preventDefault();
+  });
+  // Trackpad pinch in Chrome, Edge and Firefox arrives as wheel + ctrlKey; so does Ctrl/⌘ + wheel.
+  view.addEventListener('wheel', function (e) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    var d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomAt(s * Math.exp(-Math.max(-50, Math.min(50, d)) * 0.01), e.clientX, e.clientY);
+  }, { passive: false });
+  // Safari trackpad pinch arrives as gesture events.
+  var touching = false, g = null;
+  view.addEventListener('gesturestart', function (e) { e.preventDefault(); if (!touching) g = { s: s, a: anchor(e.clientX, e.clientY) }; });
+  view.addEventListener('gesturechange', function (e) { e.preventDefault(); if (!touching && g) set(g.s * e.scale, g.a); });
+  view.addEventListener('gestureend', function (e) { e.preventDefault(); g = null; });
+  // Two-finger touch pinch: zoom and pan with the fingers' midpoint.
+  var t = null;
+  function mid(ts) { return { x: (ts[0].clientX + ts[1].clientX) / 2, y: (ts[0].clientY + ts[1].clientY) / 2, d: Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY) || 1 }; }
+  view.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 2) return;
+    touching = true; var m = mid(e.touches); t = { s: s, d: m.d, a: anchor(m.x, m.y) };
+  }, { passive: true });
+  view.addEventListener('touchmove', function (e) {
+    if (!t || e.touches.length !== 2) return;
+    e.preventDefault();
+    var m = mid(e.touches), r = view.getBoundingClientRect();
+    set(t.s * m.d / t.d, { x: t.a.x, y: t.a.y, px: m.x - r.left, py: m.y - r.top });
+  }, { passive: false });
+  view.addEventListener('touchend', function (e) { if (e.touches.length < 2) { t = null; touching = false; } });
+  view.addEventListener('touchcancel', function () { t = null; touching = false; });
+  // Start: fit the width (never above 100%) for wide boards; otherwise 100%.
+  var fit = box.dataset.fit;
+  set(fit === 'width' ? Math.min(1, view.clientWidth / w) : fit === 'all' ? Math.min(1, fitAll()) : 1);
+});
+// Bring a linked sticky into view at the current zoom.
+var target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+if (target && target.closest('.zoom-view')) target.scrollIntoView({ block: 'center', inline: 'center' });
+})();</script>
+</body>
+</html>

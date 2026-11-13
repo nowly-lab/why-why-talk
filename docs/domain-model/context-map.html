@@ -1,0 +1,174 @@
+<!doctype html>
+<!-- 生成物: 直接編集しないでください。元データ: data/*.json。scrum-domain-modeling の scripts/domain-model.mjs render で作り直します。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="generator" content="scrum-domain-modeling/domain-model.mjs">
+<title>コンテキスト · why-why-talk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --wall: #fbfbf9; --wall-dot: #dcdcd4; --paper: #ffffff; --ink: #24241f; --ink-soft: #64645b;
+  --line: #d9d9cf; --ring: #6d6d66; --accent: #2f5bd3; --focus: #2563eb; --row: #f4f4ef;
+  --ok: #dbeafe; --bad: #fde2e4; --skip: #ececea; --undef: #fff4cc;
+  --s-event: #ff9e4f; --s-command: #a9cdf1; --s-policy: #b985ca; --s-external: #eda1c6;
+  --s-aggregate: #f4ce2c; --s-readModel: #c6e15c; --s-actor: #fdf6b6; --s-hotspot: #ef7088; --s-ink: #1c1a14; --hot: #ff4030;
+  --f-note: "Klee One", "Hiragino Maru Gothic ProN", "Yu Gothic", cursive;
+  --f-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wall); color: var(--ink); font: 14px/1.65 var(--f-ui); }
+a { color: var(--accent); }
+.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--paper); border-bottom: 1px solid var(--line); }
+.crumb { font-weight: 700; } .crumb span { color: var(--ink-soft); font-weight: 500; margin: 0 6px; }
+.back { text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; color: var(--ink); background: var(--paper); }
+main { padding: 24px max(16px, env(safe-area-inset-left, 0px)) 48px; display: grid; gap: 22px; min-width: 0; }
+h1 { margin: 0; font-size: 26px; line-height: 1.3; text-wrap: balance; }
+h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+.lede { margin: 4px 0 0; color: var(--ink-soft); max-width: 80ch; }
+.meta { font-size: 12px; color: var(--ink-soft); font-family: var(--f-mono); }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--paper); }
+th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+th { background: var(--row); font-weight: 700; white-space: nowrap; }
+code, .path { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0; border-radius: 4px; color: var(--s-ink); font-size: 12px; text-decoration: none; }
+.code { display: inline-block; padding: 0 6px; margin: 2px 4px 2px 0; border-radius: 4px; background: var(--row); border: 1px solid var(--line); font: 12px var(--f-mono); }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; background: rgba(28,26,20,.14); color: var(--s-ink); margin-left: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 18px; border-radius: 2px; vertical-align: -4px; margin-right: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.legend small { color: var(--ink-soft); margin-left: 4px; }
+.foot { font-size: 12px; color: var(--ink-soft); }
+ul.plain { margin: 0; padding-left: 18px; }
+/* What the current plan changes: pulses while main has .show-changed (the toggle on each page). */
+.changes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-left: 4px solid var(--hot); }
+.changes .list { flex: 1 1 320px; min-width: 0; }
+.changes a.item { margin-right: 10px; white-space: nowrap; }
+.toggle { font-size: 13px; white-space: nowrap; }
+.new { display: inline-block; padding: 0 7px; margin-left: 6px; border-radius: 999px; background: var(--hot); color: #fff; font: 700 11px/1.6 var(--f-ui); vertical-align: 1px; }
+@keyframes changed-ping {
+  0% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 4px rgba(255,64,48,.95), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1.15); }
+  20% { filter: brightness(1); }
+  70%, 100% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 40px rgba(255,64,48,0), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1); } }
+@keyframes chip-ping { 0% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 2px rgba(255,64,48,.95); } 70%, 100% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 12px rgba(255,64,48,0); } }
+@keyframes row-flash { 0% { background-color: rgba(255,64,48,.38); } 60%, 100% { background-color: rgba(255,64,48,.1); } }
+@keyframes svg-blink { 50% { stroke-opacity: .25; } }
+.show-changed .chip.changed { box-shadow: 0 0 0 2px var(--ink); animation: chip-ping 1.2s ease-out infinite; }
+.show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { animation: row-flash 1.2s ease-out infinite; }
+.show-changed tr.is-changed > :first-child { box-shadow: inset 4px 0 0 var(--hot); }
+.show-changed .lc.is-changed, .show-changed nav a.is-changed { outline: 3px solid var(--hot); outline-offset: 2px; }
+.show-changed .gbox.is-changed { stroke: var(--hot); stroke-width: 4; animation: svg-blink 1.2s ease-in-out infinite; }
+.show-changed .gedge.is-changed { stroke: var(--hot); stroke-width: 3; animation: svg-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .show-changed .chip.changed, .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed, .show-changed .gbox.is-changed, .show-changed .gedge.is-changed { animation: none; }
+  .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { background-color: rgba(255,64,48,.18); } }
+
+.zoomable { position: relative; min-width: 0; }
+.zoom-view { overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y; max-height: 80vh; }
+.zoom-view:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.zoom-content { width: max-content; }
+.zoom-ctrl { position: absolute; top: 8px; right: 8px; z-index: 25; display: flex; align-items: center; gap: 2px; padding: 3px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.zoom-ctrl button { min-width: 32px; height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: 500 14px var(--f-ui); cursor: pointer; }
+.zoom-ctrl button:hover { background: var(--row); }
+.zoom-ctrl button:focus-visible { outline: 2px solid var(--focus); }
+.zoom-ctrl output { min-width: 3.4em; text-align: center; font: 12px var(--f-mono); color: var(--ink-soft); }
+.graph { display: block; max-width: none; }
+.gbox { fill: var(--paper); stroke: var(--ring); stroke-width: 1.5; }
+.gbox.initial { stroke-width: 3; } .gbox.final { stroke-dasharray: 5 3; }
+.gtext { font: 700 15px var(--f-ui); fill: var(--ink); } .gsub { font: 11px var(--f-mono); fill: var(--ink-soft); }
+.gedge { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.glabel { font: 12px var(--f-ui); fill: var(--ink); } .glabel-bg { fill: var(--wall); }
+.headfill { fill: var(--ink); }.diagram{background:var(--wall);border:1px solid var(--line);border-radius:6px}th[scope=row]{background:var(--paper);white-space:normal;min-width:8em}</style>
+</head>
+<body>
+<header class="top"><div class="crumb">why-why-talk<span>/</span>ドメインモデル<span>/</span>コンテキスト</div><a class="back" href="index.html">← 一覧へ</a></header>
+<main class="show-changed" id="main">
+<div><h1>境界</h1><div class="meta">確認したリビジョン 312b216 · 2026-11-13</div></div>
+<section class="card changes"><h2>今回の計画で変わる境界と関係（10）</h2><div class="list"><a class="item" href="#ctx-cli">why-why-talk コマンドと手元のサーバー</a><a class="item" href="#ctx-web">ブラウザの画面</a><a class="item" href="#ctx-gemini">Gemini Live API</a><a class="item" href="#ctx-agent">エージェント(計画のスキル)</a><a class="item" href="#relations">エージェント(計画のスキル) → why-why-talk コマンドと手元のサーバー：コマンドを実行し、終わるまで待つ</a><a class="item" href="#relations">why-why-talk コマンドと手元のサーバー → ブラウザの画面：画面と短期トークンを渡す</a><a class="item" href="#relations">ブラウザの画面 → Gemini Live API：声と関数の結果</a><a class="item" href="#relations">Gemini Live API → ブラウザの画面：声・文字起こし・関数呼び出し</a><a class="item" href="#relations">ブラウザの画面 → why-why-talk コマンドと手元のサーバー：関数呼び出し・文字起こし・送信</a><a class="item" href="#relations">why-why-talk コマンドと手元のサーバー → エージェント(計画のスキル)：結果(標準出力と終了コード)</a></div><label class="toggle"><input type="checkbox" id="show-changed" checked> 光らせて示す</label></section>
+<section class="card" id="relations"><h2>関係図</h2><div class="zoomable" data-fit="width">
+<div class="zoom-ctrl" role="toolbar" aria-label="拡大縮小"><button type="button" data-z="out" aria-label="縮小">−</button><output aria-live="polite">100%</output><button type="button" data-z="in" aria-label="拡大">＋</button><button type="button" data-z="fit">全体</button><button type="button" data-z="one">等倍</button></div>
+<div class="zoom-view diagram" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小"><div class="zoom-content"><svg class="graph" viewBox="0 0 1558 206" width="1558" height="206" role="img" aria-label="境界"><defs><marker id="gh-2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L10 5L0 9z" class="headfill"/></marker></defs><polyline class="gedge is-changed" points="1296,51 954,51" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="1024" y="28" width="202" height="18" rx="3"/><text class="glabel" x="1125" y="41" text-anchor="middle">コマンドを実行し、終わるまで待つ</text><polyline class="gedge is-changed" points="624,51 294,51" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="382" y="28" width="154" height="18" rx="3"/><text class="glabel" x="459" y="41" text-anchor="middle">画面と短期トークンを渡す</text><polyline class="gedge is-changed" points="294,73.4 314,73.4 314,143 624,143" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="412" y="120" width="94" height="18" rx="3"/><text class="glabel" x="459" y="133" text-anchor="middle">声と関数の結果</text><polyline class="gedge is-changed" points="624,157.7 564,157.7 564,177 304,177 304,84.6 294,84.6" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="370" y="154" width="178" height="18" rx="3"/><text class="glabel" x="459" y="167" text-anchor="middle">声・文字起こし・関数呼び出し</text><polyline class="gedge is-changed" points="294,62.2 324,62.2 324,85 564,85 564,69.7 624,69.7" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="364" y="62" width="190" height="18" rx="3"/><text class="glabel" x="459" y="75" text-anchor="middle">関数呼び出し・文字起こし・送信</text><polyline class="gedge is-changed" points="954,69.7 964,69.7 964,85 1236,85 1236,65.7 1296,65.7" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="1041" y="62" width="168" height="18" rx="3"/><text class="glabel" x="1125" y="75" text-anchor="middle">結果(標準出力と終了コード)</text><rect class="gbox is-changed" x="624" y="32.3" width="330" height="56" rx="8"/><text class="gtext" x="789" y="56.3" text-anchor="middle">why-why-talk コマンドと手元のサーバー</text><text class="gsub" x="789" y="75.3" text-anchor="middle">TypeScript / Node.js node:http</text><rect class="gbox is-changed" x="28" y="39.8" width="266" height="56" rx="8"/><text class="gtext" x="161" y="63.8" text-anchor="middle">ブラウザの画面</text><text class="gsub" x="161" y="82.8" text-anchor="middle">TypeScript / esbuild / @google/genai</text><rect class="gbox is-changed" x="624" y="128.3" width="167" height="44" rx="8"/><text class="gtext" x="707.5" y="155.3" text-anchor="middle">Gemini Live API</text><rect class="gbox is-changed" x="1296" y="36.3" width="234" height="44" rx="8"/><text class="gtext" x="1413" y="63.3" text-anchor="middle">エージェント(計画のスキル)</text></svg></div></div>
+</div></section>
+<section class="card"><h2>責任と契約</h2><div class="scroll"><table><thead><tr><th>境界</th><th>責任</th><th>持っている状態</th><th>契約</th><th>保証すること</th><th>ドメイン</th><th>証拠</th></tr></thead><tbody><tr id="ctx-cli" class=" is-changed"><th scope="row">why-why-talk コマンドと手元のサーバー<span class="new">変更</span><div class="meta">TypeScript / Node.js node:http</div></th><td>セッションを持ち、画面を配り、短期トークンを作り、木を守り、結果を出力する</td><td><ul class="plain"><li>セッションの記録(&lt;out&gt;/session.json, transcript.md, tree.mmd, result.*)</li><li>Gemini の API キー</li></ul></td><td><ul class="plain"><li>コマンド引数 --topic --context --out --no-open</li><li>終了コード 0 送信 / 1 取りやめ / 2 失敗</li><li>標準出力の結果 Markdown</li></ul></td><td><ul class="plain"><li>キーを画面に渡さない</li><li>結果は一度だけ</li><li>保存と出力の前に秘密を伏せる</li></ul></td><td><span class="code">呼び出し</span><span class="code">送信</span></td><td><div class="path">src/cli.ts <span class="code">main</span></div></td></tr><tr id="ctx-web" class=" is-changed"><th scope="row">ブラウザの画面<span class="new">変更</span><div class="meta">TypeScript / esbuild / @google/genai</div></th><td>マイクと音声、Gemini との接続とつなぎ直し、関数呼び出しの中継、木と会話と方針の欄の表示</td><td><ul class="plain"><li>音声の取り回し</li><li>引き継ぎの番号</li></ul></td><td><ul class="plain"><li>手元のサーバーの /api/*(合言葉つき)</li></ul></td><td>—</td><td><span class="code">壁打ち</span><span class="code">送信</span></td><td><div class="path">web/main.ts <span class="code">boot</span></div></td></tr><tr id="ctx-gemini" class=" is-changed"><th scope="row">Gemini Live API<span class="new">変更</span></th><td>日本語の声で聞き手を務め、関数で木を育てる</td><td><ul class="plain"><li>会話の文脈</li></ul></td><td><ul class="plain"><li>gemini-3.8-live</li><li>短期トークン(v1beta, uses 1, 30分)</li><li>関数 add_whys / add_fact / update_branch / propose_direction</li></ul></td><td>—</td><td>—</td><td><span class="foot">—</span></td></tr><tr id="ctx-agent" class=" is-changed"><th scope="row">エージェント(計画のスキル)<span class="new">変更</span></th><td>論点と調べた内容を渡し、結果を計画に取り込む</td><td><ul class="plain"><li>計画</li></ul></td><td><ul class="plain"><li>skills/why-why-talk/SKILL.md の手順</li></ul></td><td>—</td><td>—</td><td><span class="foot">—</span></td></tr></tbody></table></div></section>
+</main>
+<script>document.getElementById('show-changed').addEventListener('change', function (e) { document.getElementById('main').classList.toggle('show-changed', e.target.checked); });</script>
+
+<script>(function(){
+var MIN = 0.1, MAX = 4;
+document.querySelectorAll('.zoomable').forEach(function (box) {
+  var view = box.querySelector('.zoom-view'), content = box.querySelector('.zoom-content'), out = box.querySelector('output');
+  var s = 1, w = content.offsetWidth, h = content.offsetHeight;
+  function clamp(v) { return Math.min(MAX, Math.max(Math.min(MIN, fitAll()), v)); }
+  function fitAll() { return Math.min(view.clientWidth / w, view.clientHeight / h); }
+  function anchor(cx, cy) {
+    var r = view.getBoundingClientRect();
+    if (cx == null) { cx = r.left + view.clientWidth / 2; cy = r.top + view.clientHeight / 2; }
+    var px = cx - r.left, py = cy - r.top;
+    return { px: px, py: py, x: (view.scrollLeft + px) / s, y: (view.scrollTop + py) / s };
+  }
+  // Scale to v, keeping content point a.x/a.y under the screen point a.px/a.py.
+  function set(v, a) {
+    s = clamp(v); content.style.zoom = s; out.textContent = Math.round(s * 100) + '%';
+    if (a) { view.scrollLeft = a.x * s - a.px; view.scrollTop = a.y * s - a.py; }
+  }
+  function zoomAt(v, cx, cy) { set(v, anchor(cx, cy)); }
+  box.querySelector('.zoom-ctrl').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var z = b.dataset.z;
+    if (z === 'in') zoomAt(s * 1.25); else if (z === 'out') zoomAt(s / 1.25);
+    else if (z === 'one') zoomAt(1); else if (z === 'fit') { set(fitAll()); view.scrollLeft = 0; view.scrollTop = 0; }
+  });
+  view.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '+' || e.key === '=') zoomAt(s * 1.25); else if (e.key === '-') zoomAt(s / 1.25); else if (e.key === '0') zoomAt(1); else return;
+    e.preventDefault();
+  });
+  // Trackpad pinch in Chrome, Edge and Firefox arrives as wheel + ctrlKey; so does Ctrl/⌘ + wheel.
+  view.addEventListener('wheel', function (e) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    var d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomAt(s * Math.exp(-Math.max(-50, Math.min(50, d)) * 0.01), e.clientX, e.clientY);
+  }, { passive: false });
+  // Safari trackpad pinch arrives as gesture events.
+  var touching = false, g = null;
+  view.addEventListener('gesturestart', function (e) { e.preventDefault(); if (!touching) g = { s: s, a: anchor(e.clientX, e.clientY) }; });
+  view.addEventListener('gesturechange', function (e) { e.preventDefault(); if (!touching && g) set(g.s * e.scale, g.a); });
+  view.addEventListener('gestureend', function (e) { e.preventDefault(); g = null; });
+  // Two-finger touch pinch: zoom and pan with the fingers' midpoint.
+  var t = null;
+  function mid(ts) { return { x: (ts[0].clientX + ts[1].clientX) / 2, y: (ts[0].clientY + ts[1].clientY) / 2, d: Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY) || 1 }; }
+  view.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 2) return;
+    touching = true; var m = mid(e.touches); t = { s: s, d: m.d, a: anchor(m.x, m.y) };
+  }, { passive: true });
+  view.addEventListener('touchmove', function (e) {
+    if (!t || e.touches.length !== 2) return;
+    e.preventDefault();
+    var m = mid(e.touches), r = view.getBoundingClientRect();
+    set(t.s * m.d / t.d, { x: t.a.x, y: t.a.y, px: m.x - r.left, py: m.y - r.top });
+  }, { passive: false });
+  view.addEventListener('touchend', function (e) { if (e.touches.length < 2) { t = null; touching = false; } });
+  view.addEventListener('touchcancel', function () { t = null; touching = false; });
+  // Start: fit the width (never above 100%) for wide boards; otherwise 100%.
+  var fit = box.dataset.fit;
+  set(fit === 'width' ? Math.min(1, view.clientWidth / w) : fit === 'all' ? Math.min(1, fitAll()) : 1);
+});
+// Bring a linked sticky into view at the current zoom.
+var target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+if (target && target.closest('.zoom-view')) target.scrollIntoView({ block: 'center', inline: 'center' });
+})();</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{
+  "schema": "workflow-models/v1",
+  "title": "状態の移り方",
+  "checked": { "revision": "312b216", "date": "2026-11-13" },
+  "lifecycles": [
+    {
+      "id": "session-life", "name": "壁打ちのセッション", "domain": "handoff",
+      "summary": "結果は一度だけ決まる。送信には方針が要る。",
+      "states": [
+        { "id": "talking", "name": "話している", "initial": true, "changed": true },
+        { "id": "sent", "name": "送った", "final": true, "changed": true },
+        { "id": "cancelled", "name": "取りやめた", "final": true, "changed": true }
+      ],
+      "transitions": [
+        { "from": "talking", "on": "cmd-connect", "to": "talking", "changed": true },
+        { "from": "talking", "on": "cmd-grow-tree", "to": "talking", "changed": true },
+        { "from": "talking", "on": "cmd-organise", "to": "talking", "changed": true },
+        { "from": "talking", "on": "cmd-send", "to": "sent", "guard": "方針が空でない", "changed": true,
+          "evidence": [{ "path": "src/talk/session.ts", "symbol": "submit" }] },
+        { "from": "talking", "on": "cmd-cancel", "to": "cancelled", "changed": true }
+      ],
+      "rejections": [
+        { "state": "sent", "on": "cmd-send", "kind": "invalid", "reason": "送信は一度だけ", "changed": true },
+        { "state": "sent", "on": "cmd-cancel", "kind": "invalid", "reason": "もう送った", "changed": true },
+        { "state": "sent", "on": "cmd-grow-tree", "kind": "invalid", "reason": "送った後は木を変えない", "changed": true },
+        { "state": "sent", "on": "cmd-connect", "kind": "invalid", "reason": "送った後は会話しない", "changed": true },
+        { "state": "sent", "on": "cmd-organise", "kind": "invalid", "reason": "送った後は整理しない", "changed": true },
+        { "state": "cancelled", "on": "cmd-send", "kind": "invalid", "reason": "取りやめた", "changed": true },
+        { "state": "cancelled", "on": "cmd-cancel", "kind": "ignored", "reason": "すでに取りやめた", "changed": true },
+        { "state": "cancelled", "on": "cmd-grow-tree", "kind": "invalid", "reason": "取りやめた", "changed": true },
+        { "state": "cancelled", "on": "cmd-connect", "kind": "invalid", "reason": "取りやめた", "changed": true },
+        { "state": "cancelled", "on": "cmd-organise", "kind": "invalid", "reason": "取りやめた", "changed": true }
+      ]
+    },
+    {
+      "id": "node-life", "name": "なぜ(ノード)", "domain": "talk",
+      "summary": "枝は消えない。却下と仮説は理由を付ければ候補に戻せる。止めた枝の下は掘らない。",
+      "states": [
+        { "id": "candidate", "name": "未調査の枝", "initial": true, "changed": true },
+        { "id": "digging", "name": "掘っている", "changed": true },
+        { "id": "leaf", "name": "葉", "changed": true },
+        { "id": "rejected", "name": "却下", "changed": true },
+        { "id": "hypothesis", "name": "仮説で止めた", "changed": true }
+      ],
+      "transitions": [
+        { "from": "candidate", "on": "cmd-grow-tree", "to": "digging", "guard": "update_branch state=digging かつ止めた枝の下でない", "changed": true },
+        { "from": "candidate", "on": "cmd-grow-tree", "to": "rejected", "guard": "update_branch state=rejected かつ理由あり", "changed": true },
+        { "from": "candidate", "on": "cmd-grow-tree", "to": "hypothesis", "guard": "update_branch state=hypothesis かつ理由あり", "changed": true },
+        { "from": "digging", "on": "cmd-grow-tree", "to": "leaf", "guard": "update_branch state=leaf かつ対策あり", "changed": true },
+        { "from": "digging", "on": "cmd-grow-tree", "to": "rejected", "guard": "update_branch state=rejected かつ理由あり", "changed": true },
+        { "from": "digging", "on": "cmd-grow-tree", "to": "hypothesis", "guard": "update_branch state=hypothesis かつ理由あり", "changed": true },
+        { "from": "digging", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate", "changed": true },
+        { "from": "rejected", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate かつ理由あり", "changed": true },
+        { "from": "hypothesis", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate かつ理由あり", "changed": true },
+        { "from": "leaf", "on": "cmd-grow-tree", "to": "digging", "guard": "update_branch state=digging", "changed": true }
+      ],
+      "rejections": []
+    }
+  ]
+}

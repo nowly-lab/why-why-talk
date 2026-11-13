@@ -1,0 +1,93 @@
+<!doctype html>
+<!-- 生成物: 直接編集しないでください。元データ: data/*.json。scrum-domain-modeling の scripts/domain-model.mjs render で作り直します。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="generator" content="scrum-domain-modeling/domain-model.mjs">
+<title>コマンドとイベント · why-why-talk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --wall: #fbfbf9; --wall-dot: #dcdcd4; --paper: #ffffff; --ink: #24241f; --ink-soft: #64645b;
+  --line: #d9d9cf; --ring: #6d6d66; --accent: #2f5bd3; --focus: #2563eb; --row: #f4f4ef;
+  --ok: #dbeafe; --bad: #fde2e4; --skip: #ececea; --undef: #fff4cc;
+  --s-event: #ff9e4f; --s-command: #a9cdf1; --s-policy: #b985ca; --s-external: #eda1c6;
+  --s-aggregate: #f4ce2c; --s-readModel: #c6e15c; --s-actor: #fdf6b6; --s-hotspot: #ef7088; --s-ink: #1c1a14; --hot: #ff4030;
+  --f-note: "Klee One", "Hiragino Maru Gothic ProN", "Yu Gothic", cursive;
+  --f-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wall); color: var(--ink); font: 14px/1.65 var(--f-ui); }
+a { color: var(--accent); }
+.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--paper); border-bottom: 1px solid var(--line); }
+.crumb { font-weight: 700; } .crumb span { color: var(--ink-soft); font-weight: 500; margin: 0 6px; }
+.back { text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; color: var(--ink); background: var(--paper); }
+main { padding: 24px max(16px, env(safe-area-inset-left, 0px)) 48px; display: grid; gap: 22px; min-width: 0; }
+h1 { margin: 0; font-size: 26px; line-height: 1.3; text-wrap: balance; }
+h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+.lede { margin: 4px 0 0; color: var(--ink-soft); max-width: 80ch; }
+.meta { font-size: 12px; color: var(--ink-soft); font-family: var(--f-mono); }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--paper); }
+th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+th { background: var(--row); font-weight: 700; white-space: nowrap; }
+code, .path { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0; border-radius: 4px; color: var(--s-ink); font-size: 12px; text-decoration: none; }
+.code { display: inline-block; padding: 0 6px; margin: 2px 4px 2px 0; border-radius: 4px; background: var(--row); border: 1px solid var(--line); font: 12px var(--f-mono); }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; background: rgba(28,26,20,.14); color: var(--s-ink); margin-left: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 18px; border-radius: 2px; vertical-align: -4px; margin-right: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.legend small { color: var(--ink-soft); margin-left: 4px; }
+.foot { font-size: 12px; color: var(--ink-soft); }
+ul.plain { margin: 0; padding-left: 18px; }
+/* What the current plan changes: pulses while main has .show-changed (the toggle on each page). */
+.changes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-left: 4px solid var(--hot); }
+.changes .list { flex: 1 1 320px; min-width: 0; }
+.changes a.item { margin-right: 10px; white-space: nowrap; }
+.toggle { font-size: 13px; white-space: nowrap; }
+.new { display: inline-block; padding: 0 7px; margin-left: 6px; border-radius: 999px; background: var(--hot); color: #fff; font: 700 11px/1.6 var(--f-ui); vertical-align: 1px; }
+@keyframes changed-ping {
+  0% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 4px rgba(255,64,48,.95), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1.15); }
+  20% { filter: brightness(1); }
+  70%, 100% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 40px rgba(255,64,48,0), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1); } }
+@keyframes chip-ping { 0% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 2px rgba(255,64,48,.95); } 70%, 100% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 12px rgba(255,64,48,0); } }
+@keyframes row-flash { 0% { background-color: rgba(255,64,48,.38); } 60%, 100% { background-color: rgba(255,64,48,.1); } }
+@keyframes svg-blink { 50% { stroke-opacity: .25; } }
+.show-changed .chip.changed { box-shadow: 0 0 0 2px var(--ink); animation: chip-ping 1.2s ease-out infinite; }
+.show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { animation: row-flash 1.2s ease-out infinite; }
+.show-changed tr.is-changed > :first-child { box-shadow: inset 4px 0 0 var(--hot); }
+.show-changed .lc.is-changed, .show-changed nav a.is-changed { outline: 3px solid var(--hot); outline-offset: 2px; }
+.show-changed .gbox.is-changed { stroke: var(--hot); stroke-width: 4; animation: svg-blink 1.2s ease-in-out infinite; }
+.show-changed .gedge.is-changed { stroke: var(--hot); stroke-width: 3; animation: svg-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .show-changed .chip.changed, .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed, .show-changed .gbox.is-changed, .show-changed .gedge.is-changed { animation: none; }
+  .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { background-color: rgba(255,64,48,.18); } }
+tr.group th{background:var(--paper);font-size:15px;border-left:4px solid var(--ring)} ul.inv{margin:4px 0 6px;padding-left:18px;font-size:12px;color:var(--ink-soft)}</style>
+</head>
+<body>
+<header class="top"><div class="crumb">why-why-talk<span>/</span>ドメインモデル<span>/</span>コマンドとイベント</div><a class="back" href="index.html">← 一覧へ</a></header>
+<main class="show-changed" id="main">
+<div><h1>コマンドとイベント</h1><p class="lede">全体像の付箋と矢印から作った表です。直すときは data/big-picture.json を直します。</p><div class="meta">確認したリビジョン 312b216 · 2026-11-13</div></div>
+<section class="card changes"><h2>今回の計画で変わる行（10）</h2><div class="list"><a class="item" href="#c-cmd-start-talk">深掘りを始める</a><a class="item" href="#c-cmd-connect">Gemini とつなぐ</a><a class="item" href="#c-cmd-speak">質問に答える</a><a class="item" href="#c-cmd-grow-tree">木を育てる(add_whys / add_fact / update_branch)</a><a class="item" href="#c-cmd-organise">整理する</a><a class="item" href="#c-cmd-send">直して送信する</a><a class="item" href="#c-cmd-cancel">取りやめる</a><a class="item" href="#p-pol-new-reason">新しい理由や事実が出たら</a><a class="item" href="#p-pol-goaway">接続が切れそうになったら(goAway・25分)</a><a class="item" href="#p-pol-abandon">タブが閉じて60秒戻らなかったら</a></div><label class="toggle"><input type="checkbox" id="show-changed" checked> 光らせて示す</label></section>
+<section class="card"><h2>操作から出来事へ</h2><p class="foot">（リードモデルを見て）アクター（またはポリシー） → コマンド → 集約・外部システム → イベント。集約は一緒に更新しないと整合性が崩れるデータのまとまりで、その下にいつでも守るルール（不変条件）を並べています。</p>
+<div class="scroll"><table><thead><tr><th>だれが</th><th>コマンド</th><th>集約・外部システム</th><th>イベント</th><th>証拠</th></tr></thead><tbody><tr class="group"><th colspan="5">呼び出し</th></tr><tr id="c-cmd-start-talk" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-agent" style="background:var(--s-actor)" title="アクター">エージェント(計画のスキル)</a></td><td><a class="chip changed" href="big-picture.html#n-cmd-start-talk" style="background:var(--s-command)" title="コマンド">深掘りを始める</a></td><td><a class="chip changed" href="big-picture.html#n-agg-session" style="background:var(--s-aggregate)" title="集約">壁打ちのセッション</a><ul class="inv"><li>Gemini の API キーはコマンドの中だけに置き、画面には短期トークンだけを渡す</li><li>合言葉の違う画面(古いタブ)からの書き込みは断る</li><li>結果は一度だけ決まる(送信か取りやめ)</li><li>変わるたびに記録をフォルダに保存し、保存と出力の前に秘密を伏せる</li></ul></td><td><a class="chip changed" href="big-picture.html#n-ev-page-opened" style="background:var(--s-event)" title="イベント">画面を開いた</a></td><td><div class="path">src/cli.ts <span class="code">main</span></div></td></tr><tr class="group"><th colspan="5">壁打ち</th></tr><tr id="c-cmd-connect" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-pol-goaway" style="background:var(--s-policy)" title="ポリシー">接続が切れそうになったら(goAway・25分)</a><a class="chip changed" href="big-picture.html#n-person" style="background:var(--s-actor)" title="アクター">人</a></td><td><a class="chip changed" href="big-picture.html#n-cmd-connect" style="background:var(--s-command)" title="コマンド">Gemini とつなぐ</a></td><td><a class="chip changed" href="big-picture.html#n-ext-gemini" style="background:var(--s-external)" title="外部システム">Gemini Live API</a></td><td><a class="chip changed" href="big-picture.html#n-ev-connected" style="background:var(--s-event)" title="イベント">声の会話がつながった</a></td><td><div class="path">src/talk/gemini.ts <span class="code">mintToken</span></div><div class="path">web/live.ts <span class="code">connectLive</span></div></td></tr><tr id="c-cmd-speak" class=" is-changed"><td><span class="foot">—</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-speak" style="background:var(--s-command)" title="コマンド">質問に答える</a></td><td><span class="foot">—</span></td><td><a class="chip changed" href="big-picture.html#n-ev-said" style="background:var(--s-event)" title="イベント">発言が記録された</a></td><td><span class="foot">—</span></td></tr><tr id="c-cmd-grow-tree" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-pol-new-reason" style="background:var(--s-policy)" title="ポリシー">新しい理由や事実が出たら</a></td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td><a class="chip changed" href="big-picture.html#n-agg-tree" style="background:var(--s-aggregate)" title="集約">なぜの木</a><ul class="inv"><li>親のないノードは作らない</li><li>同じ親に同じ文のなぜを二重に足さない</li><li>枝は消さない(却下・仮説も理由つきで残す)</li><li>葉には対策、却下と仮説には理由が必要</li><li>止めた枝(葉・却下・仮説)の下は掘らない</li></ul></td><td><a class="chip changed" href="big-picture.html#n-ev-tree-grown" style="background:var(--s-event)" title="イベント">木が育った</a></td><td><div class="path">src/talk/session.ts <span class="code">applyTool</span></div><div class="path">src/talk/tools.ts <span class="code">FUNCTION_DECLARATIONS</span></div></td></tr><tr class="group"><th colspan="5">送信</th></tr><tr id="c-cmd-organise" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-rm-tree-view" style="background:var(--s-readModel)" title="リードモデル">画面の木と会話</a><span class="foot"> を見て</span><br><a class="chip changed" href="big-picture.html#n-person-organise" style="background:var(--s-actor)" title="アクター">人</a></td><td><a class="chip changed" href="big-picture.html#n-cmd-organise" style="background:var(--s-command)" title="コマンド">整理する</a></td><td><span class="foot">—</span></td><td><a class="chip changed" href="big-picture.html#n-ev-draft" style="background:var(--s-event)" title="イベント">方針の下書きができた</a></td><td><span class="foot">—</span></td></tr><tr id="c-cmd-send" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-rm-draft" style="background:var(--s-readModel)" title="リードモデル">方針の欄(方針・理由・見送った案・残った疑問)</a><span class="foot"> を見て</span><br><a class="chip changed" href="big-picture.html#n-person-send" style="background:var(--s-actor)" title="アクター">人</a></td><td><a class="chip changed" href="big-picture.html#n-cmd-send" style="background:var(--s-command)" title="コマンド">直して送信する</a></td><td><a class="chip changed" href="big-picture.html#n-agg-session-send" style="background:var(--s-aggregate)" title="集約">壁打ちのセッション</a><ul class="inv"><li>方針が空なら送れない</li><li>送信は一度だけ</li></ul></td><td><a class="chip changed" href="big-picture.html#n-ev-sent" style="background:var(--s-event)" title="イベント">方針を送った</a><a class="chip changed" href="big-picture.html#n-ev-cancelled" style="background:var(--s-event)" title="イベント">取りやめた</a></td><td><div class="path">src/talk/session.ts <span class="code">submit</span></div></td></tr><tr id="c-cmd-cancel" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-pol-abandon" style="background:var(--s-policy)" title="ポリシー">タブが閉じて60秒戻らなかったら</a></td><td><a class="chip changed" href="big-picture.html#n-cmd-cancel" style="background:var(--s-command)" title="コマンド">取りやめる</a></td><td><a class="chip changed" href="big-picture.html#n-agg-session-send" style="background:var(--s-aggregate)" title="集約">壁打ちのセッション</a><ul class="inv"><li>方針が空なら送れない</li><li>送信は一度だけ</li></ul></td><td><a class="chip changed" href="big-picture.html#n-ev-sent" style="background:var(--s-event)" title="イベント">方針を送った</a><a class="chip changed" href="big-picture.html#n-ev-cancelled" style="background:var(--s-event)" title="イベント">取りやめた</a></td><td><div class="path">src/talk/session.ts <span class="code">cancel</span></div></td></tr></tbody></table></div></section>
+<section class="card"><h2>出来事から次の操作へ</h2><p class="foot">イベント → ポリシー（実行方式） → コマンド。ポリシーは、イベントが起きたときに次に何をするかを決めるルールです。人が判断するときはアクターをはさみます。</p>
+<div class="scroll"><table><thead><tr><th>イベント</th><th>ポリシー</th><th>コマンド</th><th>証拠</th></tr></thead><tbody><tr class="group"><th colspan="4">壁打ち</th></tr><tr id="p-pol-new-reason" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-ev-said" style="background:var(--s-event)" title="イベント">発言が記録された</a></td><td><a class="chip changed" href="big-picture.html#n-pol-new-reason" style="background:var(--s-policy)" title="ポリシー">新しい理由や事実が出たら</a><span class="badge">外部</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a></td><td><span class="foot">—</span></td></tr><tr id="p-pol-goaway" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-ev-connected" style="background:var(--s-event)" title="イベント">声の会話がつながった</a></td><td><a class="chip changed" href="big-picture.html#n-pol-goaway" style="background:var(--s-policy)" title="ポリシー">接続が切れそうになったら(goAway・25分)</a><span class="badge">同期</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-connect" style="background:var(--s-command)" title="コマンド">Gemini とつなぐ</a></td><td><div class="path">web/reconnect.ts <span class="code">nextConnection</span></div></td></tr><tr class="group"><th colspan="4">送信</th></tr><tr id="p-pol-abandon" class=" is-changed"><td><a class="chip changed" href="big-picture.html#n-ev-page-opened" style="background:var(--s-event)" title="イベント">画面を開いた</a></td><td><a class="chip changed" href="big-picture.html#n-pol-abandon" style="background:var(--s-policy)" title="ポリシー">タブが閉じて60秒戻らなかったら</a><span class="badge">同期</span></td><td><a class="chip changed" href="big-picture.html#n-cmd-cancel" style="background:var(--s-command)" title="コマンド">取りやめる</a></td><td><div class="path">src/talk/server.ts <span class="code">leaseGraceMs</span></div></td></tr></tbody></table></div></section>
+<div class="card"><div class="legend"><span><i style="background:var(--s-actor)"></i>アクター<small>人・役割</small></span><span><i style="background:var(--s-command)"></i>コマンド<small>依頼・操作</small></span><span><i style="background:var(--s-event)"></i>イベント<small>起きたこと</small></span><span><i style="background:var(--s-policy)"></i>ポリシー<small>〜されたら</small></span><span><i style="background:var(--s-aggregate)"></i>集約<small>一緒に更新するデータ</small></span><span><i style="background:var(--s-external)"></i>外部システム<small>外のサービス</small></span><span><i style="background:var(--s-readModel)"></i>リードモデル<small>判断の前に見るもの</small></span><span><i style="background:var(--s-hotspot)"></i>ホットスポット<small>未解決・懸念</small></span></div></div>
+</main>
+<script>document.getElementById('show-changed').addEventListener('change', function (e) { document.getElementById('main').classList.toggle('show-changed', e.target.checked); });</script>
+
+
+</body>
+</html>

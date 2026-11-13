@@ -1,0 +1,92 @@
+<!doctype html>
+<!-- 生成物: 直接編集しないでください。元データ: data/*.json。scrum-domain-modeling の scripts/domain-model.mjs render で作り直します。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="generator" content="scrum-domain-modeling/domain-model.mjs">
+<title>ドメインモデル · why-why-talk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --wall: #fbfbf9; --wall-dot: #dcdcd4; --paper: #ffffff; --ink: #24241f; --ink-soft: #64645b;
+  --line: #d9d9cf; --ring: #6d6d66; --accent: #2f5bd3; --focus: #2563eb; --row: #f4f4ef;
+  --ok: #dbeafe; --bad: #fde2e4; --skip: #ececea; --undef: #fff4cc;
+  --s-event: #ff9e4f; --s-command: #a9cdf1; --s-policy: #b985ca; --s-external: #eda1c6;
+  --s-aggregate: #f4ce2c; --s-readModel: #c6e15c; --s-actor: #fdf6b6; --s-hotspot: #ef7088; --s-ink: #1c1a14; --hot: #ff4030;
+  --f-note: "Klee One", "Hiragino Maru Gothic ProN", "Yu Gothic", cursive;
+  --f-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wall); color: var(--ink); font: 14px/1.65 var(--f-ui); }
+a { color: var(--accent); }
+.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--paper); border-bottom: 1px solid var(--line); }
+.crumb { font-weight: 700; } .crumb span { color: var(--ink-soft); font-weight: 500; margin: 0 6px; }
+.back { text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; color: var(--ink); background: var(--paper); }
+main { padding: 24px max(16px, env(safe-area-inset-left, 0px)) 48px; display: grid; gap: 22px; min-width: 0; }
+h1 { margin: 0; font-size: 26px; line-height: 1.3; text-wrap: balance; }
+h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+.lede { margin: 4px 0 0; color: var(--ink-soft); max-width: 80ch; }
+.meta { font-size: 12px; color: var(--ink-soft); font-family: var(--f-mono); }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--paper); }
+th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+th { background: var(--row); font-weight: 700; white-space: nowrap; }
+code, .path { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0; border-radius: 4px; color: var(--s-ink); font-size: 12px; text-decoration: none; }
+.code { display: inline-block; padding: 0 6px; margin: 2px 4px 2px 0; border-radius: 4px; background: var(--row); border: 1px solid var(--line); font: 12px var(--f-mono); }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; background: rgba(28,26,20,.14); color: var(--s-ink); margin-left: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 18px; border-radius: 2px; vertical-align: -4px; margin-right: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.legend small { color: var(--ink-soft); margin-left: 4px; }
+.foot { font-size: 12px; color: var(--ink-soft); }
+ul.plain { margin: 0; padding-left: 18px; }
+/* What the current plan changes: pulses while main has .show-changed (the toggle on each page). */
+.changes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-left: 4px solid var(--hot); }
+.changes .list { flex: 1 1 320px; min-width: 0; }
+.changes a.item { margin-right: 10px; white-space: nowrap; }
+.toggle { font-size: 13px; white-space: nowrap; }
+.new { display: inline-block; padding: 0 7px; margin-left: 6px; border-radius: 999px; background: var(--hot); color: #fff; font: 700 11px/1.6 var(--f-ui); vertical-align: 1px; }
+@keyframes changed-ping {
+  0% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 4px rgba(255,64,48,.95), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1.15); }
+  20% { filter: brightness(1); }
+  70%, 100% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 40px rgba(255,64,48,0), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1); } }
+@keyframes chip-ping { 0% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 2px rgba(255,64,48,.95); } 70%, 100% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 12px rgba(255,64,48,0); } }
+@keyframes row-flash { 0% { background-color: rgba(255,64,48,.38); } 60%, 100% { background-color: rgba(255,64,48,.1); } }
+@keyframes svg-blink { 50% { stroke-opacity: .25; } }
+.show-changed .chip.changed { box-shadow: 0 0 0 2px var(--ink); animation: chip-ping 1.2s ease-out infinite; }
+.show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { animation: row-flash 1.2s ease-out infinite; }
+.show-changed tr.is-changed > :first-child { box-shadow: inset 4px 0 0 var(--hot); }
+.show-changed .lc.is-changed, .show-changed nav a.is-changed { outline: 3px solid var(--hot); outline-offset: 2px; }
+.show-changed .gbox.is-changed { stroke: var(--hot); stroke-width: 4; animation: svg-blink 1.2s ease-in-out infinite; }
+.show-changed .gedge.is-changed { stroke: var(--hot); stroke-width: 3; animation: svg-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .show-changed .chip.changed, .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed, .show-changed .gbox.is-changed, .show-changed .gedge.is-changed { animation: none; }
+  .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { background-color: rgba(255,64,48,.18); } }
+.docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}.doc{text-decoration:none;color:var(--ink);display:grid;gap:6px}.doc:hover{border-color:var(--accent)}.doc p{margin:0;color:var(--ink-soft)}</style>
+</head>
+<body>
+<header class="top"><div class="crumb">why-why-talk<span>/</span>ドメインモデル</div></header>
+<main class="show-changed" id="main">
+<div><h1>why-why-talk ドメインモデル</h1><p class="lede">計画の途中で一点を深掘りするとき、人が Gemini Live と声で壁打ちし、なぜの木と方針をエージェントに送る流れ。</p><div class="meta">確認したリビジョン 312b216 · 2026-11-13</div></div>
+<div class="docs"><a class="card doc" href="big-picture.html"><h2>全体像</h2><p>ドメインごとの付箋を、時間の流れに沿って矢印でつないだボード。</p><div class="meta">ドメイン 3 · 付箋 29 · 矢印 28</div><div><span class="new">今回の変更 29</span></div></a><a class="card doc" href="domain-glossary.html"><h2>用語集</h2><p>業務の言葉と、コード上の名前・関係する付箋・証拠。</p><div class="meta">用語 13</div><div><span class="new">今回の変更 13</span></div></a><a class="card doc" href="event-command-map.html"><h2>コマンドとイベント</h2><p>操作から出来事へ、出来事から次の操作へ。全体像から作る。</p><div class="meta">コマンド 7 · ポリシー 3</div><div><span class="new">今回の変更 10</span></div></a><a class="card doc" href="workflow-models.html"><h2>ワークフロー</h2><p>ライフサイクルごとの状態遷移図・遷移表・早見表。</p><div class="meta">ライフサイクル 2</div><div><span class="new">今回の変更 33</span></div></a><a class="card doc" href="context-map.html"><h2>コンテキスト</h2><p>境界ごとの責任・持ち物・契約と、その関係。</p><div class="meta">コンテキスト 4 · 関係 6</div><div><span class="new">今回の変更 10</span></div></a></div>
+<section class="card"><h2>ホットスポット（1）</h2><a class="chip changed" href="big-picture.html#n-hs-voice" style="background:var(--s-hotspot)" title="ホットスポット">日本語で聞きやすい声の既定は、試して決める</a></section>
+<section class="card"><h2>今回の計画で変わる付箋（29）</h2><a class="chip changed" href="big-picture.html#n-agent" style="background:var(--s-actor)" title="アクター">エージェント(計画のスキル)</a><a class="chip changed" href="big-picture.html#n-cmd-start-talk" style="background:var(--s-command)" title="コマンド">深掘りを始める</a><a class="chip changed" href="big-picture.html#n-agg-session" style="background:var(--s-aggregate)" title="集約">壁打ちのセッション</a><a class="chip changed" href="big-picture.html#n-ev-page-opened" style="background:var(--s-event)" title="イベント">画面を開いた</a><a class="chip changed" href="big-picture.html#n-person" style="background:var(--s-actor)" title="アクター">人</a><a class="chip changed" href="big-picture.html#n-cmd-connect" style="background:var(--s-command)" title="コマンド">Gemini とつなぐ</a><a class="chip changed" href="big-picture.html#n-ext-gemini" style="background:var(--s-external)" title="外部システム">Gemini Live API</a><a class="chip changed" href="big-picture.html#n-ev-connected" style="background:var(--s-event)" title="イベント">声の会話がつながった</a><a class="chip changed" href="big-picture.html#n-cmd-speak" style="background:var(--s-command)" title="コマンド">質問に答える</a><a class="chip changed" href="big-picture.html#n-ev-said" style="background:var(--s-event)" title="イベント">発言が記録された</a><a class="chip changed" href="big-picture.html#n-pol-new-reason" style="background:var(--s-policy)" title="ポリシー">新しい理由や事実が出たら</a><a class="chip changed" href="big-picture.html#n-cmd-grow-tree" style="background:var(--s-command)" title="コマンド">木を育てる(add_whys / add_fact / update_branch)</a><a class="chip changed" href="big-picture.html#n-agg-tree" style="background:var(--s-aggregate)" title="集約">なぜの木</a><a class="chip changed" href="big-picture.html#n-ev-tree-grown" style="background:var(--s-event)" title="イベント">木が育った</a><a class="chip changed" href="big-picture.html#n-rm-tree-view" style="background:var(--s-readModel)" title="リードモデル">画面の木と会話</a><a class="chip changed" href="big-picture.html#n-pol-goaway" style="background:var(--s-policy)" title="ポリシー">接続が切れそうになったら(goAway・25分)</a><a class="chip changed" href="big-picture.html#n-hs-voice" style="background:var(--s-hotspot)" title="ホットスポット">日本語で聞きやすい声の既定は、試して決める</a><a class="chip changed" href="big-picture.html#n-person-organise" style="background:var(--s-actor)" title="アクター">人</a><a class="chip changed" href="big-picture.html#n-cmd-organise" style="background:var(--s-command)" title="コマンド">整理する</a><a class="chip changed" href="big-picture.html#n-ev-draft" style="background:var(--s-event)" title="イベント">方針の下書きができた</a><a class="chip changed" href="big-picture.html#n-rm-draft" style="background:var(--s-readModel)" title="リードモデル">方針の欄(方針・理由・見送った案・残った疑問)</a><a class="chip changed" href="big-picture.html#n-person-send" style="background:var(--s-actor)" title="アクター">人</a><a class="chip changed" href="big-picture.html#n-cmd-send" style="background:var(--s-command)" title="コマンド">直して送信する</a><a class="chip changed" href="big-picture.html#n-agg-session-send" style="background:var(--s-aggregate)" title="集約">壁打ちのセッション</a><a class="chip changed" href="big-picture.html#n-ev-sent" style="background:var(--s-event)" title="イベント">方針を送った</a><a class="chip changed" href="big-picture.html#n-ext-agent-session" style="background:var(--s-external)" title="外部システム">エージェントのセッション</a><a class="chip changed" href="big-picture.html#n-pol-abandon" style="background:var(--s-policy)" title="ポリシー">タブが閉じて60秒戻らなかったら</a><a class="chip changed" href="big-picture.html#n-cmd-cancel" style="background:var(--s-command)" title="コマンド">取りやめる</a><a class="chip changed" href="big-picture.html#n-ev-cancelled" style="background:var(--s-event)" title="イベント">取りやめた</a></section>
+<div class="card"><div class="legend"><span><i style="background:var(--s-actor)"></i>アクター<small>人・役割</small></span><span><i style="background:var(--s-command)"></i>コマンド<small>依頼・操作</small></span><span><i style="background:var(--s-event)"></i>イベント<small>起きたこと</small></span><span><i style="background:var(--s-policy)"></i>ポリシー<small>〜されたら</small></span><span><i style="background:var(--s-aggregate)"></i>集約<small>一緒に更新するデータ</small></span><span><i style="background:var(--s-external)"></i>外部システム<small>外のサービス</small></span><span><i style="background:var(--s-readModel)"></i>リードモデル<small>判断の前に見るもの</small></span><span><i style="background:var(--s-hotspot)"></i>ホットスポット<small>未解決・懸念</small></span></div></div>
+<p class="foot">このページと各文書は data/*.json から作った生成物です。直すときはデータを直し、scrum-domain-modeling の <code>scripts/domain-model.mjs render</code> を実行します。</p>
+</main>
+
+
+
+</body>
+</html>

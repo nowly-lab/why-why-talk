@@ -1,0 +1,221 @@
+<!doctype html>
+<!-- 生成物: 直接編集しないでください。元データ: data/*.json。scrum-domain-modeling の scripts/domain-model.mjs render で作り直します。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="generator" content="scrum-domain-modeling/domain-model.mjs">
+<title>全体像 · why-why-talk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --wall: #fbfbf9; --wall-dot: #dcdcd4; --paper: #ffffff; --ink: #24241f; --ink-soft: #64645b;
+  --line: #d9d9cf; --ring: #6d6d66; --accent: #2f5bd3; --focus: #2563eb; --row: #f4f4ef;
+  --ok: #dbeafe; --bad: #fde2e4; --skip: #ececea; --undef: #fff4cc;
+  --s-event: #ff9e4f; --s-command: #a9cdf1; --s-policy: #b985ca; --s-external: #eda1c6;
+  --s-aggregate: #f4ce2c; --s-readModel: #c6e15c; --s-actor: #fdf6b6; --s-hotspot: #ef7088; --s-ink: #1c1a14; --hot: #ff4030;
+  --f-note: "Klee One", "Hiragino Maru Gothic ProN", "Yu Gothic", cursive;
+  --f-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --wall: #1c1d1a; --wall-dot: #30312c; --paper: #24251f; --ink: #ecece6; --ink-soft: #a6a69c; --line: #3a3b35;
+  --ring: #a8a89e; --accent: #8fb0ff; --focus: #93c5fd; --row: #2a2b25; --ok: #1e3a5f; --bad: #5b2530; --skip: #34352f; --undef: #4a4220; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wall); color: var(--ink); font: 14px/1.65 var(--f-ui); }
+a { color: var(--accent); }
+.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--paper); border-bottom: 1px solid var(--line); }
+.crumb { font-weight: 700; } .crumb span { color: var(--ink-soft); font-weight: 500; margin: 0 6px; }
+.back { text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; color: var(--ink); background: var(--paper); }
+main { padding: 24px max(16px, env(safe-area-inset-left, 0px)) 48px; display: grid; gap: 22px; min-width: 0; }
+h1 { margin: 0; font-size: 26px; line-height: 1.3; text-wrap: balance; }
+h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+.lede { margin: 4px 0 0; color: var(--ink-soft); max-width: 80ch; }
+.meta { font-size: 12px; color: var(--ink-soft); font-family: var(--f-mono); }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--paper); }
+th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+th { background: var(--row); font-weight: 700; white-space: nowrap; }
+code, .path { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0; border-radius: 4px; color: var(--s-ink); font-size: 12px; text-decoration: none; }
+.code { display: inline-block; padding: 0 6px; margin: 2px 4px 2px 0; border-radius: 4px; background: var(--row); border: 1px solid var(--line); font: 12px var(--f-mono); }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; background: rgba(28,26,20,.14); color: var(--s-ink); margin-left: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.legend i { display: inline-block; width: 18px; height: 18px; border-radius: 2px; vertical-align: -4px; margin-right: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.legend small { color: var(--ink-soft); margin-left: 4px; }
+.foot { font-size: 12px; color: var(--ink-soft); }
+ul.plain { margin: 0; padding-left: 18px; }
+/* What the current plan changes: pulses while main has .show-changed (the toggle on each page). */
+.changes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-left: 4px solid var(--hot); }
+.changes .list { flex: 1 1 320px; min-width: 0; }
+.changes a.item { margin-right: 10px; white-space: nowrap; }
+.toggle { font-size: 13px; white-space: nowrap; }
+.new { display: inline-block; padding: 0 7px; margin-left: 6px; border-radius: 999px; background: var(--hot); color: #fff; font: 700 11px/1.6 var(--f-ui); vertical-align: 1px; }
+@keyframes changed-ping {
+  0% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 4px rgba(255,64,48,.95), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1.15); }
+  20% { filter: brightness(1); }
+  70%, 100% { box-shadow: 0 0 0 4px var(--ink), 0 0 0 40px rgba(255,64,48,0), 0 10px 14px -6px rgba(0,0,0,.5); filter: brightness(1); } }
+@keyframes chip-ping { 0% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 2px rgba(255,64,48,.95); } 70%, 100% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 12px rgba(255,64,48,0); } }
+@keyframes row-flash { 0% { background-color: rgba(255,64,48,.38); } 60%, 100% { background-color: rgba(255,64,48,.1); } }
+@keyframes svg-blink { 50% { stroke-opacity: .25; } }
+.show-changed .chip.changed { box-shadow: 0 0 0 2px var(--ink); animation: chip-ping 1.2s ease-out infinite; }
+.show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { animation: row-flash 1.2s ease-out infinite; }
+.show-changed tr.is-changed > :first-child { box-shadow: inset 4px 0 0 var(--hot); }
+.show-changed .lc.is-changed, .show-changed nav a.is-changed { outline: 3px solid var(--hot); outline-offset: 2px; }
+.show-changed .gbox.is-changed { stroke: var(--hot); stroke-width: 4; animation: svg-blink 1.2s ease-in-out infinite; }
+.show-changed .gedge.is-changed { stroke: var(--hot); stroke-width: 3; animation: svg-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .show-changed .chip.changed, .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed, .show-changed .gbox.is-changed, .show-changed .gedge.is-changed { animation: none; }
+  .show-changed .is-changed > td, .show-changed .is-changed > th, .show-changed td.is-changed { background-color: rgba(255,64,48,.18); } }
+
+.zoomable { position: relative; min-width: 0; }
+.zoom-view { overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y; max-height: 80vh; }
+.zoom-view:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.zoom-content { width: max-content; }
+.zoom-ctrl { position: absolute; top: 8px; right: 8px; z-index: 25; display: flex; align-items: center; gap: 2px; padding: 3px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.zoom-ctrl button { min-width: 32px; height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: 500 14px var(--f-ui); cursor: pointer; }
+.zoom-ctrl button:hover { background: var(--row); }
+.zoom-ctrl button:focus-visible { outline: 2px solid var(--focus); }
+.zoom-ctrl output { min-width: 3.4em; text-align: center; font: 12px var(--f-mono); color: var(--ink-soft); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; justify-content: space-between; padding: 10px 14px; }
+
+.board-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .board-wrap { grid-template-columns: minmax(0, 1fr); } }
+.wall { border: 1px solid var(--line); border-radius: 8px; background-color: var(--wall); background-image: radial-gradient(var(--wall-dot) 1px, transparent 1px); background-size: 20px 20px; }
+.board { position: relative; }
+.layer { position: absolute; left: 0; top: 0; overflow: visible; }
+.ring { fill: none; stroke: var(--ring); stroke-width: 1.6; }
+.ring-label { font: 700 20px var(--f-ui); fill: var(--ink); paint-order: stroke; stroke: var(--wall); stroke-width: 6px; }
+.timeline { font: 700 16px var(--f-ui); fill: var(--ink); }
+.edge { fill: none; stroke: var(--ink); stroke-width: 2; }
+.edge.result { stroke-width: 2.4; stroke-dasharray: 0.1 6; stroke-linecap: round; }
+.edge.dim { opacity: .15; }
+.headfill { fill: var(--ink); }
+.note { position: absolute; border: 0; margin: 0; padding: 7px 8px; color: var(--s-ink); font: 600 13px/1.4 var(--f-note); text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; overflow-wrap: anywhere;
+  box-shadow: 0 1px 1px rgba(0,0,0,.1), 0 8px 10px -7px rgba(0,0,0,.45); transition: transform .12s ease; }
+.note:hover, .note:focus-visible, .note.sel { transform: translateY(-3px); z-index: 20 !important; }
+.note:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.note.sel { outline: 3px solid var(--accent); outline-offset: 2px; }
+.note .kind { font: 500 10px var(--f-ui); letter-spacing: .04em; opacity: .6; margin-bottom: 2px; }
+.n-actor { font: 500 12px/1.3 var(--f-ui); box-shadow: 0 0 0 1px rgba(0,0,0,.45), 0 6px 8px -6px rgba(0,0,0,.5); }
+.n-actor { background: var(--s-actor); }
+.n-command { background: var(--s-command); }
+.n-event { background: var(--s-event); }
+.n-policy { background: var(--s-policy); }
+.n-aggregate { background: var(--s-aggregate); }
+.n-external { background: var(--s-external); }
+.n-readModel { background: var(--s-readModel); }
+.n-hotspot { background: var(--s-hotspot); }
+.show-changed .note.changed { box-shadow: 0 0 0 4px var(--ink), 0 10px 14px -6px rgba(0,0,0,.5); animation: changed-ping 1.2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .note { transition: none; } .show-changed .note.changed { animation: none; box-shadow: 0 0 0 4px var(--ink), 0 0 0 8px rgba(255,64,48,.9), 0 10px 14px -6px rgba(0,0,0,.5); } }</style>
+</head>
+<body>
+<header class="top"><div class="crumb">why-why-talk<span>/</span>ドメインモデル<span>/</span>全体像</div><a class="back" href="index.html">← 一覧へ</a></header>
+<main class="show-changed" id="main">
+<div><h1>全体像</h1><p class="lede">計画の途中で一点を深掘りするとき、人が Gemini Live と声で壁打ちし、なぜの木と方針をエージェントに送る流れ。</p><div class="meta">確認したリビジョン 312b216 · 2026-11-13</div></div>
+<div class="toolbar card"><div class="legend"><span><i style="background:var(--s-actor)"></i>アクター<small>人・役割</small></span><span><i style="background:var(--s-command)"></i>コマンド<small>依頼・操作</small></span><span><i style="background:var(--s-event)"></i>イベント<small>起きたこと</small></span><span><i style="background:var(--s-policy)"></i>ポリシー<small>〜されたら</small></span><span><i style="background:var(--s-aggregate)"></i>集約<small>一緒に更新するデータ</small></span><span><i style="background:var(--s-external)"></i>外部システム<small>外のサービス</small></span><span><i style="background:var(--s-readModel)"></i>リードモデル<small>判断の前に見るもの</small></span><span><i style="background:var(--s-hotspot)"></i>ホットスポット<small>未解決・懸念</small></span></div><label class="toggle"><input type="checkbox" id="show-changed" checked> 今回の計画で変わる付箋（29）を光らせて示す</label></div>
+<div class="board-wrap">
+  <div class="zoomable" data-fit="width">
+<div class="zoom-ctrl" role="toolbar" aria-label="拡大縮小"><button type="button" data-z="out" aria-label="縮小">−</button><output aria-live="polite">100%</output><button type="button" data-z="in" aria-label="拡大">＋</button><button type="button" data-z="fit">全体</button><button type="button" data-z="one">等倍</button></div>
+<div class="zoom-view wall" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小"><div class="zoom-content"><div class="board" id="board" style="width:4474px;height:798px"><svg class="layer" width="4474" height="798" aria-hidden="true"><defs><marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L10 5L0 9z" class="headfill"/></marker></defs><text class="timeline" x="40" y="44">時間の流れ</text><path class="edge" d="M40 60 H200" marker-end="url(#head)" style="stroke-width:3"/><ellipse class="ring" cx="433.4" cy="383.9" rx="391.4" ry="134"/><text class="ring-label" x="433.4" y="287.9" text-anchor="middle">呼び出し</text><ellipse class="ring" cx="1845.3" cy="339.3" rx="980.6" ry="243.3"/><text class="ring-label" x="1845.3" y="134" text-anchor="middle">壁打ち</text><ellipse class="ring" cx="3653.7" cy="445.7" rx="787.8" ry="319.3"/><text class="ring-label" x="3653.7" y="164.4" text-anchor="middle">送信</text><g transform="translate(0,0)"><path class="edge" data-from="agent" data-to="cmd-start-talk" d="M235.4 399.9 C263.4 399.9,250.4 399.9,278.4 399.9" marker-end="url(#head)"/><path class="edge" data-from="cmd-start-talk" data-to="agg-session" d="M393.4 399.9 C421.4 399.9,408.4 399.9,436.4 399.9" marker-end="url(#head)"/><path class="edge" data-from="agg-session" data-to="ev-page-opened" d="M551.4 399.9 C579.4 399.9,566.4 399.9,594.4 399.9" marker-end="url(#head)"/><path class="edge" data-from="ev-page-opened" data-to="person" d="M709.4 399.9 C896.3 399.9,896.3 356.7,1083.3 356.7" marker-end="url(#head)"/><path class="edge" data-from="person" data-to="cmd-connect" d="M1164.3 356.7 C1192.3 356.7,1179.3 356.7,1207.3 356.7" marker-end="url(#head)"/><path class="edge" data-from="cmd-connect" data-to="ev-connected" d="M1322.3 356.7 C1352.8 356.7,1352.8 313.2,1383.3 313.2" marker-end="url(#head)"/><path class="edge" data-from="ev-connected" data-to="cmd-speak" d="M1498.3 313.2 C1526.3 313.2,1513.3 297.2,1541.3 297.2" marker-end="url(#head)"/><path class="edge" data-from="cmd-speak" data-to="ev-said" d="M1656.3 297.2 C1684.3 297.2,1671.3 297.2,1699.3 297.2" marker-end="url(#head)"/><path class="edge" data-from="ev-said" data-to="pol-new-reason" d="M1814.3 297.2 C1842.3 297.2,1829.3 281.2,1857.3 281.2" marker-end="url(#head)"/><path class="edge" data-from="pol-new-reason" data-to="cmd-grow-tree" d="M1972.3 281.2 C2000.3 281.2,1987.3 281.2,2015.3 281.2" marker-end="url(#head)"/><path class="edge" data-from="cmd-grow-tree" data-to="agg-tree" d="M2130.3 281.2 C2158.3 281.2,2145.3 281.2,2173.3 281.2" marker-end="url(#head)"/><path class="edge" data-from="agg-tree" data-to="ev-tree-grown" d="M2288.3 281.2 C2316.3 281.2,2303.3 281.2,2331.3 281.2" marker-end="url(#head)"/><path class="edge result" data-from="ev-tree-grown" data-to="rm-tree-view" d="M2446.3 281.2 C2474.3 281.2,2461.3 297.2,2489.3 297.2" marker-end="url(#head)"/><path class="edge result" data-from="ev-said" data-to="rm-tree-view" d="M1814.3 297.2 C2151.8 297.2,2151.8 297.2,2489.3 297.2" marker-end="url(#head)"/><path class="edge" data-from="rm-tree-view" data-to="person-organise" d="M2604.3 297.2 C2827 297.2,2827 401.7,3049.7 401.7" marker-end="url(#head)"/><path class="edge" data-from="ev-connected" data-to="pol-goaway" d="M1498.3 313.2 C1526.3 313.2,1513.3 417.7,1541.3 417.7" marker-end="url(#head)"/><path class="edge" data-from="pol-goaway" data-to="cmd-connect" d="M1656.3 417.7 C1684.3 417.7,1238.3 305.7,1266.3 305.7" marker-end="url(#head)"/><path class="edge" data-from="person-organise" data-to="cmd-organise" d="M3130.7 401.7 C3158.7 401.7,3145.7 401.7,3173.7 401.7" marker-end="url(#head)"/><path class="edge" data-from="cmd-organise" data-to="ev-draft" d="M3288.7 401.7 C3316.7 401.7,3303.7 401.7,3331.7 401.7" marker-end="url(#head)"/><path class="edge result" data-from="ev-draft" data-to="rm-draft" d="M3446.7 401.7 C3474.7 401.7,3461.7 401.7,3489.7 401.7" marker-end="url(#head)"/><path class="edge" data-from="rm-draft" data-to="person-send" d="M3604.7 401.7 C3634.7 401.7,3634.7 401.7,3664.7 401.7" marker-end="url(#head)"/><path class="edge" data-from="person-send" data-to="cmd-send" d="M3745.7 401.7 C3775.7 401.7,3775.7 401.7,3805.7 401.7" marker-end="url(#head)"/><path class="edge" data-from="cmd-send" data-to="agg-session-send" d="M3920.7 401.7 C3948.7 401.7,3935.7 417.7,3963.7 417.7" marker-end="url(#head)"/><path class="edge" data-from="agg-session-send" data-to="ev-sent" d="M4078.7 417.7 C4106.7 417.7,4093.7 401.7,4121.7 401.7" marker-end="url(#head)"/><path class="edge" data-from="ev-page-opened" data-to="pol-abandon" d="M709.4 399.9 C2178.5 399.9,2178.5 521.7,3647.7 521.7" marker-end="url(#head)"/><path class="edge" data-from="pol-abandon" data-to="cmd-cancel" d="M3762.7 521.7 C3790.7 521.7,3777.7 521.7,3805.7 521.7" marker-end="url(#head)"/><path class="edge" data-from="cmd-cancel" data-to="agg-session-send" d="M3920.7 521.7 C3948.7 521.7,3935.7 417.7,3963.7 417.7" marker-end="url(#head)"/><path class="edge" data-from="agg-session-send" data-to="ev-cancelled" d="M4078.7 417.7 C4106.7 417.7,4093.7 604.3,4121.7 604.3" marker-end="url(#head)"/></g></svg><button type="button" class="note n-actor changed" id="n-agent" data-id="agent" style="left:157.4px;top:364.9px;width:78px;height:70px;z-index:2" aria-label="アクター: エージェント(計画のスキル)（呼び出し）"><span class="txt">エージェント(計画のスキル)</span></button><button type="button" class="note n-command changed" id="n-cmd-start-talk" data-id="cmd-start-talk" style="left:281.4px;top:351.9px;width:112px;height:96px;z-index:2" aria-label="コマンド: 深掘りを始める（呼び出し）"><span class="kind">Command</span><span class="txt">深掘りを始める</span></button><button type="button" class="note n-aggregate changed" id="n-agg-session" data-id="agg-session" style="left:439.4px;top:351.9px;width:112px;height:96px;z-index:2" aria-label="集約: 壁打ちのセッション（呼び出し）"><span class="kind">Aggregate</span><span class="txt">壁打ちのセッション</span></button><button type="button" class="note n-event changed" id="n-ev-page-opened" data-id="ev-page-opened" style="left:597.4px;top:351.9px;width:112px;height:96px;z-index:2" aria-label="イベント: 画面を開いた（呼び出し）"><span class="kind">Domain Event</span><span class="txt">画面を開いた</span></button><button type="button" class="note n-actor changed" id="n-person" data-id="person" style="left:1086.3px;top:329.7px;width:78px;height:54px;z-index:2" aria-label="アクター: 人（壁打ち）"><span class="txt">人</span></button><button type="button" class="note n-command changed" id="n-cmd-connect" data-id="cmd-connect" style="left:1210.3px;top:308.7px;width:112px;height:96px;z-index:2" aria-label="コマンド: Gemini とつなぐ（壁打ち）"><span class="kind">Command</span><span class="txt">Gemini とつなぐ</span></button><button type="button" class="note n-external changed" id="n-ext-gemini" data-id="ext-gemini" style="left:1228.3px;top:391.3px;width:112px;height:96px;z-index:3" aria-label="外部システム: Gemini Live API（壁打ち）"><span class="kind">External System</span><span class="txt">Gemini Live API</span></button><button type="button" class="note n-hotspot changed" id="n-hs-voice" data-id="hs-voice" style="left:1223.8px;top:228.1px;width:112px;height:97px;z-index:3" aria-label="ホットスポット: 日本語で聞きやすい声の既定は、試して決める（壁打ち）"><span class="kind">Hotspot</span><span class="txt">日本語で聞きやすい声の既定は、試して決める</span></button><button type="button" class="note n-event changed" id="n-ev-connected" data-id="ev-connected" style="left:1386.3px;top:265.2px;width:112px;height:96px;z-index:2" aria-label="イベント: 声の会話がつながった（壁打ち）"><span class="kind">Domain Event</span><span class="txt">声の会話がつながった</span></button><button type="button" class="note n-command changed" id="n-cmd-speak" data-id="cmd-speak" style="left:1544.3px;top:249.2px;width:112px;height:96px;z-index:2" aria-label="コマンド: 質問に答える（壁打ち）"><span class="kind">Command</span><span class="txt">質問に答える</span></button><button type="button" class="note n-event changed" id="n-ev-said" data-id="ev-said" style="left:1702.3px;top:249.2px;width:112px;height:96px;z-index:2" aria-label="イベント: 発言が記録された（壁打ち）"><span class="kind">Domain Event</span><span class="txt">発言が記録された</span></button><button type="button" class="note n-policy changed" id="n-pol-new-reason" data-id="pol-new-reason" style="left:1860.3px;top:233.2px;width:112px;height:96px;z-index:2" aria-label="ポリシー: 新しい理由や事実が出たら（壁打ち）"><span class="kind">Policy</span><span class="txt">新しい理由や事実が出たら</span><span class="badge">外部</span></button><button type="button" class="note n-command changed" id="n-cmd-grow-tree" data-id="cmd-grow-tree" style="left:2018.3px;top:223.2px;width:112px;height:116px;z-index:2" aria-label="コマンド: 木を育てる(add_whys / add_fact / update_branch)（壁打ち）"><span class="kind">Command</span><span class="txt">木を育てる(add_whys / add_fact / update_branch)</span></button><button type="button" class="note n-aggregate changed" id="n-agg-tree" data-id="agg-tree" style="left:2176.3px;top:233.2px;width:112px;height:96px;z-index:2" aria-label="集約: なぜの木（壁打ち）"><span class="kind">Aggregate</span><span class="txt">なぜの木</span></button><button type="button" class="note n-event changed" id="n-ev-tree-grown" data-id="ev-tree-grown" style="left:2334.3px;top:233.2px;width:112px;height:96px;z-index:2" aria-label="イベント: 木が育った（壁打ち）"><span class="kind">Domain Event</span><span class="txt">木が育った</span></button><button type="button" class="note n-readModel changed" id="n-rm-tree-view" data-id="rm-tree-view" style="left:2492.3px;top:249.2px;width:112px;height:96px;z-index:2" aria-label="リードモデル: 画面の木と会話（壁打ち）"><span class="kind">Read Model</span><span class="txt">画面の木と会話</span></button><button type="button" class="note n-policy changed" id="n-pol-goaway" data-id="pol-goaway" style="left:1544.3px;top:369.2px;width:112px;height:97px;z-index:2" aria-label="ポリシー: 接続が切れそうになったら(goAway・25分)（壁打ち）"><span class="kind">Policy</span><span class="txt">接続が切れそうになったら(goAway・25分)</span><span class="badge">同期</span></button><button type="button" class="note n-actor changed" id="n-person-organise" data-id="person-organise" style="left:3052.7px;top:374.7px;width:78px;height:54px;z-index:2" aria-label="アクター: 人（送信）"><span class="txt">人</span></button><button type="button" class="note n-command changed" id="n-cmd-organise" data-id="cmd-organise" style="left:3176.7px;top:353.7px;width:112px;height:96px;z-index:2" aria-label="コマンド: 整理する（送信）"><span class="kind">Command</span><span class="txt">整理する</span></button><button type="button" class="note n-event changed" id="n-ev-draft" data-id="ev-draft" style="left:3334.7px;top:353.7px;width:112px;height:96px;z-index:2" aria-label="イベント: 方針の下書きができた（送信）"><span class="kind">Domain Event</span><span class="txt">方針の下書きができた</span></button><button type="button" class="note n-readModel changed" id="n-rm-draft" data-id="rm-draft" style="left:3492.7px;top:343.7px;width:112px;height:116px;z-index:2" aria-label="リードモデル: 方針の欄(方針・理由・見送った案・残った疑問)（送信）"><span class="kind">Read Model</span><span class="txt">方針の欄(方針・理由・見送った案・残った疑問)</span></button><button type="button" class="note n-actor changed" id="n-person-send" data-id="person-send" style="left:3667.7px;top:374.7px;width:78px;height:54px;z-index:2" aria-label="アクター: 人（送信）"><span class="txt">人</span></button><button type="button" class="note n-command changed" id="n-cmd-send" data-id="cmd-send" style="left:3808.7px;top:353.7px;width:112px;height:96px;z-index:2" aria-label="コマンド: 直して送信する（送信）"><span class="kind">Command</span><span class="txt">直して送信する</span></button><button type="button" class="note n-aggregate changed" id="n-agg-session-send" data-id="agg-session-send" style="left:3966.7px;top:369.7px;width:112px;height:96px;z-index:2" aria-label="集約: 壁打ちのセッション（送信）"><span class="kind">Aggregate</span><span class="txt">壁打ちのセッション</span></button><button type="button" class="note n-event changed" id="n-ev-sent" data-id="ev-sent" style="left:4124.7px;top:353.7px;width:112px;height:96px;z-index:2" aria-label="イベント: 方針を送った（送信）"><span class="kind">Domain Event</span><span class="txt">方針を送った</span></button><button type="button" class="note n-external changed" id="n-ext-agent-session" data-id="ext-agent-session" style="left:4142.6px;top:436.3px;width:112px;height:96px;z-index:3" aria-label="外部システム: エージェントのセッション（送信）"><span class="kind">External System</span><span class="txt">エージェントのセッション</span></button><button type="button" class="note n-policy changed" id="n-pol-abandon" data-id="pol-abandon" style="left:3650.7px;top:473.2px;width:112px;height:97px;z-index:2" aria-label="ポリシー: タブが閉じて60秒戻らなかったら（送信）"><span class="kind">Policy</span><span class="txt">タブが閉じて60秒戻らなかったら</span><span class="badge">同期</span></button><button type="button" class="note n-command changed" id="n-cmd-cancel" data-id="cmd-cancel" style="left:3808.7px;top:473.7px;width:112px;height:96px;z-index:2" aria-label="コマンド: 取りやめる（送信）"><span class="kind">Command</span><span class="txt">取りやめる</span></button><button type="button" class="note n-event changed" id="n-ev-cancelled" data-id="ev-cancelled" style="left:4124.7px;top:556.3px;width:112px;height:96px;z-index:2" aria-label="イベント: 取りやめた（送信）"><span class="kind">Domain Event</span><span class="txt">取りやめた</span></button></div></div></div>
+</div>
+  <aside class="panel card" id="panel" aria-live="polite"><h2>付箋の詳細</h2><p class="foot">付箋を選ぶと、種類・ドメイン・つながり・コードの場所が出ます。</p></aside>
+</div>
+<p class="foot">ピンチ（または Ctrl/⌘ + ホイール、右上のボタン）で拡大縮小できます。実線は流れ、点線はイベントがリードモデルに反映されることを表します。重ねて貼った付箋は、その下の付箋に付く外部システム・懸念などです。</p>
+<script type="application/json" id="nodes">{"agent":{"type":"アクター","color":"actor","domain":"呼び出し","text":"エージェント(計画のスキル)","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":[],"to":["深掘りを始める"],"evidence":[]},"cmd-start-talk":{"type":"コマンド","color":"command","domain":"呼び出し","text":"深掘りを始める","execution":null,"invariants":[],"note":"why-why-talk --topic \u003c論点> --context \u003c調べた内容>","changed":true,"attachedTo":null,"from":["エージェント(計画のスキル)"],"to":["壁打ちのセッション"],"evidence":[{"path":"src/cli.ts","symbol":"main","note":null}]},"agg-session":{"type":"集約","color":"aggregate","domain":"呼び出し","text":"壁打ちのセッション","execution":null,"invariants":["Gemini の API キーはコマンドの中だけに置き、画面には短期トークンだけを渡す","合言葉の違う画面(古いタブ)からの書き込みは断る","結果は一度だけ決まる(送信か取りやめ)","変わるたびに記録をフォルダに保存し、保存と出力の前に秘密を伏せる"],"note":null,"changed":true,"attachedTo":null,"from":["深掘りを始める"],"to":["画面を開いた"],"evidence":[{"path":"src/talk/session.ts","symbol":"TalkSession","note":null},{"path":"src/talk/server.ts","symbol":"startTalkServer","note":null}]},"ev-page-opened":{"type":"イベント","color":"event","domain":"呼び出し","text":"画面を開いた","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["壁打ちのセッション"],"to":["人","タブが閉じて60秒戻らなかったら"],"evidence":[]},"person":{"type":"アクター","color":"actor","domain":"壁打ち","text":"人","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["画面を開いた"],"to":["Gemini とつなぐ"],"evidence":[]},"cmd-connect":{"type":"コマンド","color":"command","domain":"壁打ち","text":"Gemini とつなぐ","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["人","接続が切れそうになったら(goAway・25分)"],"to":["声の会話がつながった"],"evidence":[{"path":"src/talk/gemini.ts","symbol":"mintToken","note":null},{"path":"web/live.ts","symbol":"connectLive","note":null}]},"ext-gemini":{"type":"外部システム","color":"external","domain":"壁打ち","text":"Gemini Live API","execution":null,"invariants":[],"note":"gemini-3.8-live。短期トークン(使い捨て、30分)でブラウザから直接つなぐ","changed":true,"attachedTo":"Gemini とつなぐ","from":[],"to":[],"evidence":[]},"ev-connected":{"type":"イベント","color":"event","domain":"壁打ち","text":"声の会話がつながった","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["Gemini とつなぐ"],"to":["質問に答える","接続が切れそうになったら(goAway・25分)"],"evidence":[]},"cmd-speak":{"type":"コマンド","color":"command","domain":"壁打ち","text":"質問に答える","execution":null,"invariants":[],"note":"Gemini は「なぜ?」「他には?」と一度に1つ聞く","changed":true,"attachedTo":null,"from":["声の会話がつながった"],"to":["発言が記録された"],"evidence":[]},"ev-said":{"type":"イベント","color":"event","domain":"壁打ち","text":"発言が記録された","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["質問に答える"],"to":["新しい理由や事実が出たら","画面の木と会話"],"evidence":[{"path":"src/talk/session.ts","symbol":"appendTranscript","note":null}]},"pol-new-reason":{"type":"ポリシー","color":"policy","domain":"壁打ち","text":"新しい理由や事実が出たら","execution":"外部","invariants":[],"note":"Gemini が判断して関数を呼ぶ","changed":true,"attachedTo":null,"from":["発言が記録された"],"to":["木を育てる(add_whys / add_fact / update_branch)"],"evidence":[]},"cmd-grow-tree":{"type":"コマンド","color":"command","domain":"壁打ち","text":"木を育てる(add_whys / add_fact / update_branch)","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["新しい理由や事実が出たら"],"to":["なぜの木"],"evidence":[{"path":"src/talk/session.ts","symbol":"applyTool","note":null},{"path":"src/talk/tools.ts","symbol":"FUNCTION_DECLARATIONS","note":null}]},"agg-tree":{"type":"集約","color":"aggregate","domain":"壁打ち","text":"なぜの木","execution":null,"invariants":["親のないノードは作らない","同じ親に同じ文のなぜを二重に足さない","枝は消さない(却下・仮説も理由つきで残す)","葉には対策、却下と仮説には理由が必要","止めた枝(葉・却下・仮説)の下は掘らない"],"note":null,"changed":true,"attachedTo":null,"from":["木を育てる(add_whys / add_fact / update_branch)"],"to":["木が育った"],"evidence":[{"path":"src/analysis.ts","symbol":"addWhys","note":null},{"path":"src/analysis.ts","symbol":"stoppedAncestor","note":null}]},"ev-tree-grown":{"type":"イベント","color":"event","domain":"壁打ち","text":"木が育った","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["なぜの木"],"to":["画面の木と会話"],"evidence":[]},"rm-tree-view":{"type":"リードモデル","color":"readModel","domain":"壁打ち","text":"画面の木と会話","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["木が育った","発言が記録された"],"to":["人"],"evidence":[{"path":"web/ui.ts","symbol":"renderTree","note":null}]},"pol-goaway":{"type":"ポリシー","color":"policy","domain":"壁打ち","text":"接続が切れそうになったら(goAway・25分)","execution":"同期","invariants":[],"note":"新しいトークンを取り、引き継ぎの番号でつなぎ直す。番号が使えなければ木の要約と会話の最後を渡して続ける","changed":true,"attachedTo":null,"from":["声の会話がつながった"],"to":["Gemini とつなぐ"],"evidence":[{"path":"web/reconnect.ts","symbol":"nextConnection","note":null}]},"hs-voice":{"type":"ホットスポット","color":"hotspot","domain":"壁打ち","text":"日本語で聞きやすい声の既定は、試して決める","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":"Gemini とつなぐ","from":[],"to":[],"evidence":[]},"person-organise":{"type":"アクター","color":"actor","domain":"送信","text":"人","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["画面の木と会話"],"to":["整理する"],"evidence":[]},"cmd-organise":{"type":"コマンド","color":"command","domain":"送信","text":"整理する","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["人"],"to":["方針の下書きができた"],"evidence":[]},"ev-draft":{"type":"イベント","color":"event","domain":"送信","text":"方針の下書きができた","execution":null,"invariants":[],"note":"Gemini が propose_direction を呼ぶ","changed":true,"attachedTo":null,"from":["整理する"],"to":["方針の欄(方針・理由・見送った案・残った疑問)"],"evidence":[{"path":"src/talk/session.ts","symbol":"setDraft","note":null}]},"rm-draft":{"type":"リードモデル","color":"readModel","domain":"送信","text":"方針の欄(方針・理由・見送った案・残った疑問)","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["方針の下書きができた"],"to":["人"],"evidence":[]},"person-send":{"type":"アクター","color":"actor","domain":"送信","text":"人","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["方針の欄(方針・理由・見送った案・残った疑問)"],"to":["直して送信する"],"evidence":[]},"cmd-send":{"type":"コマンド","color":"command","domain":"送信","text":"直して送信する","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["人"],"to":["壁打ちのセッション"],"evidence":[{"path":"src/talk/session.ts","symbol":"submit","note":null}]},"agg-session-send":{"type":"集約","color":"aggregate","domain":"送信","text":"壁打ちのセッション","execution":null,"invariants":["方針が空なら送れない","送信は一度だけ"],"note":null,"changed":true,"attachedTo":null,"from":["直して送信する","取りやめる"],"to":["方針を送った","取りやめた"],"evidence":[{"path":"src/talk/session.ts","symbol":"submit","note":null}]},"ev-sent":{"type":"イベント","color":"event","domain":"送信","text":"方針を送った","execution":null,"invariants":[],"note":"コマンドが結果を出力して終わる(終了コード 0)","changed":true,"attachedTo":null,"from":["壁打ちのセッション"],"to":[],"evidence":[{"path":"src/talk/result.ts","symbol":"renderResultMarkdown","note":null}]},"ext-agent-session":{"type":"外部システム","color":"external","domain":"送信","text":"エージェントのセッション","execution":null,"invariants":[],"note":"Claude Code は裏で実行したコマンドの終了通知で、Codex は前面のコマンドの出力で受け取る","changed":true,"attachedTo":"方針を送った","from":[],"to":[],"evidence":[]},"pol-abandon":{"type":"ポリシー","color":"policy","domain":"送信","text":"タブが閉じて60秒戻らなかったら","execution":"同期","invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["画面を開いた"],"to":["取りやめる"],"evidence":[{"path":"src/talk/server.ts","symbol":"leaseGraceMs","note":null}]},"cmd-cancel":{"type":"コマンド","color":"command","domain":"送信","text":"取りやめる","execution":null,"invariants":[],"note":null,"changed":true,"attachedTo":null,"from":["タブが閉じて60秒戻らなかったら"],"to":["壁打ちのセッション"],"evidence":[{"path":"src/talk/session.ts","symbol":"cancel","note":null}]},"ev-cancelled":{"type":"イベント","color":"event","domain":"送信","text":"取りやめた","execution":null,"invariants":[],"note":"終了コード 1。そこまでの記録はフォルダに残る","changed":true,"attachedTo":null,"from":["壁打ちのセッション"],"to":[],"evidence":[]}}</script>
+</main>
+<script>document.getElementById('show-changed').addEventListener('change', function (e) { document.getElementById('main').classList.toggle('show-changed', e.target.checked); });</script>
+<script>(function(){
+var data = JSON.parse(document.getElementById('nodes').textContent);
+var board = document.getElementById('board'), panel = document.getElementById('panel');
+var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+function row(k, v) { return v ? '<dt>' + k + '</dt><dd>' + v + '</dd>' : ''; }
+function show(id) {
+  var d = data[id]; if (!d) return;
+  board.querySelectorAll('.note.sel').forEach(function (n) { n.classList.remove('sel'); });
+  var el = document.getElementById('n-' + id); if (el) el.classList.add('sel');
+  board.querySelectorAll('.edge[data-from]').forEach(function (p) { p.classList.toggle('dim', p.dataset.from !== id && p.dataset.to !== id); });
+  var ev = d.evidence.map(function (e) { return '<div class="path">' + esc(e.path) + (e.symbol ? ' <span class="code">' + esc(e.symbol) + '</span>' : '') + (e.note ? '<div class="foot">' + esc(e.note) + '</div>' : '') + '</div>'; }).join('');
+  panel.innerHTML = '<h2>付箋の詳細</h2><div class="head" style="background:var(--s-' + d.color + ')">' + esc(d.text) + '</div><dl>' +
+    row('種類', esc(d.type)) + row('ドメイン', esc(d.domain)) + row('実行', d.execution && esc(d.execution)) + row('不変条件', d.invariants.map(esc).join('<br>')) + row('貼り先', d.attachedTo && esc(d.attachedTo)) +
+    row('前', d.from.map(esc).join('<br>')) + row('次', d.to.map(esc).join('<br>')) + row('メモ', d.note && esc(d.note)) +
+    row('今回の計画', d.changed ? '変わる' : '') + row('証拠', ev || '—') + '</dl>';
+}
+board.addEventListener('click', function (e) { var n = e.target.closest('.note'); if (n) show(n.dataset.id); });
+if (location.hash.indexOf('#n-') === 0) show(location.hash.slice(3));
+})();</script>
+<script>(function(){
+var MIN = 0.1, MAX = 4;
+document.querySelectorAll('.zoomable').forEach(function (box) {
+  var view = box.querySelector('.zoom-view'), content = box.querySelector('.zoom-content'), out = box.querySelector('output');
+  var s = 1, w = content.offsetWidth, h = content.offsetHeight;
+  function clamp(v) { return Math.min(MAX, Math.max(Math.min(MIN, fitAll()), v)); }
+  function fitAll() { return Math.min(view.clientWidth / w, view.clientHeight / h); }
+  function anchor(cx, cy) {
+    var r = view.getBoundingClientRect();
+    if (cx == null) { cx = r.left + view.clientWidth / 2; cy = r.top + view.clientHeight / 2; }
+    var px = cx - r.left, py = cy - r.top;
+    return { px: px, py: py, x: (view.scrollLeft + px) / s, y: (view.scrollTop + py) / s };
+  }
+  // Scale to v, keeping content point a.x/a.y under the screen point a.px/a.py.
+  function set(v, a) {
+    s = clamp(v); content.style.zoom = s; out.textContent = Math.round(s * 100) + '%';
+    if (a) { view.scrollLeft = a.x * s - a.px; view.scrollTop = a.y * s - a.py; }
+  }
+  function zoomAt(v, cx, cy) { set(v, anchor(cx, cy)); }
+  box.querySelector('.zoom-ctrl').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var z = b.dataset.z;
+    if (z === 'in') zoomAt(s * 1.25); else if (z === 'out') zoomAt(s / 1.25);
+    else if (z === 'one') zoomAt(1); else if (z === 'fit') { set(fitAll()); view.scrollLeft = 0; view.scrollTop = 0; }
+  });
+  view.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '+' || e.key === '=') zoomAt(s * 1.25); else if (e.key === '-') zoomAt(s / 1.25); else if (e.key === '0') zoomAt(1); else return;
+    e.preventDefault();
+  });
+  // Trackpad pinch in Chrome, Edge and Firefox arrives as wheel + ctrlKey; so does Ctrl/⌘ + wheel.
+  view.addEventListener('wheel', function (e) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    var d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomAt(s * Math.exp(-Math.max(-50, Math.min(50, d)) * 0.01), e.clientX, e.clientY);
+  }, { passive: false });
+  // Safari trackpad pinch arrives as gesture events.
+  var touching = false, g = null;
+  view.addEventListener('gesturestart', function (e) { e.preventDefault(); if (!touching) g = { s: s, a: anchor(e.clientX, e.clientY) }; });
+  view.addEventListener('gesturechange', function (e) { e.preventDefault(); if (!touching && g) set(g.s * e.scale, g.a); });
+  view.addEventListener('gestureend', function (e) { e.preventDefault(); g = null; });
+  // Two-finger touch pinch: zoom and pan with the fingers' midpoint.
+  var t = null;
+  function mid(ts) { return { x: (ts[0].clientX + ts[1].clientX) / 2, y: (ts[0].clientY + ts[1].clientY) / 2, d: Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY) || 1 }; }
+  view.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 2) return;
+    touching = true; var m = mid(e.touches); t = { s: s, d: m.d, a: anchor(m.x, m.y) };
+  }, { passive: true });
+  view.addEventListener('touchmove', function (e) {
+    if (!t || e.touches.length !== 2) return;
+    e.preventDefault();
+    var m = mid(e.touches), r = view.getBoundingClientRect();
+    set(t.s * m.d / t.d, { x: t.a.x, y: t.a.y, px: m.x - r.left, py: m.y - r.top });
+  }, { passive: false });
+  view.addEventListener('touchend', function (e) { if (e.touches.length < 2) { t = null; touching = false; } });
+  view.addEventListener('touchcancel', function () { t = null; touching = false; });
+  // Start: fit the width (never above 100%) for wide boards; otherwise 100%.
+  var fit = box.dataset.fit;
+  set(fit === 'width' ? Math.min(1, view.clientWidth / w) : fit === 'all' ? Math.min(1, fitAll()) : 1);
+});
+// Bring a linked sticky into view at the current zoom.
+var target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+if (target && target.closest('.zoom-view')) target.scrollIntoView({ block: 'center', inline: 'center' });
+})();</script>
+</body>
+</html>
