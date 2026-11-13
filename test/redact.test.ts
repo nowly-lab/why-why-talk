@@ -56,3 +56,19 @@ test("redactSecrets keeps git object names when asked", () => {
   assert.ok(redactSecrets(sha).includes("[REDACTED]"));
   assert.ok(redactSecrets("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123", { keepHashes: true }).includes("[REDACTED]"));
 });
+
+test("redactSecrets masks base64 keys that contain slashes", () => {
+  for (const key of ["wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "Xk9f2Lq8Zt3Vb7Nw1Rs5Yh0Cm4Jd6Pg/Ae2Ui9Oo8Ee="]) {
+    const out = redactSecrets(`secret key ${key} found`);
+    assert.ok(out.includes("[REDACTED]") && !out.includes(key.slice(0, 12)), out);
+  }
+});
+
+test("redactSecrets keeps mixed-case paths", () => {
+  for (const s of [
+    "src/Payments/WebhookHandler2/settleUsageLogAfterTicketRedeemed.ts",
+    "/Users/Me/Projects2/PaymentService/src/WebhookHandlerV2Final.ts",
+  ]) {
+    assert.equal(redactSecrets(s), s);
+  }
+});
