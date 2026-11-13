@@ -1,40 +1,40 @@
 {
   "schema": "workflow-models/v1",
   "title": "状態の移り方",
-  "checked": { "revision": "b71cb27", "date": "2026-11-13" },
+  "checked": { "revision": "312b216", "date": "2026-11-13" },
   "lifecycles": [
     {
-      "id": "analysis-life", "name": "分析", "domain": "analysis",
-      "summary": "開いている間だけ木を変えられる。閉じた後も読むことと描くことはできる。",
+      "id": "session-life", "name": "壁打ちのセッション", "domain": "handoff",
+      "summary": "結果は一度だけ決まる。送信には方針が要る。",
       "states": [
-        { "id": "open", "name": "開いている", "initial": true, "changed": true },
-        { "id": "closed", "name": "閉じた", "final": true, "changed": true }
+        { "id": "talking", "name": "話している", "initial": true, "changed": true },
+        { "id": "sent", "name": "送った", "final": true, "changed": true },
+        { "id": "cancelled", "name": "取りやめた", "final": true, "changed": true }
       ],
       "transitions": [
-        { "from": "open", "on": "cmd-start", "to": "open", "effect": "根(問題)を作る", "changed": true },
-        { "from": "open", "on": "cmd-add-whys", "to": "open", "changed": true },
-        { "from": "open", "on": "cmd-add-evidence", "to": "open", "changed": true },
-        { "from": "open", "on": "cmd-evaluate", "to": "open", "changed": true },
-        { "from": "open", "on": "cmd-record-judgment", "to": "open", "changed": true },
-        { "from": "open", "on": "cmd-update-node", "to": "open", "changed": true },
-        { "from": "open", "on": "cmd-close", "to": "closed", "guard": "掘っている枝がない", "changed": true,
-          "evidence": [{ "path": "src/analysis.ts", "symbol": "closeAnalysis" }] },
-        { "from": "open", "on": "cmd-render", "to": "open", "changed": true },
-        { "from": "closed", "on": "cmd-render", "to": "closed", "changed": true }
+        { "from": "talking", "on": "cmd-connect", "to": "talking", "changed": true },
+        { "from": "talking", "on": "cmd-grow-tree", "to": "talking", "changed": true },
+        { "from": "talking", "on": "cmd-organise", "to": "talking", "changed": true },
+        { "from": "talking", "on": "cmd-send", "to": "sent", "guard": "方針が空でない", "changed": true,
+          "evidence": [{ "path": "src/talk/session.ts", "symbol": "submit" }] },
+        { "from": "talking", "on": "cmd-cancel", "to": "cancelled", "changed": true }
       ],
       "rejections": [
-        { "state": "closed", "on": "cmd-start", "kind": "invalid", "reason": "同じ ID の分析はすでにある", "changed": true },
-        { "state": "closed", "on": "cmd-add-whys", "kind": "invalid", "reason": "閉じた分析は変えられない", "changed": true },
-        { "state": "closed", "on": "cmd-add-evidence", "kind": "invalid", "reason": "閉じた分析は変えられない", "changed": true },
-        { "state": "closed", "on": "cmd-evaluate", "kind": "invalid", "reason": "閉じた分析は変えられない", "changed": true },
-        { "state": "closed", "on": "cmd-record-judgment", "kind": "invalid", "reason": "閉じた分析は変えられない", "changed": true },
-        { "state": "closed", "on": "cmd-update-node", "kind": "invalid", "reason": "閉じた分析は変えられない", "changed": true },
-        { "state": "closed", "on": "cmd-close", "kind": "ignored", "reason": "すでに閉じている", "changed": true }
+        { "state": "sent", "on": "cmd-send", "kind": "invalid", "reason": "送信は一度だけ", "changed": true },
+        { "state": "sent", "on": "cmd-cancel", "kind": "invalid", "reason": "もう送った", "changed": true },
+        { "state": "sent", "on": "cmd-grow-tree", "kind": "invalid", "reason": "送った後は木を変えない", "changed": true },
+        { "state": "sent", "on": "cmd-connect", "kind": "invalid", "reason": "送った後は会話しない", "changed": true },
+        { "state": "sent", "on": "cmd-organise", "kind": "invalid", "reason": "送った後は整理しない", "changed": true },
+        { "state": "cancelled", "on": "cmd-send", "kind": "invalid", "reason": "取りやめた", "changed": true },
+        { "state": "cancelled", "on": "cmd-cancel", "kind": "ignored", "reason": "すでに取りやめた", "changed": true },
+        { "state": "cancelled", "on": "cmd-grow-tree", "kind": "invalid", "reason": "取りやめた", "changed": true },
+        { "state": "cancelled", "on": "cmd-connect", "kind": "invalid", "reason": "取りやめた", "changed": true },
+        { "state": "cancelled", "on": "cmd-organise", "kind": "invalid", "reason": "取りやめた", "changed": true }
       ]
     },
     {
-      "id": "node-life", "name": "なぜ(ノード)", "domain": "analysis",
-      "summary": "枝は消えない。却下と仮説は理由を付ければ候補に戻せる。",
+      "id": "node-life", "name": "なぜ(ノード)", "domain": "talk",
+      "summary": "枝は消えない。却下と仮説は理由を付ければ候補に戻せる。止めた枝の下は掘らない。",
       "states": [
         { "id": "candidate", "name": "未調査の枝", "initial": true, "changed": true },
         { "id": "digging", "name": "掘っている", "changed": true },
@@ -43,39 +43,18 @@
         { "id": "hypothesis", "name": "仮説で止めた", "changed": true }
       ],
       "transitions": [
-        { "from": "candidate", "on": "cmd-update-node", "to": "digging", "guard": "state=digging", "changed": true },
-        { "from": "candidate", "on": "cmd-update-node", "to": "rejected", "guard": "state=rejected かつ理由あり", "changed": true },
-        { "from": "candidate", "on": "cmd-update-node", "to": "hypothesis", "guard": "state=hypothesis かつ理由あり", "changed": true },
-        { "from": "digging", "on": "cmd-update-node", "to": "leaf", "guard": "state=leaf かつ対策あり", "changed": true },
-        { "from": "digging", "on": "cmd-update-node", "to": "rejected", "guard": "state=rejected かつ理由あり", "changed": true },
-        { "from": "digging", "on": "cmd-update-node", "to": "hypothesis", "guard": "state=hypothesis かつ理由あり", "changed": true },
-        { "from": "digging", "on": "cmd-update-node", "to": "candidate", "guard": "state=candidate", "changed": true },
-        { "from": "rejected", "on": "cmd-update-node", "to": "candidate", "guard": "state=candidate かつ理由あり", "changed": true },
-        { "from": "hypothesis", "on": "cmd-update-node", "to": "candidate", "guard": "state=candidate かつ理由あり", "changed": true },
-        { "from": "leaf", "on": "cmd-update-node", "to": "digging", "guard": "state=digging", "changed": true },
-        { "from": "candidate", "on": "cmd-add-evidence", "to": "candidate", "effect": "評価があれば古い扱いにする", "changed": true },
-        { "from": "digging", "on": "cmd-add-evidence", "to": "digging", "effect": "評価があれば古い扱いにする", "changed": true },
-        { "from": "candidate", "on": "cmd-evaluate", "to": "candidate", "changed": true },
-        { "from": "candidate", "on": "cmd-record-judgment", "to": "candidate", "changed": true },
-        { "from": "digging", "on": "cmd-add-whys", "to": "digging", "effect": "子のなぜを足す", "changed": true },
-        { "from": "candidate", "on": "cmd-add-whys", "to": "candidate", "effect": "子のなぜを足す", "changed": true }
+        { "from": "candidate", "on": "cmd-grow-tree", "to": "digging", "guard": "update_branch state=digging かつ止めた枝の下でない", "changed": true },
+        { "from": "candidate", "on": "cmd-grow-tree", "to": "rejected", "guard": "update_branch state=rejected かつ理由あり", "changed": true },
+        { "from": "candidate", "on": "cmd-grow-tree", "to": "hypothesis", "guard": "update_branch state=hypothesis かつ理由あり", "changed": true },
+        { "from": "digging", "on": "cmd-grow-tree", "to": "leaf", "guard": "update_branch state=leaf かつ対策あり", "changed": true },
+        { "from": "digging", "on": "cmd-grow-tree", "to": "rejected", "guard": "update_branch state=rejected かつ理由あり", "changed": true },
+        { "from": "digging", "on": "cmd-grow-tree", "to": "hypothesis", "guard": "update_branch state=hypothesis かつ理由あり", "changed": true },
+        { "from": "digging", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate", "changed": true },
+        { "from": "rejected", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate かつ理由あり", "changed": true },
+        { "from": "hypothesis", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate かつ理由あり", "changed": true },
+        { "from": "leaf", "on": "cmd-grow-tree", "to": "digging", "guard": "update_branch state=digging", "changed": true }
       ],
-      "rejections": [
-        { "state": "rejected", "on": "cmd-add-whys", "kind": "invalid", "reason": "却下した枝の下は掘らない。候補に戻してから", "changed": true },
-        { "state": "leaf", "on": "cmd-add-whys", "kind": "invalid", "reason": "葉の下は掘らない。掘り直すなら掘っている状態に戻す", "changed": true },
-        { "state": "hypothesis", "on": "cmd-add-whys", "kind": "invalid", "reason": "仮説で止めた枝の下は掘らない。候補に戻してから", "changed": true },
-        { "state": "leaf", "on": "cmd-add-evidence", "kind": "ignored", "reason": "記録はするが、評価は古くしない(順位に使わない)", "changed": true },
-        { "state": "rejected", "on": "cmd-add-evidence", "kind": "ignored", "reason": "記録はするが、評価は古くしない", "changed": true },
-        { "state": "hypothesis", "on": "cmd-add-evidence", "kind": "ignored", "reason": "記録はするが、評価は古くしない", "changed": true },
-        { "state": "digging", "on": "cmd-evaluate", "kind": "ignored", "reason": "評価は未調査の枝の順位付けにだけ使う", "changed": true },
-        { "state": "leaf", "on": "cmd-evaluate", "kind": "ignored", "reason": "評価は未調査の枝の順位付けにだけ使う", "changed": true },
-        { "state": "rejected", "on": "cmd-evaluate", "kind": "ignored", "reason": "評価は未調査の枝の順位付けにだけ使う", "changed": true },
-        { "state": "hypothesis", "on": "cmd-evaluate", "kind": "ignored", "reason": "評価は未調査の枝の順位付けにだけ使う", "changed": true },
-        { "state": "digging", "on": "cmd-record-judgment", "kind": "ignored", "reason": "評価は未調査の枝の順位付けにだけ使う", "changed": true },
-        { "state": "leaf", "on": "cmd-record-judgment", "kind": "ignored", "reason": "評価は未調査の枝の順位付けにだけ使う", "changed": true },
-        { "state": "rejected", "on": "cmd-record-judgment", "kind": "ignored", "reason": "評価は未調査の枝の順位付けにだけ使う", "changed": true },
-        { "state": "hypothesis", "on": "cmd-record-judgment", "kind": "ignored", "reason": "評価は未調査の枝の順位付けにだけ使う", "changed": true }
-      ]
+      "rejections": []
     }
   ]
 }
