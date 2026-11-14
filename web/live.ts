@@ -11,6 +11,8 @@ export type LiveHandlers = {
   /** Google Search grounding for the current answer (search words, source pages when Live sends them). */
   onGrounding?(meta: unknown): void;
   onTurnComplete?(): void;
+  /** Any message on the current connection: the link is alive. */
+  onServerMessage?(): void;
 };
 
 const QUICK_CLOSE_MS = 3_000;
@@ -86,6 +88,7 @@ export function connectLive(
 
   // Messages from an older connection that is still draining are handled too (a tool call there must still land).
   async function onMessage(from: LiveSession, m: LiveServerMessage): Promise<void> {
+    if (from === current) h.onServerMessage?.();
     const sc = m.serverContent;
     if (sc?.interrupted) h.onInterrupted();
     for (const part of sc?.modelTurn?.parts ?? []) {
@@ -151,6 +154,8 @@ export function connectLive(
 
   return {
     start: () => event({ kind: "start", hasHistory: opts.hasHistory }),
+    /** The link looks dead without having closed: resume on a fresh connection now. */
+    reconnect: () => event({ kind: "stalled" }, "応答が止まったのでつなぎ直します"),
     /** After "failed": try again from the start of the backoff. */
     retry() {
       budget.reset();

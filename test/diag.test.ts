@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createDiagLog, createStallWatch, NUDGE_TEXT, STALL_MS } from "../web/diag.ts";
+import { createDiagLog, createLinkWatch, createStallWatch, NUDGE_TEXT, STALL_MS } from "../web/diag.ts";
 
 test("diag log batches events and posts them after the flush delay", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
@@ -50,4 +50,29 @@ test("stall watch waits for the person's last words, not the first", () => {
 
 test("nudge text asks Gemini to continue", () => {
   assert.equal(NUDGE_TEXT, "聞こえていますか? 直前の答えに続けて質問してください。");
+});
+
+test("link watch fires when the person kept talking but nothing came back for 15 s", () => {
+  const w = createLinkWatch();
+  w.server(0);
+  for (let t = 100; t <= 7_000; t += 100) w.voice(0.05, false, t);
+  assert.equal(w.check(14_999), false);
+  assert.equal(w.check(15_000), true);
+  assert.equal(w.check(20_000), false);
+  w.server(21_000);
+  assert.equal(w.check(40_000), false);
+});
+
+test("link watch stays quiet when the person is silent or muted (Live sends nothing then)", () => {
+  const w = createLinkWatch();
+  w.server(0);
+  for (let t = 100; t <= 10_000; t += 100) w.voice(0.0001, false, t);
+  for (let t = 10_100; t <= 20_000; t += 100) w.voice(0.05, true, t);
+  assert.equal(w.check(60_000), false);
+});
+
+test("link watch does nothing before the first connection", () => {
+  const w = createLinkWatch();
+  for (let t = 100; t <= 10_000; t += 100) w.voice(0.05, false, t);
+  assert.equal(w.check(60_000), false);
 });

@@ -300,3 +300,8 @@ test("an empty turnComplete after the interrupt keeps the follow-up started befo
   c.gemini("A2");
   assert.equal(c.turnComplete()?.question, "Workers の無料枠は?");
 });
+
+test("a stalled link resumes with the handle, or falls back to the transcript without one", () => {
+  assert.deepEqual(nextConnection({ handle: "h1", connectedAt: 0 }, { kind: "stalled" }), { handle: "h1", fallback: false });
+  assert.deepEqual(nextConnection({ handle: null, connectedAt: 0 }, { kind: "stalled" }), { handle: null, fallback: true });
+});

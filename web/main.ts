@@ -1,7 +1,7 @@
 import { createAnswerCollector, createPendingAnswers, readGrounding, submitAfterAnswers } from "./answers.ts";
 import { createApi, loadSession, toGeminiResponse, type Direction, type Role } from "./api.ts";
 import { createPlayer, startMic, type Mic } from "./audio.ts";
-import { createDiagLog, createStallWatch, NUDGE_TEXT } from "./diag.ts";
+import { createDiagLog, createLinkWatch, createStallWatch, NUDGE_TEXT } from "./diag.ts";
 import { connectLive } from "./live.ts";
 import { createSilenceWatch, loadMicChoice, meterValue, micOptions, saveMicChoice } from "./mic.ts";
 import { createSerialQueue } from "./queue.ts";
@@ -16,6 +16,7 @@ export async function boot(): Promise<void> {
   const api = createApi(view.nonce);
   const diag = createDiagLog((events) => api.log(events));
   const stall = createStallWatch();
+  const link = createLinkWatch();
   $("topic").textContent = view.topic;
   document.title = `深掘り: ${view.topic}`;
 
@@ -85,6 +86,7 @@ export async function boot(): Promise<void> {
   let silentWarned = false;
   const onLevel = (level: number) => {
     micLevel.value = meterValue(level);
+    link.voice(level, muted, Date.now());
     const change = silence.sample(level, muted, Date.now());
     if (change === "silent") {
       silentWarned = true;
@@ -189,8 +191,10 @@ export async function boot(): Promise<void> {
       void refresh(new Set(out.flatMap((o) => ((o.response.added as string[] | undefined) ?? [])))).catch(() => undefined);
       return out;
     },
+    onServerMessage: () => link.server(Date.now()),
     onStatus: (s, detail) => {
       diag.log(`status.${s}`, detail);
+      if (s === "connected") link.server(Date.now());
       if (s === "connected") setStatus(muted ? "ミュート中" : "話しています", "live");
       else if (s === "connecting") setStatus("Gemini につないでいます…", "idle");
       else if (s === "reconnecting") setStatus("つなぎ直しています…", "warn");
@@ -212,7 +216,15 @@ export async function boot(): Promise<void> {
     nudgeBtn.hidden = true;
   }
   const stallTimer = setInterval(() => {
-    if (finishing || !stall.check(Date.now())) return;
+    if (finishing) return;
+    // The person kept talking but nothing at all came back: the link died without closing. Resume now.
+    if (link.check(Date.now())) {
+      diag.log("link.stalled", `role=${role}`);
+      setStatus("Gemini からの応答が止まったので、つなぎ直しています…", "warn");
+      void live.reconnect();
+      return;
+    }
+    if (!stall.check(Date.now())) return;
     diag.log("gemini.silent", `role=${role}`);
     nudgeBtn.hidden = false;
     setStatus("Gemini が黙っています。「Gemini に呼びかけ直す」を押してください", "warn");

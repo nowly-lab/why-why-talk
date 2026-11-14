@@ -78,3 +78,26 @@ test("a tool call still gets a response when the handler throws", async () => {
   assert.match(String(sent[0]![0]!.response.error), /refresh failed/);
   live.close();
 });
+
+test("reconnect() opens a fresh connection with the resumption handle and reports server messages", async () => {
+  const cbs: Array<Parameters<LiveConnect>[2]> = [];
+  const configs: unknown[] = [];
+  const connect: LiveConnect = async (_t, config, callbacks) => {
+    cbs.push(callbacks);
+    configs.push(config);
+    return { sendClientContent() {}, sendRealtimeInput() {}, sendToolResponse() {}, close() {} };
+  };
+  let messages = 0;
+  const live = connectLive(async () => ({ token: "t", model: "m", expiresAt: "", config: {} }), {
+    onAudio() {}, onInterrupted() {}, onTranscript() {}, onToolCall: async () => [], onStatus() {},
+    onServerMessage: () => void messages++,
+  }, { hasHistory: false, connect });
+  await live.start();
+  cbs[0]!.onmessage({ sessionResumptionUpdate: { resumable: true, newHandle: "h9" } } as never);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(messages, 1);
+  await live.reconnect();
+  assert.equal(cbs.length, 2);
+  assert.deepEqual((configs[1] as { sessionResumption: unknown }).sessionResumption, { handle: "h9" });
+  live.close();
+});

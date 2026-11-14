@@ -55,3 +55,36 @@ export function createStallWatch(timeoutMs = STALL_MS) {
     },
   };
 }
+
+export const LINK_QUIET_MS = 15_000;
+export const LINK_VOICED_MS = 6_000;
+const VOICE_FLOOR = 0.005;
+
+/**
+ * Notices a Live link that died without closing: the person kept talking (mic level), yet no server message
+ * (not even their own transcription) came back. Live sends nothing while the person is silent, so silence alone
+ * never fires it. Fires once per quiet period.
+ */
+export function createLinkWatch(opts: { quietMs?: number; voicedMs?: number; chunkMs?: number } = {}) {
+  const quietMs = opts.quietMs ?? LINK_QUIET_MS;
+  const voicedMs = opts.voicedMs ?? LINK_VOICED_MS;
+  const chunkMs = opts.chunkMs ?? 100;
+  let lastServer: number | null = null;
+  let voiced = 0;
+  let fired = false;
+  return {
+    server(at: number) {
+      lastServer = at;
+      voiced = 0;
+      fired = false;
+    },
+    voice(level: number, muted: boolean, _at: number) {
+      if (lastServer !== null && !muted && level >= VOICE_FLOOR) voiced += chunkMs;
+    },
+    check(at: number): boolean {
+      if (fired || lastServer === null || at - lastServer < quietMs || voiced < voicedMs) return false;
+      fired = true;
+      return true;
+    },
+  };
+}
