@@ -24,6 +24,9 @@ body { background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, -apple
 header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
 header .label { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
 header h1 { margin: 0; font-size: 18px; font-weight: 650; flex: 1 1 320px; }
+.mic-pick { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.mic-pick select { font: inherit; font-size: 13px; color: var(--fg); background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; max-width: 220px; }
+.mic-pick meter { width: 64px; height: 10px; }
 #status { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
 #status[data-kind="live"] { color: var(--ok); border-color: var(--ok); }
 #status[data-kind="warn"] { color: var(--warn); border-color: var(--warn); }
@@ -95,6 +98,11 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
   <span id="role" class="role" data-role="interviewer">Gemini: 聞き手</span>
   <button id="role-btn" type="button" disabled>役割を交代</button>
   <span id="status" data-kind="idle">読み込んでいます…</span>
+  <button id="nudge" type="button" hidden>Gemini に呼びかけ直す</button>
+  <label class="mic-pick">マイク
+    <select id="mic-select" aria-label="使うマイク"><option value="">既定のマイク</option></select>
+    <meter id="mic-level" min="0" max="1" low="0.02" high="0.6" optimum="0.2" value="0" aria-label="マイクの音量"></meter>
+  </label>
   <button id="mic" class="primary" type="button">マイクを開始</button>
 </header>
 <main>

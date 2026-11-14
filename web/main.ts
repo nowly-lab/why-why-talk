@@ -1,7 +1,8 @@
 import { createAnswerCollector, createPendingAnswers, readGrounding, submitAfterAnswers } from "./answers.ts";
 import { createApi, loadSession, toGeminiResponse, type Direction, type Role } from "./api.ts";
-import { createPlayer, startMic } from "./audio.ts";
+import { createPlayer, startMic, type Mic } from "./audio.ts";
 import { connectLive } from "./live.ts";
+import { createSilenceWatch, loadMicChoice, micOptions, saveMicChoice } from "./mic.ts";
 import { createSerialQueue } from "./queue.ts";
 import { appendFragment, type Line } from "./transcript.ts";
 import type { TreeNode } from "./tree-rows.ts";
@@ -52,8 +53,63 @@ export async function boot(): Promise<void> {
   setStatus("マイクを開始すると、Gemini が質問を始めます", "idle");
 
   const player = createPlayer();
-  let mic: Awaited<ReturnType<typeof startMic>> | null = null;
+  let mic: Mic | null = null;
   let muted = false;
+
+  // Microphone choice ("" = system default), remembered per browser; switchable mid-talk without reconnecting.
+  const micSelect = $<HTMLSelectElement>("mic-select");
+  const micLevel = $<HTMLMeterElement>("mic-level");
+  const storage = (() => {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  })();
+  let micChoice = loadMicChoice(storage);
+  async function refreshMics(): Promise<void> {
+    try {
+      const { options, selected } = micOptions(await navigator.mediaDevices.enumerateDevices(), micChoice);
+      micSelect.replaceChildren(...options.map((o) => new Option(o.label, o.id, false, o.id === selected)));
+      micSelect.value = selected;
+    } catch {
+      // No device list (old browser): keep the single default entry.
+    }
+  }
+  void refreshMics();
+  navigator.mediaDevices?.addEventListener?.("devicechange", () => void refreshMics());
+  const silence = createSilenceWatch();
+  let silentWarned = false;
+  const onLevel = (level: number) => {
+    micLevel.value = Math.min(1, level * 8);
+    const change = silence.sample(level, muted, Date.now());
+    if (change === "silent") {
+      silentWarned = true;
+      setStatus("マイクの音が届いていません。右のマイクの選択を確かめてください", "warn");
+    } else if (change === "heard" && silentWarned) {
+      silentWarned = false;
+      setStatus("話しています", "live");
+    }
+  };
+  micSelect.addEventListener("change", async () => {
+    const next = micSelect.value;
+    const previous = micChoice;
+    micChoice = next;
+    saveMicChoice(storage, next);
+    if (!mic) return;
+    micSelect.disabled = true;
+    try {
+      await mic.switchDevice(next);
+      setStatus(`マイクを切り替えました: ${mic.deviceLabel() || "既定のマイク"}`, "live");
+    } catch (e) {
+      micChoice = previous;
+      micSelect.value = previous;
+      saveMicChoice(storage, previous);
+      setStatus(`そのマイクを使えません: ${(e as Error).message}`, "error");
+    } finally {
+      micSelect.disabled = false;
+    }
+  });
 
   const sendInOrder = createSerialQueue();
   const answers = createAnswerCollector();
@@ -151,7 +207,14 @@ export async function boot(): Promise<void> {
       try {
         // Both audio contexts must start inside this click (Safari): start them before awaiting anything.
         const playerReady = player.resume();
-        mic = await startMic((b64) => live.sendAudio(b64));
+        mic = await startMic((b64) => live.sendAudio(b64), { deviceId: micChoice, onLevel }).catch((e: unknown) => {
+          // A remembered mic that was unplugged: fall back to the system default instead of failing.
+          if (!micChoice) throw e;
+          micChoice = "";
+          saveMicChoice(storage, "");
+          return startMic((b64) => live.sendAudio(b64), { deviceId: "", onLevel });
+        });
+        void refreshMics();
         await playerReady;
         await live.start();
         micBtn.textContent = "ミュート";
@@ -246,7 +309,7 @@ export async function boot(): Promise<void> {
   function finished(message: string): void {
     document.body.dataset.done = "1";
     setStatus(message, "idle");
-    for (const b of [micBtn, organiseBtn, sendBtn, cancelBtn, roleBtn]) b.disabled = true;
+    for (const b of [micBtn, organiseBtn, sendBtn, cancelBtn, roleBtn, $<HTMLSelectElement>("mic-select")]) b.disabled = true;
   }
 }
 

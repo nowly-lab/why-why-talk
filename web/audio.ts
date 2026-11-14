@@ -1,20 +1,34 @@
+import { rms } from "./mic.ts";
 import { downsample, floatToPcm16Base64, pcm16Base64ToFloat } from "./pcm.ts";
 
-/** Microphone at 16 kHz, delivered as base64 PCM16 chunks (~100 ms). */
-export async function startMic(onChunk: (base64: string) => void): Promise<{ stop(): void; setMuted(m: boolean): void }> {
+/** Microphone at 16 kHz, delivered as base64 PCM16 chunks (~100 ms). `deviceId` "" is the system default. */
+export type Mic = { stop(): void; setMuted(m: boolean): void; switchDevice(deviceId: string): Promise<void>; deviceLabel(): string };
+
+function micConstraints(deviceId: string): MediaStreamConstraints {
+  return {
+    audio: {
+      channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+    },
+  };
+}
+
+export async function startMic(
+  onChunk: (base64: string) => void,
+  opts: { deviceId?: string; onLevel?: (rms: number) => void } = {},
+): Promise<Mic> {
   // Create the context before the first await so it is still inside the click (Safari), at the device rate
   // (Firefox refuses a 16 kHz context for a 48 kHz mic), and downsample to 16 kHz.
   const ctx = new AudioContext();
   const resumed = ctx.resume();
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
+  let stream = await navigator.mediaDevices.getUserMedia(micConstraints(opts.deviceId ?? ""));
   await resumed;
   await ctx.audioWorklet.addModule("/audio-worklet.js");
-  const source = ctx.createMediaStreamSource(stream);
+  let source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, "mic-chunker");
   let muted = false;
   node.port.onmessage = (e: MessageEvent<Float32Array>) => {
+    opts.onLevel?.(rms(e.data));
     if (!muted) onChunk(floatToPcm16Base64(downsample(e.data, ctx.sampleRate, 16_000)));
   };
   source.connect(node);
@@ -28,6 +42,16 @@ export async function startMic(onChunk: (base64: string) => void): Promise<{ sto
     setMuted(m: boolean) {
       muted = m;
     },
+    // Same audio context and Gemini connection; only the input changes. If the new mic fails, the old one stays.
+    async switchDevice(deviceId: string) {
+      const next = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId));
+      source.disconnect();
+      for (const t of stream.getTracks()) t.stop();
+      stream = next;
+      source = ctx.createMediaStreamSource(stream);
+      source.connect(node);
+    },
+    deviceLabel: () => stream.getAudioTracks()[0]?.label ?? "",
   };
 }
 
