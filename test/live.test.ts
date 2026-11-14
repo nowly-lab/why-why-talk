@@ -56,3 +56,25 @@ test("forwards groundingMetadata and turnComplete", async () => {
   assert.deepEqual(seen, ['g:{"webSearchQueries":["q"]}', "done"]);
   live.close();
 });
+
+test("a tool call still gets a response when the handler throws", async () => {
+  let cb: Parameters<LiveConnect>[2] | undefined;
+  const sent: Array<Array<{ id?: string; name?: string; response: Record<string, unknown> }>> = [];
+  const connect: LiveConnect = async (_t, _c, callbacks) => {
+    cb = callbacks;
+    return { sendClientContent() {}, sendRealtimeInput() {}, sendToolResponse: (p) => void sent.push(p.functionResponses), close() {} };
+  };
+  const live = connectLive(async () => ({ token: "t", model: "m", expiresAt: "", config: {} }), {
+    onAudio() {}, onInterrupted() {}, onTranscript() {}, onStatus() {},
+    onToolCall: async () => {
+      throw new Error("refresh failed");
+    },
+  }, { hasHistory: false, connect });
+  await live.start();
+  cb!.onmessage({ toolCall: { functionCalls: [{ id: "c1", name: "add_whys", args: {} }, { id: "c2", name: "add_fact", args: {} }] } } as never);
+  for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0]!.map((r) => [r.id, r.name]), [["c1", "add_whys"], ["c2", "add_fact"]]);
+  assert.match(String(sent[0]![0]!.response.error), /refresh failed/);
+  live.close();
+});

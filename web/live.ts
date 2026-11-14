@@ -99,7 +99,10 @@ export function connectLive(
       state.handle = m.sessionResumptionUpdate.newHandle;
     }
     if (m.toolCall?.functionCalls?.length) {
-      const functionResponses = await h.onToolCall(m.toolCall.functionCalls);
+      // Gemini waits for an answer to every call: a failing handler still answers each one with the error.
+      const calls = m.toolCall.functionCalls;
+      const functionResponses = await h.onToolCall(calls).catch((e: unknown) =>
+        calls.map((c) => ({ id: c.id, name: c.name, response: { error: (e as Error)?.message ?? String(e) } })));
       try {
         from.sendToolResponse({ functionResponses });
       } catch {

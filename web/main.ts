@@ -111,7 +111,8 @@ export async function boot(): Promise<void> {
         }
         out.push({ id: call.id, name: call.name, response });
       }
-      await refresh(new Set(out.flatMap((o) => ((o.response.added as string[] | undefined) ?? []))));
+      // Redrawing the tree must never hold back Gemini's answer: Gemini stays silent until it gets one.
+      void refresh(new Set(out.flatMap((o) => ((o.response.added as string[] | undefined) ?? [])))).catch(() => undefined);
       return out;
     },
     onStatus: (s, detail) => {
