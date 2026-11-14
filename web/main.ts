@@ -3,6 +3,7 @@ import { createApi, loadSession, toGeminiResponse, type Direction, type Role } f
 import { createPlayer, startMic, type Mic } from "./audio.ts";
 import { createDiagLog, createLinkWatch, createStallWatch, NUDGE_TEXT } from "./diag.ts";
 import { connectLive } from "./live.ts";
+import { startWithLatestChoice } from "./mic-input.ts";
 import { createSilenceWatch, loadMicChoice, meterValue, micOptions, saveMicChoice } from "./mic.ts";
 import { createSerialQueue } from "./queue.ts";
 import { appendFragment, type Line } from "./transcript.ts";
@@ -106,7 +107,9 @@ export async function boot(): Promise<void> {
     if (!mic) return;
     micSelect.disabled = true;
     try {
-      await mic.switchDevice(next);
+      const result = await mic.switchDevice(next);
+      // A newer choice or the end of the talk overtook this one; that path owns the status line.
+      if (result !== "switched" || !mic) return;
       diag.log("mic.switch", mic.deviceLabel() || "default");
       setStatus(`マイクを切り替えました: ${mic.deviceLabel() || "既定のマイク"}`, "live");
     } catch (e) {
@@ -126,6 +129,10 @@ export async function boot(): Promise<void> {
   // Set while 送信 is settling: no new answer is collected, so nothing lands after the session is sent.
   let finishing = false;
   const hasHistory = view.transcript.length > 0 || view.tree.length > 1;
+  // Tool calls Gemini is waiting on; the link watch does not fire meanwhile.
+  let toolsPending = 0;
+  // Set by end(): a mic that finishes starting afterwards is stopped at once.
+  let ended = false;
   const live = connectLive((fallback) => api.token(fallback), {
     onAudio: (b64) => {
       geminiActive();
@@ -169,32 +176,17 @@ export async function boot(): Promise<void> {
     },
     onToolCall: async (calls) => {
       geminiActive();
-      const out = [];
-      for (const call of calls) {
-        let response: Record<string, unknown>;
-        const started = performance.now();
-        try {
-          const r = await api.tool(call.name ?? "", call.args ?? {});
-          response = toGeminiResponse(r);
-        } catch (e) {
-          response = { error: (e as Error).message };
-        }
-        diag.log(response.error ? "tool.error" : "tool", `${call.name ?? "?"}${response.error ? `: ${String(response.error)}` : ""}`, performance.now() - started);
-        if (typeof response.role === "string" && response.role !== role) {
-          applyRole(response.role as Role);
-          // Switched by voice: keep the question said in this turn; going back forgets the answerer's turn.
-          if (role === "interviewer") answers.reset();
-        }
-        out.push({ id: call.id, name: call.name, response });
+      toolsPending++;
+      try {
+        return await answerTools(calls);
+      } finally {
+        toolsPending--;
       }
-      // Redrawing the tree must never hold back Gemini's answer: Gemini stays silent until it gets one.
-      void refresh(new Set(out.flatMap((o) => ((o.response.added as string[] | undefined) ?? [])))).catch(() => undefined);
-      return out;
     },
-    onServerMessage: () => link.server(Date.now()),
+    onServerMessage: (content) => link.server(Date.now(), content),
     onStatus: (s, detail) => {
       diag.log(`status.${s}`, detail);
-      if (s === "connected") link.server(Date.now());
+      if (s === "connected") link.server(Date.now(), false);
       if (s === "connected") setStatus(muted ? "ミュート中" : "話しています", "live");
       else if (s === "connecting") setStatus("Gemini につないでいます…", "idle");
       else if (s === "reconnecting") setStatus("つなぎ直しています…", "warn");
@@ -218,10 +210,18 @@ export async function boot(): Promise<void> {
   const stallTimer = setInterval(() => {
     if (finishing) return;
     // The person kept talking but nothing at all came back: the link died without closing. Resume now.
-    if (link.check(Date.now())) {
+    const verdict = link.check(Date.now(), player.busy() || toolsPending > 0);
+    if (verdict === "reconnect") {
       diag.log("link.stalled", `role=${role}`);
       setStatus("Gemini からの応答が止まったので、つなぎ直しています…", "warn");
       void live.reconnect();
+      return;
+    }
+    if (verdict === "give_up") {
+      // Reconnecting twice brought no reply: stop retrying on our own and let the person decide.
+      diag.log("link.gave_up", `role=${role}`);
+      nudgeBtn.hidden = false;
+      setStatus("つなぎ直しても Gemini から応答がありません。「Gemini に呼びかけ直す」を押すか、少し待ってください", "warn");
       return;
     }
     if (!stall.check(Date.now())) return;
@@ -235,6 +235,30 @@ export async function boot(): Promise<void> {
     live.sendText(NUDGE_TEXT);
     setStatus("Gemini に呼びかけ直しました", "live");
   });
+
+  async function answerTools(calls: { id?: string; name?: string; args?: Record<string, unknown> }[]) {
+    const out = [];
+    for (const call of calls) {
+      let response: Record<string, unknown>;
+      const started = performance.now();
+      try {
+        const r = await api.tool(call.name ?? "", call.args ?? {});
+        response = toGeminiResponse(r);
+      } catch (e) {
+        response = { error: (e as Error).message };
+      }
+      diag.log(response.error ? "tool.error" : "tool", `${call.name ?? "?"}${response.error ? `: ${String(response.error)}` : ""}`, performance.now() - started);
+      if (typeof response.role === "string" && response.role !== role) {
+        applyRole(response.role as Role);
+        // Switched by voice: keep the question said in this turn; going back forgets the answerer's turn.
+        if (role === "interviewer") answers.reset();
+      }
+      out.push({ id: call.id, name: call.name, response });
+    }
+    // Redrawing the tree must never hold back Gemini's answer: Gemini stays silent until it gets one.
+    void refresh(new Set(out.flatMap((o) => ((o.response.added as string[] | undefined) ?? [])))).catch(() => undefined);
+    return out;
+  }
 
   async function refresh(fresh: Set<string>): Promise<void> {
     const v = await loadSession();
@@ -257,13 +281,28 @@ export async function boot(): Promise<void> {
       try {
         // Both audio contexts must start inside this click (Safari): start them before awaiting anything.
         const playerReady = player.resume();
-        mic = await startMic((b64) => live.sendAudio(b64), { deviceId: micChoice, onLevel }).catch((e: unknown) => {
-          // A remembered mic that was unplugged: fall back to the system default instead of failing.
-          if (!micChoice) throw e;
-          micChoice = "";
-          saveMicChoice(storage, "");
-          return startMic((b64) => live.sendAudio(b64), { deviceId: "", onLevel });
-        });
+        // A mic picked in the selector while this one starts is applied once it has started.
+        const started = await startWithLatestChoice(() => micChoice, (id) =>
+          startMic((b64) => live.sendAudio(b64), { deviceId: id, onLevel }).catch((e: unknown) => {
+            // A remembered mic that was unplugged: fall back to the system default instead of failing.
+            if (!id) throw e;
+            if (micChoice === id) {
+              micChoice = "";
+              saveMicChoice(storage, "");
+            }
+            return startMic((b64) => live.sendAudio(b64), { deviceId: "", onLevel });
+          }));
+        if (ended) {
+          started.mic.stop();
+          return;
+        }
+        mic = started.mic;
+        if (started.switchError) {
+          micChoice = started.used;
+          micSelect.value = started.used;
+          saveMicChoice(storage, started.used);
+          diag.log("mic.switch_failed", started.switchError.message);
+        }
         void refreshMics();
         await playerReady;
         await live.start();
@@ -311,6 +350,7 @@ export async function boot(): Promise<void> {
   form.addEventListener("change", () => void api.draft(readDirection(form)).catch(() => undefined));
 
   const end = () => {
+    ended = true;
     clearInterval(stallTimer);
     nudgeBtn.hidden = true;
     diag.flush();
