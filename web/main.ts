@@ -78,8 +78,9 @@ export async function boot(): Promise<void> {
       micSelect.value = id;
     },
     onSwitchError: (e) => {
-      setStatus(`そのマイクを使えません: ${e.message}`, "error");
       diag.log("mic.switch_failed", e.message);
+      if (mics.ended()) return;
+      setStatus(`そのマイクを使えません: ${e.message}`, "error");
     },
   }, loadMicChoice(storage));
   async function refreshMics(): Promise<void> {
@@ -120,8 +121,9 @@ export async function boot(): Promise<void> {
       diag.log("mic.switch", mic.deviceLabel() || "default");
       setStatus(`マイクを切り替えました: ${mic.deviceLabel() || "既定のマイク"}`, "live");
     } catch (e) {
-      setStatus(`そのマイクを使えません: ${(e as Error).message}`, "error");
       diag.log("mic.switch_failed", (e as Error).message);
+      // The talk ended while the switch was pending: keep the finished message.
+      if (!mics.ended()) setStatus(`そのマイクを使えません: ${(e as Error).message}`, "error");
     }
   });
 
