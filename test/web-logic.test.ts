@@ -256,33 +256,36 @@ test("follow-up fragments on both sides of the interrupt stay one question", asy
 });
 
 test("submitAfterAnswers freezes, records the answer in progress, then submits after queued writes", async () => {
-  const { submitAfterAnswers } = await import("../web/answers.ts");
-  const { createAnswerCollector } = await import("../web/answers.ts");
+  const { submitAfterAnswers, createAnswerCollector, createPendingAnswers } = await import("../web/answers.ts");
   const q = createSerialQueue();
   const order: string[] = [];
   const c = createAnswerCollector();
   c.person("無料枠は?");
   c.gemini("10万です");
+  const pending = createPendingAnswers(async (e) => { order.push(`answer:${e.question}`); });
   void q(async () => { await new Promise((r) => setTimeout(r, 20)); order.push("transcript"); });
-  await submitAfterAnswers({
-    queue: q,
-    collector: c,
-    answering: true,
-    freeze: () => order.push("freeze"),
-    recordAnswer: async (e) => { order.push(`answer:${e.question}`); },
-    submit: async () => { order.push("submit"); },
-  });
+  await submitAfterAnswers({ queue: q, collector: c, answering: true, freeze: () => order.push("freeze"), pending, submit: async () => { order.push("submit"); } });
   assert.deepEqual(order, ["freeze", "transcript", "answer:無料枠は?", "submit"]);
 });
 
-test("submitAfterAnswers still submits when recording the answer fails", async () => {
-  const { submitAfterAnswers, createAnswerCollector } = await import("../web/answers.ts");
+test("a failed answer write blocks the submit and is retried next time", async () => {
+  const { submitAfterAnswers, createAnswerCollector, createPendingAnswers } = await import("../web/answers.ts");
   const c = createAnswerCollector();
   c.person("q");
   c.gemini("a");
-  let submitted = false;
-  await submitAfterAnswers({ queue: createSerialQueue(), collector: c, answering: true, freeze() {}, recordAnswer: async () => { throw new Error("x"); }, submit: async () => { submitted = true; } });
-  assert.ok(submitted);
+  let fail = true;
+  const saved: string[] = [];
+  const pending = createPendingAnswers(async (e) => { if (fail) throw new Error("HTTP 500"); saved.push(e.answer); });
+  let submitted = 0;
+  const opts = { queue: createSerialQueue(), collector: c, answering: true, freeze() {}, pending, submit: async () => { submitted++; } };
+  await assert.rejects(submitAfterAnswers(opts), /Gemini の答えを記録できませんでした: HTTP 500/);
+  assert.equal(submitted, 0);
+  assert.equal(pending.size(), 1);
+  fail = false;
+  await submitAfterAnswers(opts);
+  assert.deepEqual(saved, ["a"]);
+  assert.equal(submitted, 1);
+  assert.equal(pending.size(), 0);
 });
 
 test("an empty turnComplete after the interrupt keeps the follow-up started before it", async () => {

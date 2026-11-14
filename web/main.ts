@@ -1,4 +1,4 @@
-import { createAnswerCollector, readGrounding, submitAfterAnswers } from "./answers.ts";
+import { createAnswerCollector, createPendingAnswers, readGrounding, submitAfterAnswers } from "./answers.ts";
 import { createApi, loadSession, toGeminiResponse, type Direction, type Role } from "./api.ts";
 import { createPlayer, startMic } from "./audio.ts";
 import { connectLive } from "./live.ts";
@@ -57,6 +57,7 @@ export async function boot(): Promise<void> {
 
   const sendInOrder = createSerialQueue();
   const answers = createAnswerCollector();
+  const pendingAnswers = createPendingAnswers((e) => api.answer(e));
   // Set while 送信 is settling: no new answer is collected, so nothing lands after the session is sent.
   let finishing = false;
   const hasHistory = view.transcript.length > 0 || view.tree.length > 1;
@@ -87,9 +88,10 @@ export async function boot(): Promise<void> {
       }
       const entry = answers.turnComplete();
       if (entry) {
-        void sendInOrder(() => api.answer(entry))
+        pendingAnswers.add(entry);
+        void sendInOrder(() => pendingAnswers.flush())
           .then(() => refresh(new Set()))
-          .catch((e: unknown) => setStatus(`Gemini の答えを記録できませんでした: ${(e as Error).message}`, "warn"));
+          .catch((e: unknown) => setStatus(`${(e as Error).message}(送信のときにもう一度試します)`, "warn"));
       }
     },
     onToolCall: async (calls) => {
@@ -219,7 +221,7 @@ export async function boot(): Promise<void> {
         freeze: () => {
           finishing = true;
         },
-        recordAnswer: (e) => api.answer(e),
+        pending: pendingAnswers,
         submit: () => api.submit(d),
       });
       end();

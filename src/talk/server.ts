@@ -32,11 +32,22 @@ const DirectionBody = z.object({ direction: z.string(), reasons: z.string(), rej
 const TranscriptBody = z.object({ speaker: z.enum(["person", "gemini"]), text: z.string().max(20_000) });
 const ToolBody = z.object({ name: z.string(), args: z.unknown() });
 const RoleBody = z.object({ role: RoleSchema });
+// Grounding comes from Gemini, not the person: trim what is too long or not a web link instead of refusing the answer.
+const isWebUrl = (u: string) => {
+  try {
+    return ["http:", "https:"].includes(new URL(u).protocol);
+  } catch {
+    return false;
+  }
+};
 const AnswerBody = z.object({
   question: z.string().max(20_000),
   answer: z.string().max(20_000),
-  queries: z.array(z.string().max(500)).max(20).default([]),
-  sources: z.array(z.object({ title: z.string().max(500), uri: z.string().url().max(2_000) })).max(20).default([]),
+  queries: z.array(z.string()).default([]).transform((qs) => qs.slice(0, 20).map((q) => q.slice(0, 500))),
+  sources: z
+    .array(z.object({ title: z.string(), uri: z.string() }))
+    .default([])
+    .transform((xs) => xs.filter((x) => x.uri.length <= 2_000 && isWebUrl(x.uri)).slice(0, 20).map((x) => ({ title: x.title.slice(0, 500), uri: x.uri }))),
 });
 const TokenBody = z.object({ fallback: z.boolean().default(false) });
 

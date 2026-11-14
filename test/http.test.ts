@@ -188,3 +188,18 @@ test("POST /api/answer stores an entry", async () => {
   assert.equal((await post("/api/answer", { question: "q", answer: "" })).status, 400);
   await srv.close();
 });
+
+test("POST /api/answer trims oversized grounding instead of refusing it", async () => {
+  const { srv, post, s } = await setup();
+  const r = await post("/api/answer", {
+    question: "q",
+    answer: "a",
+    queries: Array.from({ length: 30 }, (_, i) => `${i}`.padEnd(800, "x")),
+    sources: [{ title: "t".repeat(900), uri: "https://example.com/a" }, { title: "bad", uri: "not a url" }, { title: "js", uri: "javascript:alert(1)" }],
+  });
+  assert.equal(r.status, 200);
+  assert.equal(s.asked[0]!.queries.length, 20);
+  assert.ok(s.asked[0]!.queries.every((q) => q.length <= 500));
+  assert.deepEqual(s.asked[0]!.sources.map((x) => [x.title.length, x.uri]), [[500, "https://example.com/a"]]);
+  await srv.close();
+});

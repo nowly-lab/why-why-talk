@@ -82,20 +82,44 @@ export function createAnswerCollector() {
 
 type Collector = ReturnType<typeof createAnswerCollector>;
 
+/** Answers waiting to be saved. An entry stays until the server has it, so a failed write is retried. */
+export function createPendingAnswers(record: (e: AnswerEntry) => Promise<unknown>) {
+  const queue: AnswerEntry[] = [];
+  return {
+    add(e: AnswerEntry) {
+      queue.push(e);
+    },
+    size: () => queue.length,
+    /** Saves in order; stops at the first failure and throws it, keeping that entry and the rest. */
+    async flush(): Promise<void> {
+      while (queue.length > 0) {
+        try {
+          await record(queue[0]!);
+        } catch (e) {
+          throw new Error(`Gemini の答えを記録できませんでした: ${(e as Error).message}`);
+        }
+        queue.shift();
+      }
+    },
+  };
+}
+
 /**
- * Ends the talk without losing an answer: stop collecting, record the answer heard so far (answerer only),
- * then submit behind every queued write. A failed answer write does not block the submission.
+ * Ends the talk without losing an answer: stop collecting, keep the answer heard so far (answerer only),
+ * save every pending answer behind the queued writes, then submit. If an answer cannot be saved, the
+ * submission does not happen and the error is thrown so the person can press 送信 again.
  */
 export async function submitAfterAnswers(o: {
   queue: <T>(task: () => Promise<T>) => Promise<T>;
   collector: Pick<Collector, "turnComplete">;
   answering: boolean;
   freeze(): void;
-  recordAnswer(e: AnswerEntry): Promise<unknown>;
+  pending: ReturnType<typeof createPendingAnswers>;
   submit(): Promise<unknown>;
 }): Promise<void> {
   o.freeze();
   const entry = o.answering ? o.collector.turnComplete() : null;
-  if (entry) void o.queue(() => o.recordAnswer(entry)).catch(() => undefined);
+  if (entry) o.pending.add(entry);
+  await o.queue(() => o.pending.flush());
   await o.queue(() => o.submit());
 }
