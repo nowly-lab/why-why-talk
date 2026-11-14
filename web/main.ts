@@ -1,4 +1,4 @@
-import { createAnswerCollector, readGrounding } from "./answers.ts";
+import { createAnswerCollector, readGrounding, submitAfterAnswers } from "./answers.ts";
 import { createApi, loadSession, toGeminiResponse, type Direction, type Role } from "./api.ts";
 import { createPlayer, startMic } from "./audio.ts";
 import { connectLive } from "./live.ts";
@@ -57,6 +57,8 @@ export async function boot(): Promise<void> {
 
   const sendInOrder = createSerialQueue();
   const answers = createAnswerCollector();
+  // Set while 送信 is settling: no new answer is collected, so nothing lands after the session is sent.
+  let finishing = false;
   const hasHistory = view.transcript.length > 0 || view.tree.length > 1;
   const live = connectLive((fallback) => api.token(fallback), {
     onAudio: (b64) => player.play(b64),
@@ -69,14 +71,16 @@ export async function boot(): Promise<void> {
       renderTranscript(transcriptEl, lines);
       void sendInOrder(() => api.transcript(speaker, text)).catch(() => undefined);
       // The person's words are kept in every role, so a question said together with 「交代して」 is not lost.
+      if (finishing) return;
       if (speaker === "person") answers.person(text);
       else if (role === "answerer") answers.gemini(text);
       else answers.otherTurn();
     },
     onGrounding: (meta) => {
-      if (role === "answerer") answers.grounding(readGrounding(meta));
+      if (role === "answerer" && !finishing) answers.grounding(readGrounding(meta));
     },
     onTurnComplete: () => {
+      if (finishing) return;
       if (role !== "answerer") {
         answers.otherTurn();
         return;
@@ -207,11 +211,21 @@ export async function boot(): Promise<void> {
     }
     sendBtn.disabled = true;
     try {
-      // Behind the queued transcript and answer writes, so an answer just given is recorded before the session ends.
-      await sendInOrder(() => api.submit(d));
+      // Freeze collection, record the answer heard so far, then submit behind every queued write.
+      await submitAfterAnswers({
+        queue: sendInOrder,
+        collector: answers,
+        answering: role === "answerer",
+        freeze: () => {
+          finishing = true;
+        },
+        recordAnswer: (e) => api.answer(e),
+        submit: () => api.submit(d),
+      });
       end();
       finished("送信しました。エージェントに結果が届きます。このタブは閉じて構いません。");
     } catch (err) {
+      finishing = false;
       sendBtn.disabled = false;
       setStatus(`送信できませんでした: ${(err as Error).message}`, "error");
     }

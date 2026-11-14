@@ -29,21 +29,26 @@ export function createAnswerCollector() {
   let sources: Source[] = [];
   // The person's current words belong to a turn that already ended (answered, interrupted or not recorded).
   let stale = false;
+  // The person started a new question after Gemini's last words (an interruption must not drop it).
+  let fresh = false;
   const reset = () => {
     question = "";
     answer = "";
     queries = [];
     sources = [];
     stale = false;
+    fresh = false;
   };
   return {
     person(text: string) {
       // Speaking after an answer, an interruption or another turn starts a new question.
       if (answer !== "" || stale) reset();
       question += text;
+      fresh = true;
     },
     gemini(text: string) {
       answer += text;
+      fresh = false;
     },
     grounding(g: Grounding) {
       for (const q of g.queries) if (!queries.includes(q)) queries.push(q);
@@ -54,7 +59,8 @@ export function createAnswerCollector() {
       answer = "";
       queries = [];
       sources = [];
-      stale = true;
+      // Words the person already said after Gemini's last words are the next question; keep them.
+      stale = !fresh;
     },
     /** Gemini spoke in a turn that is not recorded (as the interviewer). */
     otherTurn() {
@@ -64,7 +70,7 @@ export function createAnswerCollector() {
     reset,
     turnComplete(): AnswerEntry | null {
       if (answer.trim() === "") {
-        stale = true;
+        stale = !fresh;
         return null;
       }
       const entry = { question: question.trim(), answer: answer.trim(), queries, sources };
@@ -72,4 +78,24 @@ export function createAnswerCollector() {
       return entry;
     },
   };
+}
+
+type Collector = ReturnType<typeof createAnswerCollector>;
+
+/**
+ * Ends the talk without losing an answer: stop collecting, record the answer heard so far (answerer only),
+ * then submit behind every queued write. A failed answer write does not block the submission.
+ */
+export async function submitAfterAnswers(o: {
+  queue: <T>(task: () => Promise<T>) => Promise<T>;
+  collector: Pick<Collector, "turnComplete">;
+  answering: boolean;
+  freeze(): void;
+  recordAnswer(e: AnswerEntry): Promise<unknown>;
+  submit(): Promise<unknown>;
+}): Promise<void> {
+  o.freeze();
+  const entry = o.answering ? o.collector.turnComplete() : null;
+  if (entry) void o.queue(() => o.recordAnswer(entry)).catch(() => undefined);
+  await o.queue(() => o.submit());
 }

@@ -241,3 +241,59 @@ test("submit queued behind a pending answer runs after it", async () => {
   await q(async () => { order.push("submit"); });
   assert.deepEqual(order, ["transcript", "answer", "submit"]);
 });
+
+// --- review round 2 ---
+test("follow-up fragments on both sides of the interrupt stay one question", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.gemini("partial");
+  c.person("Workers の");
+  c.interrupted();
+  c.person("無料枠は?");
+  c.gemini("A2");
+  assert.equal(c.turnComplete()?.question, "Workers の無料枠は?");
+});
+
+test("submitAfterAnswers freezes, records the answer in progress, then submits after queued writes", async () => {
+  const { submitAfterAnswers } = await import("../web/answers.ts");
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const q = createSerialQueue();
+  const order: string[] = [];
+  const c = createAnswerCollector();
+  c.person("無料枠は?");
+  c.gemini("10万です");
+  void q(async () => { await new Promise((r) => setTimeout(r, 20)); order.push("transcript"); });
+  await submitAfterAnswers({
+    queue: q,
+    collector: c,
+    answering: true,
+    freeze: () => order.push("freeze"),
+    recordAnswer: async (e) => { order.push(`answer:${e.question}`); },
+    submit: async () => { order.push("submit"); },
+  });
+  assert.deepEqual(order, ["freeze", "transcript", "answer:無料枠は?", "submit"]);
+});
+
+test("submitAfterAnswers still submits when recording the answer fails", async () => {
+  const { submitAfterAnswers, createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("q");
+  c.gemini("a");
+  let submitted = false;
+  await submitAfterAnswers({ queue: createSerialQueue(), collector: c, answering: true, freeze() {}, recordAnswer: async () => { throw new Error("x"); }, submit: async () => { submitted = true; } });
+  assert.ok(submitted);
+});
+
+test("an empty turnComplete after the interrupt keeps the follow-up started before it", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.gemini("partial");
+  c.person("Workers の");
+  c.interrupted();
+  assert.equal(c.turnComplete(), null);
+  c.person("無料枠は?");
+  c.gemini("A2");
+  assert.equal(c.turnComplete()?.question, "Workers の無料枠は?");
+});
