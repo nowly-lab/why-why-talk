@@ -5,7 +5,7 @@ import { STATE_LABEL } from "../render/tree.ts";
 import type { TalkSession, TranscriptEntry } from "./session.ts";
 
 const SPEAKER: Record<TranscriptEntry["speaker"], string> = { person: "あなた", gemini: "Gemini" };
-const FILES = ["result.md", "result.json", "tree.mmd", "transcript.md", "session.json"];
+const FILES = ["result.md", "result.json", "tree.mmd", "transcript.md", "session.json", "events.jsonl"];
 
 /** The Markdown the CLI prints on 送信; the agent reads it as the result of the deep dive. */
 export function renderResultMarkdown(s: TalkSession): string {

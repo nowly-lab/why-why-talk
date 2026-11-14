@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { addFact, addWhys, openBelowTarget, startAnalysis, treeSummary, updateNode, type Clock, type TreeSummary } from "../analysis.ts";
 import { WhyError, type Analysis, type Role } from "../model.ts";
@@ -20,6 +20,7 @@ export type ToolResult =
   | { ok: false; error: string; tree: TreeSummary; belowTarget: BelowTarget };
 
 const MERGE_WINDOW_MS = 4_000;
+const MAX_EVENTS = 5_000;
 
 /** One deep-dive: the tree, the transcript, the draft and how it ended. The result is decided once. */
 export class TalkSession {
@@ -41,6 +42,7 @@ export class TalkSession {
   cancelReason: string | null = null;
   private readonly now: Clock;
   private saving: Promise<void> = Promise.resolve();
+  private eventCount = 0;
 
   private readonly secrets: string[];
 
@@ -177,6 +179,30 @@ export class TalkSession {
     this.assertTalking();
     this.status = "cancelled";
     this.cancelReason = reason;
+  }
+
+  /**
+   * Appends page diagnostics to <outDir>/events.jsonl, redacted and time-stamped, in order with the other saves.
+   * Accepted in any status: a talk that ended oddly is exactly when the events matter. Capped per session.
+   */
+  appendEvents(events: Array<{ kind: string; detail?: string; ms?: number }>): Promise<void> {
+    const room = MAX_EVENTS - this.eventCount;
+    if (room <= 0) return Promise.resolve();
+    const take = events.slice(0, room);
+    this.eventCount += take.length;
+    const at = this.now();
+    const text = take.map((e) => JSON.stringify({
+      at,
+      kind: e.kind,
+      ...(e.detail ? { detail: redactSecrets(e.detail, { extra: this.secrets }) } : {}),
+      ...(e.ms !== undefined ? { ms: e.ms } : {}),
+    })).join("\n") + "\n";
+    const run = this.saving.then(async () => {
+      await mkdir(this.outDir, { recursive: true });
+      await appendFile(join(this.outDir, "events.jsonl"), text, "utf8");
+    });
+    this.saving = run.catch(() => undefined);
+    return run;
   }
 
   /** Writes the record under outDir, redacted, each file atomically. Saves run one at a time. */

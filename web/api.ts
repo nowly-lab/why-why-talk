@@ -1,6 +1,7 @@
 import type { TreeNode } from "./tree-rows.ts";
 import type { AnswerEntry, Source } from "./answers.ts";
 import type { Speaker } from "./transcript.ts";
+import type { DiagEvent } from "./diag.ts";
 
 export type Direction = { direction: string; reasons: string; rejected: string; openQuestions: string };
 export type SessionView = {
@@ -54,6 +55,7 @@ export function createApi(nonce: string) {
     cancel: () => post<{ ok: true }>("/api/cancel", {}),
     role: (role: Role) => post<{ ok: true; role: Role }>("/api/role", { role }),
     answer: (e: AnswerEntry) => post<{ ok: true }>("/api/answer", e),
+    log: (events: DiagEvent[]) => post<{ ok: true }>("/api/log", { events }),
   };
 }
 

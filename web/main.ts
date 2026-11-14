@@ -1,6 +1,7 @@
 import { createAnswerCollector, createPendingAnswers, readGrounding, submitAfterAnswers } from "./answers.ts";
 import { createApi, loadSession, toGeminiResponse, type Direction, type Role } from "./api.ts";
 import { createPlayer, startMic, type Mic } from "./audio.ts";
+import { createDiagLog, createStallWatch, NUDGE_TEXT } from "./diag.ts";
 import { connectLive } from "./live.ts";
 import { createSilenceWatch, loadMicChoice, micOptions, saveMicChoice } from "./mic.ts";
 import { createSerialQueue } from "./queue.ts";
@@ -13,6 +14,8 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 export async function boot(): Promise<void> {
   const view = await loadSession();
   const api = createApi(view.nonce);
+  const diag = createDiagLog((events) => api.log(events));
+  const stall = createStallWatch();
   $("topic").textContent = view.topic;
   document.title = `深掘り: ${view.topic}`;
 
@@ -85,8 +88,10 @@ export async function boot(): Promise<void> {
     const change = silence.sample(level, muted, Date.now());
     if (change === "silent") {
       silentWarned = true;
+      diag.log("mic.silent", mic?.deviceLabel());
       setStatus("マイクの音が届いていません。右のマイクの選択を確かめてください", "warn");
     } else if (change === "heard" && silentWarned) {
+      diag.log("mic.heard");
       silentWarned = false;
       setStatus("話しています", "live");
     }
@@ -100,12 +105,14 @@ export async function boot(): Promise<void> {
     micSelect.disabled = true;
     try {
       await mic.switchDevice(next);
+      diag.log("mic.switch", mic.deviceLabel() || "default");
       setStatus(`マイクを切り替えました: ${mic.deviceLabel() || "既定のマイク"}`, "live");
     } catch (e) {
       micChoice = previous;
       micSelect.value = previous;
       saveMicChoice(storage, previous);
       setStatus(`そのマイクを使えません: ${(e as Error).message}`, "error");
+      diag.log("mic.switch_failed", (e as Error).message);
     } finally {
       micSelect.disabled = false;
     }
@@ -118,12 +125,18 @@ export async function boot(): Promise<void> {
   let finishing = false;
   const hasHistory = view.transcript.length > 0 || view.tree.length > 1;
   const live = connectLive((fallback) => api.token(fallback), {
-    onAudio: (b64) => player.play(b64),
+    onAudio: (b64) => {
+      geminiActive();
+      player.play(b64);
+    },
     onInterrupted: () => {
+      diag.log("interrupted");
       player.interrupt();
       answers.interrupted();
     },
     onTranscript: (speaker, text) => {
+      if (speaker === "person") stall.person(Date.now());
+      else geminiActive();
       lines = appendFragment(lines, speaker, text, Date.now());
       renderTranscript(transcriptEl, lines);
       void sendInOrder(() => api.transcript(speaker, text)).catch(() => undefined);
@@ -137,6 +150,8 @@ export async function boot(): Promise<void> {
       if (role === "answerer" && !finishing) answers.grounding(readGrounding(meta));
     },
     onTurnComplete: () => {
+      geminiActive();
+      diag.log("turn_complete");
       if (finishing) return;
       if (role !== "answerer") {
         answers.otherTurn();
@@ -151,15 +166,18 @@ export async function boot(): Promise<void> {
       }
     },
     onToolCall: async (calls) => {
+      geminiActive();
       const out = [];
       for (const call of calls) {
         let response: Record<string, unknown>;
+        const started = performance.now();
         try {
           const r = await api.tool(call.name ?? "", call.args ?? {});
           response = toGeminiResponse(r);
         } catch (e) {
           response = { error: (e as Error).message };
         }
+        diag.log(response.error ? "tool.error" : "tool", `${call.name ?? "?"}${response.error ? `: ${String(response.error)}` : ""}`, performance.now() - started);
         if (typeof response.role === "string" && response.role !== role) {
           applyRole(response.role as Role);
           // Switched by voice: keep the question said in this turn; going back forgets the answerer's turn.
@@ -172,6 +190,7 @@ export async function boot(): Promise<void> {
       return out;
     },
     onStatus: (s, detail) => {
+      diag.log(`status.${s}`, detail);
       if (s === "connected") setStatus(muted ? "ミュート中" : "話しています", "live");
       else if (s === "connecting") setStatus("Gemini につないでいます…", "idle");
       else if (s === "reconnecting") setStatus("つなぎ直しています…", "warn");
@@ -185,6 +204,25 @@ export async function boot(): Promise<void> {
     },
   }, { hasHistory });
   let retryMode = false;
+
+  // Gemini went quiet after the person spoke: log it and offer a button that calls Gemini back.
+  const nudgeBtn = $<HTMLButtonElement>("nudge");
+  function geminiActive(): void {
+    stall.gemini(Date.now());
+    nudgeBtn.hidden = true;
+  }
+  const stallTimer = setInterval(() => {
+    if (finishing || !stall.check(Date.now())) return;
+    diag.log("gemini.silent", `role=${role}`);
+    nudgeBtn.hidden = false;
+    setStatus("Gemini が黙っています。「Gemini に呼びかけ直す」を押してください", "warn");
+  }, 1_000);
+  nudgeBtn.addEventListener("click", () => {
+    diag.log("nudge");
+    nudgeBtn.hidden = true;
+    live.sendText(NUDGE_TEXT);
+    setStatus("Gemini に呼びかけ直しました", "live");
+  });
 
   async function refresh(fresh: Set<string>): Promise<void> {
     const v = await loadSession();
@@ -261,6 +299,9 @@ export async function boot(): Promise<void> {
   form.addEventListener("change", () => void api.draft(readDirection(form)).catch(() => undefined));
 
   const end = () => {
+    clearInterval(stallTimer);
+    nudgeBtn.hidden = true;
+    diag.flush();
     live.close();
     mic?.stop();
     player.close();

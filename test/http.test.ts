@@ -203,3 +203,29 @@ test("POST /api/answer trims oversized grounding instead of refusing it", async 
   assert.deepEqual(s.asked[0]!.sources.map((x) => [x.title.length, x.uri]), [[500, "https://example.com/a"]]);
   await srv.close();
 });
+
+test("POST /api/log appends redacted events to events.jsonl and needs the nonce", async () => {
+  const { srv, post, outDir } = await setup();
+  assert.equal((await post("/api/log", { events: [{ kind: "status.connected" }] }, "wrong")).status, 409);
+  const ok = await post("/api/log", { events: [
+    { kind: "status.reconnecting", detail: "closed 1011 token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123" },
+    { kind: "tool", detail: "add_whys", ms: 42 },
+  ] });
+  assert.equal(ok.status, 200);
+  await post("/api/log", { events: [{ kind: "gemini.silent" }] });
+  const lines = (await readFile(join(outDir, "events.jsonl"), "utf8")).trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(lines.map((l) => l.kind), ["status.reconnecting", "tool", "gemini.silent"]);
+  assert.equal(lines[1].ms, 42);
+  assert.ok(typeof lines[0].at === "string");
+  assert.doesNotMatch(lines[0].detail, /ghp_/);
+  await srv.close();
+});
+
+test("POST /api/log refuses oversized batches and bad kinds", async () => {
+  const { srv, post } = await setup();
+  const many = Array.from({ length: 51 }, () => ({ kind: "tick" }));
+  assert.equal((await post("/api/log", { events: many })).status, 400);
+  assert.equal((await post("/api/log", { events: [{ kind: "Bad Kind!" }] })).status, 400);
+  assert.equal((await post("/api/log", { events: [{ kind: "x", detail: "a".repeat(301) }] })).status, 400);
+  await srv.close();
+});

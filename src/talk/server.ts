@@ -49,6 +49,13 @@ const AnswerBody = z.object({
     .default([])
     .transform((xs) => xs.filter((x) => x.uri.length <= 2_000 && isWebUrl(x.uri)).slice(0, 20).map((x) => ({ title: x.title.slice(0, 500), uri: x.uri }))),
 });
+const LogBody = z.object({
+  events: z.array(z.object({
+    kind: z.string().regex(/^[a-z][a-z0-9_.-]{0,39}$/),
+    detail: z.string().max(300).optional(),
+    ms: z.number().finite().optional(),
+  })).min(1).max(50),
+});
 const TokenBody = z.object({ fallback: z.boolean().default(false) });
 
 /** Local server for one talk, bound to 127.0.0.1. Resolves `outcome` once: sent or cancelled. */
@@ -148,6 +155,11 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
         case "/api/answer": {
           s.recordAnswer(AnswerBody.parse(body));
           await s.persist();
+          return json(res, 200, { ok: true });
+        }
+        // Diagnostics only: kept next to the record, never part of the result body.
+        case "/api/log": {
+          await s.appendEvents(LogBody.parse(body).events);
           return json(res, 200, { ok: true });
         }
         case "/api/draft": {
