@@ -1,31 +1,126 @@
 {
   "schema": "context-map/v1",
   "title": "境界",
-  "checked": { "revision": "312b216", "date": "2026-11-13" },
+  "checked": {
+    "revision": "32134da",
+    "date": "2026-11-14"
+  },
   "contexts": [
-    { "id": "cli", "name": "why-why-talk コマンドと手元のサーバー", "tech": "TypeScript / Node.js node:http",
+    {
+      "id": "cli",
+      "name": "why-why-talk コマンドと手元のサーバー",
+      "tech": "TypeScript / Node.js node:http",
       "responsibility": "セッションを持ち、画面を配り、短期トークンを作り、木を守り、結果を出力する",
-      "owns": ["セッションの記録(<out>/session.json, transcript.md, tree.mmd, result.*)", "Gemini の API キー"],
-      "contract": ["コマンド引数 --topic --context --out --no-open", "終了コード 0 送信 / 1 取りやめ / 2 失敗", "標準出力の結果 Markdown"],
-      "guarantees": ["キーを画面に渡さない", "結果は一度だけ", "保存と出力の前に秘密を伏せる"],
-      "domains": ["invocation", "handoff"], "changed": true,
-      "evidence": [{ "path": "src/cli.ts", "symbol": "main", "role": "entry" }] },
-    { "id": "web", "name": "ブラウザの画面", "tech": "TypeScript / esbuild / @google/genai",
-      "responsibility": "マイクと音声、Gemini との接続とつなぎ直し、関数呼び出しの中継、木と会話と方針の欄の表示",
-      "owns": ["音声の取り回し", "引き継ぎの番号"], "contract": ["手元のサーバーの /api/*(合言葉つき)"],
-      "domains": ["talk", "handoff"], "changed": true,
-      "evidence": [{ "path": "web/main.ts", "symbol": "boot", "role": "ui" }] },
-    { "id": "gemini", "name": "Gemini Live API", "responsibility": "日本語の声で聞き手を務め、関数で木を育てる",
-      "owns": ["会話の文脈"], "contract": ["gemini-3.8-live", "短期トークン(v1beta, uses 1, 30分)", "関数 add_whys / add_fact / update_branch / propose_direction"], "changed": true },
-    { "id": "agent", "name": "エージェント(計画のスキル)", "responsibility": "論点と調べた内容を渡し、結果を計画に取り込む",
-      "owns": ["計画"], "contract": ["skills/why-why-talk/SKILL.md の手順"], "changed": true }
+      "owns": [
+        "セッションの記録(<out>/session.json, transcript.md, tree.mmd, result.*, events.jsonl)",
+        "Gemini の API キー"
+      ],
+      "contract": [
+        "コマンド引数 --topic --context --out --no-open",
+        "終了コード 0 送信 / 1 取りやめ / 2 失敗",
+        "標準出力の結果 Markdown(深さ不足の枝・Gemini に聞いたことを含む)"
+      ],
+      "guarantees": [
+        "キーを画面に渡さない",
+        "結果は一度だけ",
+        "保存と出力の前に秘密を伏せる"
+      ],
+      "domains": [
+        "invocation",
+        "handoff"
+      ],
+      "evidence": [
+        {
+          "path": "src/cli.ts",
+          "symbol": "main",
+          "role": "entry"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "web",
+      "name": "ブラウザの画面",
+      "tech": "TypeScript / esbuild / @google/genai",
+      "responsibility": "マイクと音声、Gemini との接続とつなぎ直し、関数呼び出しの中継、木と会話と方針の欄の表示、役割の切り替えと、答えと出典の記録",
+      "owns": [
+        "音声の取り回し",
+        "引き継ぎの番号"
+      ],
+      "contract": [
+        "手元のサーバーの /api/*(合言葉つき)"
+      ],
+      "domains": [
+        "talk",
+        "handoff"
+      ],
+      "evidence": [
+        {
+          "path": "web/main.ts",
+          "symbol": "boot",
+          "role": "ui"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini Live API",
+      "responsibility": "日本語の声で聞き手を務め、関数で木を育てる。交代したら Google 検索で確かめて答える",
+      "owns": [
+        "会話の文脈"
+      ],
+      "contract": [
+        "gemini-3.8-live",
+        "短期トークン(v1beta, uses 1, 30分)",
+        "関数 add_whys / add_fact / update_branch / propose_direction / switch_role",
+        "googleSearch(答えに groundingMetadata が付く)"
+      ],
+      "changed": true
+    },
+    {
+      "id": "agent",
+      "name": "エージェント(計画のスキル)",
+      "responsibility": "論点と調べた内容を渡し、結果を計画に取り込む",
+      "owns": [
+        "計画"
+      ],
+      "contract": [
+        "skills/why-why-talk/SKILL.md の手順"
+      ]
+    }
   ],
   "relations": [
-    { "from": "agent", "to": "cli", "label": "コマンドを実行し、終わるまで待つ", "changed": true },
-    { "from": "cli", "to": "web", "label": "画面と短期トークンを渡す", "changed": true },
-    { "from": "web", "to": "gemini", "label": "声と関数の結果", "changed": true },
-    { "from": "gemini", "to": "web", "label": "声・文字起こし・関数呼び出し", "changed": true },
-    { "from": "web", "to": "cli", "label": "関数呼び出し・文字起こし・送信", "changed": true },
-    { "from": "cli", "to": "agent", "label": "結果(標準出力と終了コード)", "changed": true }
+    {
+      "from": "agent",
+      "to": "cli",
+      "label": "コマンドを実行し、終わるまで待つ"
+    },
+    {
+      "from": "cli",
+      "to": "web",
+      "label": "画面と短期トークンを渡す"
+    },
+    {
+      "from": "web",
+      "to": "gemini",
+      "label": "声と関数の結果"
+    },
+    {
+      "from": "gemini",
+      "to": "web",
+      "label": "声・文字起こし・関数呼び出し"
+    },
+    {
+      "from": "web",
+      "to": "cli",
+      "label": "関数呼び出し・文字起こし・役割・答えの記録・送信・診断の記録",
+      "changed": true
+    },
+    {
+      "from": "cli",
+      "to": "agent",
+      "label": "結果(標準出力と終了コード)"
+    }
   ]
 }

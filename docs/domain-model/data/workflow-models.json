@@ -1,60 +1,299 @@
 {
   "schema": "workflow-models/v1",
   "title": "状態の移り方",
-  "checked": { "revision": "312b216", "date": "2026-11-13" },
+  "checked": {
+    "revision": "32134da",
+    "date": "2026-11-14"
+  },
   "lifecycles": [
     {
-      "id": "session-life", "name": "壁打ちのセッション", "domain": "handoff",
+      "id": "session-life",
+      "name": "壁打ちのセッション",
+      "domain": "handoff",
       "summary": "結果は一度だけ決まる。送信には方針が要る。",
       "states": [
-        { "id": "talking", "name": "話している", "initial": true, "changed": true },
-        { "id": "sent", "name": "送った", "final": true, "changed": true },
-        { "id": "cancelled", "name": "取りやめた", "final": true, "changed": true }
+        {
+          "id": "talking",
+          "name": "話している",
+          "initial": true
+        },
+        {
+          "id": "sent",
+          "name": "送った",
+          "final": true
+        },
+        {
+          "id": "cancelled",
+          "name": "取りやめた",
+          "final": true
+        }
       ],
       "transitions": [
-        { "from": "talking", "on": "cmd-connect", "to": "talking", "changed": true },
-        { "from": "talking", "on": "cmd-grow-tree", "to": "talking", "changed": true },
-        { "from": "talking", "on": "cmd-organise", "to": "talking", "changed": true },
-        { "from": "talking", "on": "cmd-send", "to": "sent", "guard": "方針が空でない", "changed": true,
-          "evidence": [{ "path": "src/talk/session.ts", "symbol": "submit" }] },
-        { "from": "talking", "on": "cmd-cancel", "to": "cancelled", "changed": true }
+        {
+          "from": "talking",
+          "on": "cmd-connect",
+          "to": "talking"
+        },
+        {
+          "from": "talking",
+          "on": "cmd-grow-tree",
+          "to": "talking"
+        },
+        {
+          "from": "talking",
+          "on": "cmd-organise",
+          "to": "talking"
+        },
+        {
+          "from": "talking",
+          "on": "cmd-send",
+          "to": "sent",
+          "guard": "方針が空でない",
+          "evidence": [
+            {
+              "path": "src/talk/session.ts",
+              "symbol": "submit"
+            }
+          ]
+        },
+        {
+          "from": "talking",
+          "on": "cmd-cancel",
+          "to": "cancelled"
+        },
+        {
+          "from": "talking",
+          "on": "cmd-swap-role",
+          "to": "talking",
+          "changed": true
+        }
       ],
       "rejections": [
-        { "state": "sent", "on": "cmd-send", "kind": "invalid", "reason": "送信は一度だけ", "changed": true },
-        { "state": "sent", "on": "cmd-cancel", "kind": "invalid", "reason": "もう送った", "changed": true },
-        { "state": "sent", "on": "cmd-grow-tree", "kind": "invalid", "reason": "送った後は木を変えない", "changed": true },
-        { "state": "sent", "on": "cmd-connect", "kind": "invalid", "reason": "送った後は会話しない", "changed": true },
-        { "state": "sent", "on": "cmd-organise", "kind": "invalid", "reason": "送った後は整理しない", "changed": true },
-        { "state": "cancelled", "on": "cmd-send", "kind": "invalid", "reason": "取りやめた", "changed": true },
-        { "state": "cancelled", "on": "cmd-cancel", "kind": "ignored", "reason": "すでに取りやめた", "changed": true },
-        { "state": "cancelled", "on": "cmd-grow-tree", "kind": "invalid", "reason": "取りやめた", "changed": true },
-        { "state": "cancelled", "on": "cmd-connect", "kind": "invalid", "reason": "取りやめた", "changed": true },
-        { "state": "cancelled", "on": "cmd-organise", "kind": "invalid", "reason": "取りやめた", "changed": true }
+        {
+          "state": "sent",
+          "on": "cmd-send",
+          "kind": "invalid",
+          "reason": "送信は一度だけ"
+        },
+        {
+          "state": "sent",
+          "on": "cmd-cancel",
+          "kind": "invalid",
+          "reason": "もう送った"
+        },
+        {
+          "state": "sent",
+          "on": "cmd-grow-tree",
+          "kind": "invalid",
+          "reason": "送った後は木を変えない"
+        },
+        {
+          "state": "sent",
+          "on": "cmd-connect",
+          "kind": "invalid",
+          "reason": "送った後は会話しない"
+        },
+        {
+          "state": "sent",
+          "on": "cmd-organise",
+          "kind": "invalid",
+          "reason": "送った後は整理しない"
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-send",
+          "kind": "invalid",
+          "reason": "取りやめた"
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-cancel",
+          "kind": "ignored",
+          "reason": "すでに取りやめた"
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-grow-tree",
+          "kind": "invalid",
+          "reason": "取りやめた"
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-connect",
+          "kind": "invalid",
+          "reason": "取りやめた"
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-organise",
+          "kind": "invalid",
+          "reason": "取りやめた"
+        },
+        {
+          "state": "sent",
+          "on": "cmd-swap-role",
+          "kind": "invalid",
+          "reason": "終わった後は交代しない",
+          "changed": true
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-swap-role",
+          "kind": "invalid",
+          "reason": "終わった後は交代しない",
+          "changed": true
+        }
       ]
     },
     {
-      "id": "node-life", "name": "なぜ(ノード)", "domain": "talk",
+      "id": "node-life",
+      "name": "なぜ(ノード)",
+      "domain": "talk",
       "summary": "枝は消えない。却下と仮説は理由を付ければ候補に戻せる。止めた枝の下は掘らない。",
       "states": [
-        { "id": "candidate", "name": "未調査の枝", "initial": true, "changed": true },
-        { "id": "digging", "name": "掘っている", "changed": true },
-        { "id": "leaf", "name": "葉", "changed": true },
-        { "id": "rejected", "name": "却下", "changed": true },
-        { "id": "hypothesis", "name": "仮説で止めた", "changed": true }
+        {
+          "id": "candidate",
+          "name": "未調査の枝",
+          "initial": true
+        },
+        {
+          "id": "digging",
+          "name": "掘っている"
+        },
+        {
+          "id": "leaf",
+          "name": "葉"
+        },
+        {
+          "id": "rejected",
+          "name": "却下"
+        },
+        {
+          "id": "hypothesis",
+          "name": "仮説で止めた"
+        }
       ],
       "transitions": [
-        { "from": "candidate", "on": "cmd-grow-tree", "to": "digging", "guard": "update_branch state=digging かつ止めた枝の下でない", "changed": true },
-        { "from": "candidate", "on": "cmd-grow-tree", "to": "rejected", "guard": "update_branch state=rejected かつ理由あり", "changed": true },
-        { "from": "candidate", "on": "cmd-grow-tree", "to": "hypothesis", "guard": "update_branch state=hypothesis かつ理由あり", "changed": true },
-        { "from": "digging", "on": "cmd-grow-tree", "to": "leaf", "guard": "update_branch state=leaf かつ対策あり", "changed": true },
-        { "from": "digging", "on": "cmd-grow-tree", "to": "rejected", "guard": "update_branch state=rejected かつ理由あり", "changed": true },
-        { "from": "digging", "on": "cmd-grow-tree", "to": "hypothesis", "guard": "update_branch state=hypothesis かつ理由あり", "changed": true },
-        { "from": "digging", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate", "changed": true },
-        { "from": "rejected", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate かつ理由あり", "changed": true },
-        { "from": "hypothesis", "on": "cmd-grow-tree", "to": "candidate", "guard": "update_branch state=candidate かつ理由あり", "changed": true },
-        { "from": "leaf", "on": "cmd-grow-tree", "to": "digging", "guard": "update_branch state=digging", "changed": true }
+        {
+          "from": "candidate",
+          "on": "cmd-grow-tree",
+          "to": "digging",
+          "guard": "update_branch state=digging かつ止めた枝の下でない"
+        },
+        {
+          "from": "candidate",
+          "on": "cmd-grow-tree",
+          "to": "rejected",
+          "guard": "update_branch state=rejected かつ理由あり"
+        },
+        {
+          "from": "candidate",
+          "on": "cmd-grow-tree",
+          "to": "hypothesis",
+          "guard": "update_branch state=hypothesis かつ理由あり"
+        },
+        {
+          "from": "digging",
+          "on": "cmd-grow-tree",
+          "to": "leaf",
+          "guard": "update_branch state=leaf かつ対策あり。5 段より浅いときは理由も必要",
+          "evidence": [
+            {
+              "path": "src/analysis.ts",
+              "symbol": "updateNode"
+            }
+          ],
+          "changed": true
+        },
+        {
+          "from": "digging",
+          "on": "cmd-grow-tree",
+          "to": "rejected",
+          "guard": "update_branch state=rejected かつ理由あり"
+        },
+        {
+          "from": "digging",
+          "on": "cmd-grow-tree",
+          "to": "hypothesis",
+          "guard": "update_branch state=hypothesis かつ理由あり"
+        },
+        {
+          "from": "digging",
+          "on": "cmd-grow-tree",
+          "to": "candidate",
+          "guard": "update_branch state=candidate"
+        },
+        {
+          "from": "rejected",
+          "on": "cmd-grow-tree",
+          "to": "candidate",
+          "guard": "update_branch state=candidate かつ理由あり"
+        },
+        {
+          "from": "hypothesis",
+          "on": "cmd-grow-tree",
+          "to": "candidate",
+          "guard": "update_branch state=candidate かつ理由あり"
+        },
+        {
+          "from": "leaf",
+          "on": "cmd-grow-tree",
+          "to": "digging",
+          "guard": "update_branch state=digging"
+        }
       ],
       "rejections": []
+    },
+    {
+      "id": "role-life",
+      "name": "Gemini の役割",
+      "domain": "talk",
+      "summary": "始めは聞き手。ボタンか声で交代し、戻すまで答える係。",
+      "states": [
+        {
+          "id": "interviewer",
+          "name": "聞き手",
+          "initial": true,
+          "changed": true
+        },
+        {
+          "id": "answerer",
+          "name": "答える係",
+          "changed": true
+        }
+      ],
+      "transitions": [
+        {
+          "from": "interviewer",
+          "on": "cmd-swap-role",
+          "to": "answerer",
+          "guard": "交代して",
+          "changed": true
+        },
+        {
+          "from": "answerer",
+          "on": "cmd-swap-role",
+          "to": "interviewer",
+          "guard": "戻して",
+          "changed": true
+        },
+        {
+          "from": "answerer",
+          "on": "cmd-ask",
+          "to": "answerer",
+          "effect": "答えを記録する",
+          "changed": true
+        }
+      ],
+      "rejections": [
+        {
+          "state": "interviewer",
+          "on": "cmd-ask",
+          "kind": "ignored",
+          "reason": "聞き手のときの質問は普通の会話として扱い、記録しない",
+          "changed": true
+        }
+      ]
     }
   ]
 }

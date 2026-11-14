@@ -44,11 +44,12 @@ test("fallback includes tree summary and transcript tail", async () => {
 test("live config has audio, transcription, compression and tools", async () => {
   const c = liveConfig(await session(), { fallback: false, voice: "Kore" });
   assert.deepEqual(c.responseModalities, ["AUDIO"]);
-  assert.deepEqual(c.inputAudioTranscription, {});
+  // Pinned to Japanese: in the 2026-11-14 trial auto-detection heard Japanese as Spanish and English fragments.
+  assert.deepEqual(c.inputAudioTranscription, { languageCodes: ["ja-JP"] });
   assert.deepEqual(c.outputAudioTranscription, {});
   assert.deepEqual(c.contextWindowCompression, { slidingWindow: {} });
   assert.equal(c.sessionResumption, undefined, "the handle is added by the browser per connection");
-  assert.equal((c.tools as Array<{ functionDeclarations: unknown[] }>)[0].functionDeclarations.length, 4);
+  assert.equal((c.tools as Array<{ functionDeclarations: unknown[] }>)[0].functionDeclarations.length, 5);
   assert.equal(c.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName, "Kore");
 });
 
@@ -103,4 +104,47 @@ test("speech detection waits through Japanese pauses but still hears quiet speec
     prefixPaddingMs: 300,
     silenceDurationMs: 1000,
   });
+});
+
+// --- five whys (plan v1 Task 2) ---
+test("instruction asks for five whys before widening", async () => {
+  const text = systemInstruction(await session(), { fallback: false });
+  assert.match(text, /5段/);
+  assert.match(text, /なぜ〇〇が大事なのですか/);
+  assert.match(text, /褒め/);
+  assert.match(text, /belowTarget/);
+  assert.match(text, /自分で理由を作らない/);
+});
+
+test("fallback tree lines show depth", async () => {
+  const s = await session();
+  s.applyTool("add_whys", { parent_id: "n0", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
+  s.applyTool("add_whys", { parent_id: "n1", items: [{ text: "期限を誰も見ていない", viewpoint: "人・体制" }] });
+  const text = systemInstruction(s, { fallback: true });
+  assert.match(text, /n2 \(親 n1, 2段/);
+});
+
+// --- role (plan v1 Task 4) ---
+test("liveConfig includes googleSearch", async () => {
+  const c = liveConfig(await session(), { fallback: false, voice: "Kore" });
+  const tools = c.tools as Array<Record<string, unknown>>;
+  assert.ok(tools.some((t) => "googleSearch" in t));
+  assert.equal((tools[0] as { functionDeclarations: unknown[] }).functionDeclarations.length, 5);
+});
+
+test("interviewer brief says not to search", async () => {
+  const text = systemInstruction(await session(), { fallback: false });
+  assert.match(text, /今の役割: 聞き手/);
+  assert.match(text, /Google 検索は使わない/);
+  assert.match(text, /switch_role/);
+});
+
+test("token minted after role swap carries answerer brief", async () => {
+  const s = await session();
+  s.setRole("answerer");
+  let seen: { liveConnectConstraints?: { config?: { systemInstruction?: unknown } } } | undefined;
+  await mintToken({ apiKey: "k", model: "m", voice: "Kore", now: () => 0, createToken: async (cfg) => { seen = cfg as never; return { name: "auth_tokens/x" }; } }, s, { fallback: true });
+  const brief = String(seen?.liveConnectConstraints?.config?.systemInstruction);
+  assert.match(brief, /今の役割: 答える係/);
+  assert.match(brief, /Google 検索で確かめて/);
 });

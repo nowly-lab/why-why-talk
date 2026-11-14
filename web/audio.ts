@@ -1,38 +1,67 @@
+import { createInputSlot, type SwitchResult } from "./mic-input.ts";
+import { rms } from "./mic.ts";
 import { downsample, floatToPcm16Base64, pcm16Base64ToFloat } from "./pcm.ts";
 
-/** Microphone at 16 kHz, delivered as base64 PCM16 chunks (~100 ms). */
-export async function startMic(onChunk: (base64: string) => void): Promise<{ stop(): void; setMuted(m: boolean): void }> {
+/** Microphone at 16 kHz, delivered as base64 PCM16 chunks (~100 ms). `deviceId` "" is the system default. */
+export type Mic = { stop(): void; setMuted(m: boolean): void; switchDevice(deviceId: string): Promise<SwitchResult>; deviceLabel(): string };
+
+function micConstraints(deviceId: string): MediaStreamConstraints {
+  return {
+    audio: {
+      channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+    },
+  };
+}
+
+export async function startMic(
+  onChunk: (base64: string) => void,
+  opts: { deviceId?: string; onLevel?: (rms: number) => void } = {},
+): Promise<Mic> {
   // Create the context before the first await so it is still inside the click (Safari), at the device rate
   // (Firefox refuses a 16 kHz context for a 48 kHz mic), and downsample to 16 kHz.
   const ctx = new AudioContext();
   const resumed = ctx.resume();
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
+  const stream = await navigator.mediaDevices.getUserMedia(micConstraints(opts.deviceId ?? ""));
   await resumed;
   await ctx.audioWorklet.addModule("/audio-worklet.js");
-  const source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, "mic-chunker");
   let muted = false;
   node.port.onmessage = (e: MessageEvent<Float32Array>) => {
+    opts.onLevel?.(rms(e.data));
     if (!muted) onChunk(floatToPcm16Base64(downsample(e.data, ctx.sampleRate, 16_000)));
   };
+  let source: MediaStreamAudioSourceNode | null = null;
+  const slot = createInputSlot(stream, {
+    attach(s) {
+      source = ctx.createMediaStreamSource(s);
+      source.connect(node);
+    },
+    detach() {
+      source?.disconnect();
+      source = null;
+    },
+  });
+  source = ctx.createMediaStreamSource(stream);
   source.connect(node);
   return {
     stop() {
+      slot.stop();
       node.disconnect();
-      source.disconnect();
-      for (const t of stream.getTracks()) t.stop();
       void ctx.close();
     },
     setMuted(m: boolean) {
       muted = m;
     },
+    // Same audio context and Gemini connection; only the input changes. If the new mic fails, the old one stays.
+    // A switch that lands after stop() or after a newer switch stops its own stream ("stopped" / "superseded").
+    switchDevice: (deviceId: string) => slot.switchTo(() => navigator.mediaDevices.getUserMedia(micConstraints(deviceId))),
+    deviceLabel: () => slot.current().getAudioTracks()[0]?.label ?? "",
   };
 }
 
 /** Plays Gemini's 24 kHz PCM16 audio back to back; `interrupt` stops what is queued (the person spoke over it). */
-export function createPlayer(): { play(base64: string): void; interrupt(): void; resume(): Promise<void>; close(): void } {
+export function createPlayer(): { play(base64: string): void; interrupt(): void; busy(): boolean; resume(): Promise<void>; close(): void } {
   const ctx = new AudioContext({ sampleRate: 24_000 });
   let playhead = 0;
   const playing = new Set<AudioBufferSourceNode>();
@@ -56,6 +85,9 @@ export function createPlayer(): { play(base64: string): void; interrupt(): void;
       playing.clear();
       playhead = ctx.currentTime;
     },
+    // Gemini's audio is still playing (its reply is arriving, so the link is alive). Measured on the audio clock,
+    // so a context that never runs (suspended) cannot hold the link watch off forever.
+    busy: () => ctx.state === "running" && playhead > ctx.currentTime,
     // Safari keeps a context made before a click suspended; call this from the click that starts the talk.
     resume: () => ctx.resume(),
     close() {

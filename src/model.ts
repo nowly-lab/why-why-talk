@@ -9,6 +9,10 @@ export const NODE_STATES = ["candidate", "digging", "leaf", "rejected", "hypothe
 export const NodeStateSchema = z.enum(NODE_STATES);
 export type NodeState = z.infer<typeof NodeStateSchema>;
 
+export const ROLES = ["interviewer", "answerer"] as const;
+export const RoleSchema = z.enum(ROLES);
+export type Role = z.infer<typeof RoleSchema>;
+
 export const FactSchema = z.object({
   summary: z.string(),
   supports: z.boolean(),

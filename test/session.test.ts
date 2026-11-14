@@ -30,8 +30,8 @@ test("session starts talking with the topic as root and a nonce", async () => {
   assert.match(s.nonce, /^[0-9a-f]{32}$/);
 });
 
-test("function declarations are the four tools", () => {
-  assert.deepEqual(FUNCTION_DECLARATIONS.map((f) => f.name), ["add_whys", "add_fact", "update_branch", "propose_direction"]);
+test("function declarations are the five tools", () => {
+  assert.deepEqual(FUNCTION_DECLARATIONS.map((f) => f.name), ["add_whys", "add_fact", "update_branch", "propose_direction", "switch_role"]);
 });
 
 test("applyTool add_whys grows the tree and returns summary", async () => {
@@ -65,7 +65,7 @@ test("update_branch moves a branch and checks rules", async () => {
   assert.ok(s.applyTool("update_branch", { node_id: "n1", state: "digging" }).ok);
   const noCm = s.applyTool("update_branch", { node_id: "n1", state: "leaf" });
   assert.ok(!noCm.ok && /countermeasure/.test(noCm.error));
-  assert.ok(s.applyTool("update_branch", { node_id: "n1", state: "leaf", countermeasure: "期限の監視" }).ok);
+  assert.ok(s.applyTool("update_branch", { node_id: "n1", state: "leaf", countermeasure: "期限の監視", reason: "鍵の管理は外部" }).ok);
 });
 
 test("propose_direction sets draft", async () => {
@@ -153,4 +153,163 @@ test("concurrent persists do not collide", async () => {
   const { s } = await session();
   for (let i = 0; i < 5; i++) s.appendTranscript("person", `発言${i}`);
   await Promise.all(Array.from({ length: 8 }, () => s.persist()));
+});
+
+test("tool result carries depth and belowTarget", async () => {
+  const { s } = await session();
+  const r = s.applyTool("add_whys", { parent_id: "n0", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
+  assert.ok(r.ok);
+  assert.deepEqual(r.tree.map((n) => n.depth), [0, 1]);
+  assert.deepEqual(r.belowTarget, [{ id: "n1", depth: 1 }]);
+  const bad = s.applyTool("update_branch", { node_id: "nope", state: "digging" });
+  assert.ok(!bad.ok);
+  assert.deepEqual(bad.belowTarget, [{ id: "n1", depth: 1 }]);
+});
+
+// --- depth in the result (plan v1 Task 3) ---
+function dig(s: TalkSession, levels: number): string {
+  let parent = "n0";
+  for (let i = 1; i <= levels; i++) {
+    const r = s.applyTool("add_whys", { parent_id: parent, items: [{ text: `理由${i}`, viewpoint: "仕組み・道具" }] });
+    assert.ok(r.ok);
+    parent = r.added[0]!;
+    assert.ok(s.applyTool("update_branch", { node_id: parent, state: "digging" }).ok);
+  }
+  return parent;
+}
+
+test("result lists shallow leaves", async () => {
+  const { s } = await session();
+  const tip = dig(s, 2);
+  assert.ok(s.applyTool("update_branch", { node_id: tip, state: "leaf", countermeasure: "監視", reason: "会議の進め方は範囲外" }).ok);
+  s.submit(direction);
+  const md = renderResultMarkdown(s);
+  const i = md.indexOf("## 深さ不足の枝");
+  assert.ok(i > md.indexOf("## 残った疑問") && i < md.indexOf("## なぜの木"));
+  assert.match(md, /## 深さ不足の枝\n\n- n2 理由2（2\/5段） 理由: 会議の進め方は範囲外/);
+});
+
+test("result says none when all leaves reach five", async () => {
+  const { s } = await session();
+  const tip = dig(s, 5);
+  assert.ok(s.applyTool("update_branch", { node_id: tip, state: "leaf", countermeasure: "監視" }).ok);
+  s.submit(direction);
+  assert.match(renderResultMarkdown(s), /## 深さ不足の枝\n\n\(なし\)/);
+});
+
+test("node list shows depth", async () => {
+  const { s } = await session();
+  dig(s, 2);
+  s.submit(direction);
+  assert.match(renderResultMarkdown(s), /- n2 理由2 — 掘っている · 2\/5段 · 仕組み・道具 · 親 n1/);
+});
+
+test("resultJson tree has depth and shallow flag", async () => {
+  const { s } = await session();
+  const tip = dig(s, 2);
+  s.applyTool("update_branch", { node_id: tip, state: "leaf", countermeasure: "監視", reason: "範囲外" });
+  s.submit(direction);
+  const json = resultJson(s);
+  assert.deepEqual(json.tree.map((n) => [n.id, n.depth, n.shallow]), [["n1", 1, false], ["n2", 2, true]]);
+});
+
+// --- role and asked answers (plan v1 Task 4) ---
+test("setRole switches and survives snapshot", async () => {
+  const { s } = await session();
+  assert.equal(s.role, "interviewer");
+  s.setRole("answerer");
+  assert.equal(s.role, "answerer");
+  assert.equal(s.snapshot().role, "answerer");
+});
+
+test("switch_role to the current role is a no-op", async () => {
+  const { s } = await session();
+  const r = s.applyTool("switch_role", { to: "interviewer" });
+  assert.ok(r.ok);
+  assert.equal(r.role, "interviewer");
+  const r2 = s.applyTool("switch_role", { to: "answerer" });
+  assert.ok(r2.ok && r2.role === "answerer");
+  assert.equal(s.role, "answerer");
+  assert.ok(FUNCTION_DECLARATIONS.some((f) => f.name === "switch_role"));
+});
+
+test("switch_role after sent is refused", async () => {
+  const { s } = await session();
+  s.submit(direction);
+  assert.ok(!s.applyTool("switch_role", { to: "answerer" }).ok);
+  assert.throws(() => s.setRole("answerer"), (e: unknown) => e instanceof WhyError && e.code === "conflict");
+});
+
+test("recordAnswer redacts and stores", async () => {
+  const { s } = await session();
+  s.recordAnswer({ question: "上限は?", answer: "10万です ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123", queries: ["workers 上限"], sources: [{ title: "Docs", uri: "https://example.com/a" }] });
+  assert.equal(s.asked.length, 1);
+  assert.equal(s.asked[0]!.at, "2026-11-13T01:00:00.000Z");
+  assert.ok(!s.asked[0]!.answer.includes("ghp_"));
+  assert.deepEqual(s.snapshot().asked.length, 1);
+});
+
+test("empty answer is refused", async () => {
+  const { s } = await session();
+  assert.throws(() => s.recordAnswer({ question: "q", answer: "  ", queries: [], sources: [] }), (e: unknown) => e instanceof WhyError && e.code === "invalid_input");
+});
+
+// --- asked in the result (plan v1 Task 6) ---
+test("result lists asked answers as unverified", async () => {
+  const { s } = await session();
+  s.recordAnswer({ question: "無料枠は?", answer: "1日10万です", queries: ["q"], sources: [{ title: "Docs", uri: "https://d.example/p" }] });
+  s.submit(direction);
+  const md = renderResultMarkdown(s);
+  const i = md.indexOf("## Gemini に聞いたこと");
+  assert.ok(i > md.indexOf("## 深さ不足の枝") && i < md.indexOf("## なぜの木"));
+  assert.match(md, /### 質問: 無料枠は\?\n\n答え（未確認）: 1日10万です\n\n出典: \[Docs\]\(https:\/\/d\.example\/p\)/);
+});
+
+test("asked with only queries shows the search words", async () => {
+  const { s } = await session();
+  s.recordAnswer({ question: "q", answer: "a", queries: ["workers 上限", "free plan"], sources: [] });
+  s.submit(direction);
+  assert.match(renderResultMarkdown(s), /検索した言葉: 「workers 上限」「free plan」（出典ページなし）/);
+});
+
+test("no asked shows (なし)", async () => {
+  const { s } = await session();
+  s.submit(direction);
+  assert.match(renderResultMarkdown(s), /## Gemini に聞いたこと\n\n\(なし\)/);
+});
+
+test("resultJson has asked", async () => {
+  const { s } = await session();
+  s.recordAnswer({ question: "q", answer: "a", queries: [], sources: [] });
+  s.submit(direction);
+  assert.equal(resultJson(s).asked.length, 1);
+});
+
+test("recordAnswer drops a source link that carries a secret", async () => {
+  const c = clock();
+  const outDir = await mkdtemp(join(tmpdir(), "why-why-talk-"));
+  const s = new TalkSession({ topic: "t", context: "", outDir, now: c.now, secrets: ["example-private-value"] });
+  s.recordAnswer({ question: "q", answer: "a", queries: [], sources: [
+    { title: "leak", uri: "https://example.com/?token=example-private-value" },
+    { title: "gh", uri: "https://example.com/ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123/x" },
+    { title: "ok", uri: "https://example.com/docs" },
+  ] });
+  const json = JSON.stringify(s.snapshot().asked);
+  assert.ok(!json.includes("example-private-value"));
+  assert.ok(!json.includes("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123"));
+  assert.deepEqual(s.asked[0]!.sources.map((x) => [x.title, x.uri]), [["leak", ""], ["gh", ""], ["ok", "https://example.com/docs"]]);
+  s.submit(direction);
+  const md = renderResultMarkdown(s);
+  assert.match(md, /出典: leak \/ gh \/ \[ok\]\(https:\/\/example\.com\/docs\)/);
+});
+
+test("adding whys under a candidate tells Gemini to mark the parent as digging", async () => {
+  const { s } = await session();
+  s.applyTool("add_whys", { parent_id: "n0", items: [{ text: "コストを抑えたい", viewpoint: "前提・外部" }] });
+  const r = s.applyTool("add_whys", { parent_id: "n1", items: [{ text: "売れるか分からない", viewpoint: "前提・外部" }] });
+  assert.ok(r.ok);
+  assert.match(r.ok ? r.note ?? "" : "", /n1 is still candidate.*update_branch.*n1.*digging/);
+  s.applyTool("update_branch", { node_id: "n1", state: "digging" });
+  const r2 = s.applyTool("add_whys", { parent_id: "n1", items: [{ text: "数を打ちたい", viewpoint: "前提・外部" }] });
+  assert.equal(r2.ok ? r2.note : "x", undefined);
 });

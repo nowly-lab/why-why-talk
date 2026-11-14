@@ -160,3 +160,72 @@ test("server cancel settles the outcome", async () => {
   assert.deepEqual(await srv.outcome, { kind: "cancelled", reason: "コマンドが止められた" });
   await srv.close();
 });
+
+// --- role and answers (plan v1 Task 4) ---
+test("POST /api/role needs the nonce and switches", async () => {
+  const { srv, post, s } = await setup();
+  assert.equal((await post("/api/role", { role: "answerer" }, "old-tab")).status, 409);
+  const r = await post("/api/role", { role: "answerer" });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, role: "answerer" });
+  assert.equal(s.role, "answerer");
+  const snap = await (await fetch(`${srv.url}/api/session`)).json();
+  assert.equal(snap.role, "answerer");
+  await srv.close();
+});
+
+test("bad role is 400", async () => {
+  const { srv, post } = await setup();
+  assert.equal((await post("/api/role", { role: "boss" })).status, 400);
+  await srv.close();
+});
+
+test("POST /api/answer stores an entry", async () => {
+  const { srv, post, s } = await setup();
+  const r = await post("/api/answer", { question: "q", answer: "a", queries: ["w"], sources: [{ title: "t", uri: "https://example.com" }] });
+  assert.equal(r.status, 200);
+  assert.equal(s.asked.length, 1);
+  assert.equal((await post("/api/answer", { question: "q", answer: "" })).status, 400);
+  await srv.close();
+});
+
+test("POST /api/answer trims oversized grounding instead of refusing it", async () => {
+  const { srv, post, s } = await setup();
+  const r = await post("/api/answer", {
+    question: "q",
+    answer: "a",
+    queries: Array.from({ length: 30 }, (_, i) => `${i}`.padEnd(800, "x")),
+    sources: [{ title: "t".repeat(900), uri: "https://example.com/a" }, { title: "bad", uri: "not a url" }, { title: "js", uri: "javascript:alert(1)" }],
+  });
+  assert.equal(r.status, 200);
+  assert.equal(s.asked[0]!.queries.length, 20);
+  assert.ok(s.asked[0]!.queries.every((q) => q.length <= 500));
+  assert.deepEqual(s.asked[0]!.sources.map((x) => [x.title.length, x.uri]), [[500, "https://example.com/a"]]);
+  await srv.close();
+});
+
+test("POST /api/log appends redacted events to events.jsonl and needs the nonce", async () => {
+  const { srv, post, outDir } = await setup();
+  assert.equal((await post("/api/log", { events: [{ kind: "status.connected" }] }, "wrong")).status, 409);
+  const ok = await post("/api/log", { events: [
+    { kind: "status.reconnecting", detail: "closed 1011 token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123" },
+    { kind: "tool", detail: "add_whys", ms: 42 },
+  ] });
+  assert.equal(ok.status, 200);
+  await post("/api/log", { events: [{ kind: "gemini.silent" }] });
+  const lines = (await readFile(join(outDir, "events.jsonl"), "utf8")).trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(lines.map((l) => l.kind), ["status.reconnecting", "tool", "gemini.silent"]);
+  assert.equal(lines[1].ms, 42);
+  assert.ok(typeof lines[0].at === "string");
+  assert.doesNotMatch(lines[0].detail, /ghp_/);
+  await srv.close();
+});
+
+test("POST /api/log refuses oversized batches and bad kinds", async () => {
+  const { srv, post } = await setup();
+  const many = Array.from({ length: 51 }, () => ({ kind: "tick" }));
+  assert.equal((await post("/api/log", { events: many })).status, 400);
+  assert.equal((await post("/api/log", { events: [{ kind: "Bad Kind!" }] })).status, 400);
+  assert.equal((await post("/api/log", { events: [{ kind: "x", detail: "a".repeat(301) }] })).status, 400);
+  await srv.close();
+});

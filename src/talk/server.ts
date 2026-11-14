@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { z } from "zod";
-import { WhyError } from "../model.ts";
+import { RoleSchema, WhyError } from "../model.ts";
 import type { TokenInfo } from "./gemini.ts";
 import { renderResultMarkdown } from "./result.ts";
 import type { TalkSession } from "./session.ts";
@@ -31,6 +31,31 @@ const TYPES: Record<string, string> = {
 const DirectionBody = z.object({ direction: z.string(), reasons: z.string(), rejected: z.string(), openQuestions: z.string() });
 const TranscriptBody = z.object({ speaker: z.enum(["person", "gemini"]), text: z.string().max(20_000) });
 const ToolBody = z.object({ name: z.string(), args: z.unknown() });
+const RoleBody = z.object({ role: RoleSchema });
+// Grounding comes from Gemini, not the person: trim what is too long or not a web link instead of refusing the answer.
+const isWebUrl = (u: string) => {
+  try {
+    return ["http:", "https:"].includes(new URL(u).protocol);
+  } catch {
+    return false;
+  }
+};
+const AnswerBody = z.object({
+  question: z.string().max(20_000),
+  answer: z.string().max(20_000),
+  queries: z.array(z.string()).default([]).transform((qs) => qs.slice(0, 20).map((q) => q.slice(0, 500))),
+  sources: z
+    .array(z.object({ title: z.string(), uri: z.string() }))
+    .default([])
+    .transform((xs) => xs.filter((x) => x.uri.length <= 2_000 && isWebUrl(x.uri)).slice(0, 20).map((x) => ({ title: x.title.slice(0, 500), uri: x.uri }))),
+});
+const LogBody = z.object({
+  events: z.array(z.object({
+    kind: z.string().regex(/^[a-z][a-z0-9_.-]{0,39}$/),
+    detail: z.string().max(300).optional(),
+    ms: z.number().finite().optional(),
+  })).min(1).max(50),
+});
 const TokenBody = z.object({ fallback: z.boolean().default(false) });
 
 /** Local server for one talk, bound to 127.0.0.1. Resolves `outcome` once: sent or cancelled. */
@@ -120,6 +145,21 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
           const t = TranscriptBody.parse(body);
           s.appendTranscript(t.speaker, t.text);
           await s.persist();
+          return json(res, 200, { ok: true });
+        }
+        case "/api/role": {
+          s.setRole(RoleBody.parse(body).role);
+          await s.persist();
+          return json(res, 200, { ok: true, role: s.role });
+        }
+        case "/api/answer": {
+          s.recordAnswer(AnswerBody.parse(body));
+          await s.persist();
+          return json(res, 200, { ok: true });
+        }
+        // Diagnostics only: kept next to the record, never part of the result body.
+        case "/api/log": {
+          await s.appendEvents(LogBody.parse(body).events);
           return json(res, 200, { ok: true });
         }
         case "/api/draft": {

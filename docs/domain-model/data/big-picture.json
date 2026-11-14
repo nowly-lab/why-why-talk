@@ -3,108 +3,723 @@
   "title": "全体像",
   "product": "why-why-talk",
   "summary": "計画の途中で一点を深掘りするとき、人が Gemini Live と声で壁打ちし、なぜの木と方針をエージェントに送る流れ。",
-  "checked": { "revision": "312b216", "date": "2026-11-13" },
+  "checked": {
+    "revision": "32134da",
+    "date": "2026-11-14"
+  },
   "domains": [
-    { "id": "invocation", "name": "呼び出し", "note": "エージェントがコマンドで深掘りを始め、結果を待つ" },
-    { "id": "talk", "name": "壁打ち", "note": "Gemini が聞き手になり、関数でなぜの木を育てる" },
-    { "id": "handoff", "name": "送信", "note": "方針を整理し、人が直して送る。取りやめもここ" }
+    {
+      "id": "invocation",
+      "name": "呼び出し",
+      "note": "エージェントがコマンドで深掘りを始め、結果を待つ"
+    },
+    {
+      "id": "talk",
+      "name": "壁打ち",
+      "note": "Gemini が聞き手になり、関数でなぜの木を育てる"
+    },
+    {
+      "id": "handoff",
+      "name": "送信",
+      "note": "方針を整理し、人が直して送る。取りやめもここ"
+    }
   ],
   "nodes": [
-    { "id": "agent", "type": "actor", "domain": "invocation", "text": "エージェント(計画のスキル)", "changed": true },
-    { "id": "cmd-start-talk", "type": "command", "domain": "invocation", "text": "深掘りを始める", "changed": true,
+    {
+      "id": "agent",
+      "type": "actor",
+      "domain": "invocation",
+      "text": "エージェント(計画のスキル)"
+    },
+    {
+      "id": "cmd-start-talk",
+      "type": "command",
+      "domain": "invocation",
+      "text": "深掘りを始める",
       "note": "why-why-talk --topic <論点> --context <調べた内容>",
-      "evidence": [{ "path": "src/cli.ts", "symbol": "main", "role": "entry" }] },
-    { "id": "agg-session", "type": "aggregate", "domain": "invocation", "text": "壁打ちのセッション", "changed": true,
+      "evidence": [
+        {
+          "path": "src/cli.ts",
+          "symbol": "main",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "agg-session",
+      "type": "aggregate",
+      "domain": "invocation",
+      "text": "壁打ちのセッション",
       "invariants": [
         "Gemini の API キーはコマンドの中だけに置き、画面には短期トークンだけを渡す",
         "合言葉の違う画面(古いタブ)からの書き込みは断る",
         "結果は一度だけ決まる(送信か取りやめ)",
         "変わるたびに記録をフォルダに保存し、保存と出力の前に秘密を伏せる"
       ],
-      "evidence": [{ "path": "src/talk/session.ts", "symbol": "TalkSession", "role": "rule" }, { "path": "src/talk/server.ts", "symbol": "startTalkServer", "role": "contract" }] },
-    { "id": "ev-page-opened", "type": "event", "domain": "invocation", "text": "画面を開いた", "changed": true },
-    { "id": "person", "type": "actor", "domain": "talk", "text": "人", "changed": true },
-    { "id": "cmd-connect", "type": "command", "domain": "talk", "text": "Gemini とつなぐ", "changed": true,
-      "evidence": [{ "path": "src/talk/gemini.ts", "symbol": "mintToken", "role": "entry" }, { "path": "web/live.ts", "symbol": "connectLive", "role": "ui" }] },
-    { "id": "ext-gemini", "type": "external", "domain": "talk", "text": "Gemini Live API", "attach": { "to": "cmd-connect", "pos": "below" }, "changed": true,
-      "note": "gemini-3.8-live。短期トークン(使い捨て、30分)でブラウザから直接つなぐ" },
-    { "id": "ev-connected", "type": "event", "domain": "talk", "text": "声の会話がつながった", "changed": true },
-    { "id": "cmd-speak", "type": "command", "domain": "talk", "text": "質問に答える", "changed": true,
-      "note": "Gemini は「なぜ?」「他には?」と一度に1つ聞く" },
-    { "id": "ev-said", "type": "event", "domain": "talk", "text": "発言が記録された", "changed": true,
-      "evidence": [{ "path": "src/talk/session.ts", "symbol": "appendTranscript", "role": "rule" }] },
-    { "id": "pol-new-reason", "type": "policy", "domain": "talk", "text": "新しい理由や事実が出たら", "execution": "external", "changed": true,
-      "note": "Gemini が判断して関数を呼ぶ" },
-    { "id": "cmd-grow-tree", "type": "command", "domain": "talk", "text": "木を育てる(add_whys / add_fact / update_branch)", "changed": true,
-      "evidence": [{ "path": "src/talk/session.ts", "symbol": "applyTool", "role": "entry" }, { "path": "src/talk/tools.ts", "symbol": "FUNCTION_DECLARATIONS", "role": "contract" }] },
-    { "id": "agg-tree", "type": "aggregate", "domain": "talk", "text": "なぜの木", "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "TalkSession",
+          "role": "rule"
+        },
+        {
+          "path": "src/talk/server.ts",
+          "symbol": "startTalkServer",
+          "role": "contract"
+        }
+      ]
+    },
+    {
+      "id": "ev-page-opened",
+      "type": "event",
+      "domain": "invocation",
+      "text": "画面を開いた"
+    },
+    {
+      "id": "person",
+      "type": "actor",
+      "domain": "talk",
+      "text": "人"
+    },
+    {
+      "id": "cmd-connect",
+      "type": "command",
+      "domain": "talk",
+      "text": "Gemini とつなぐ",
+      "evidence": [
+        {
+          "path": "src/talk/gemini.ts",
+          "symbol": "mintToken",
+          "role": "entry"
+        },
+        {
+          "path": "web/live.ts",
+          "symbol": "connectLive",
+          "role": "ui"
+        },
+        {
+          "path": "web/mic.ts",
+          "symbol": "micOptions",
+          "role": "ui"
+        }
+      ],
+      "note": "マイクは画面で選べ、会話中でもつなぎ直さずに切り替えられる。人の文字起こしは日本語(ja-JP)に固定",
+      "changed": true
+    },
+    {
+      "id": "ext-gemini",
+      "type": "external",
+      "domain": "talk",
+      "text": "Gemini Live API",
+      "attach": {
+        "to": "cmd-connect",
+        "pos": "below"
+      },
+      "note": "gemini-3.8-live。短期トークン(使い捨て、30分)でブラウザから直接つなぐ"
+    },
+    {
+      "id": "ev-connected",
+      "type": "event",
+      "domain": "talk",
+      "text": "声の会話がつながった"
+    },
+    {
+      "id": "cmd-speak",
+      "type": "command",
+      "domain": "talk",
+      "text": "質問に答える",
+      "note": "Gemini は一つの枝を 5 段まで「なぜ?」で掘ってから「他には?」で広げる。相手の言葉を引いて「なぜ〇〇が大事なのですか?」と聞き、褒めたり励ましたりしない",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/gemini.ts",
+          "symbol": "systemInstruction",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "ev-said",
+      "type": "event",
+      "domain": "talk",
+      "text": "発言が記録された",
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "appendTranscript",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "pol-new-reason",
+      "type": "policy",
+      "domain": "talk",
+      "text": "新しい理由や事実が出たら",
+      "execution": "external",
+      "note": "Gemini が判断して関数を呼ぶ"
+    },
+    {
+      "id": "cmd-grow-tree",
+      "type": "command",
+      "domain": "talk",
+      "text": "木を育てる(add_whys / add_fact / update_branch)",
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "applyTool",
+          "role": "entry"
+        },
+        {
+          "path": "src/talk/tools.ts",
+          "symbol": "FUNCTION_DECLARATIONS",
+          "role": "contract"
+        }
+      ],
+      "note": "関数の結果に各ノードの段数と、まだ 5 段に届いていない枝の一覧を返す。未調査の枝の下になぜを足すと、その枝を digging にするよう結果で促す",
+      "changed": true
+    },
+    {
+      "id": "agg-tree",
+      "type": "aggregate",
+      "domain": "talk",
+      "text": "なぜの木",
       "invariants": [
         "親のないノードは作らない",
         "同じ親に同じ文のなぜを二重に足さない",
         "枝は消さない(却下・仮説も理由つきで残す)",
         "葉には対策、却下と仮説には理由が必要",
-        "止めた枝(葉・却下・仮説)の下は掘らない"
+        "止めた枝(葉・却下・仮説)の下は掘らない",
+        "5 段より浅い枝を葉にするには、それ以上掘れない理由が要る(結果に「深さ不足」と出る)"
       ],
-      "evidence": [{ "path": "src/analysis.ts", "symbol": "addWhys", "role": "rule" }, { "path": "src/analysis.ts", "symbol": "stoppedAncestor", "role": "rule" }] },
-    { "id": "ev-tree-grown", "type": "event", "domain": "talk", "text": "木が育った", "changed": true },
-    { "id": "rm-tree-view", "type": "readModel", "domain": "talk", "text": "画面の木と会話", "changed": true,
-      "evidence": [{ "path": "web/ui.ts", "symbol": "renderTree", "role": "ui" }] },
-    { "id": "pol-goaway", "type": "policy", "domain": "talk", "text": "接続が切れそうになったら(goAway・25分)", "execution": "sync", "changed": true,
+      "evidence": [
+        {
+          "path": "src/analysis.ts",
+          "symbol": "addWhys",
+          "role": "rule"
+        },
+        {
+          "path": "src/analysis.ts",
+          "symbol": "stoppedAncestor",
+          "role": "rule"
+        },
+        {
+          "path": "src/analysis.ts",
+          "symbol": "TARGET_DEPTH",
+          "role": "rule"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "ev-tree-grown",
+      "type": "event",
+      "domain": "talk",
+      "text": "木が育った"
+    },
+    {
+      "id": "rm-tree-view",
+      "type": "readModel",
+      "domain": "talk",
+      "text": "画面の木と会話",
+      "evidence": [
+        {
+          "path": "web/ui.ts",
+          "symbol": "renderTree",
+          "role": "ui"
+        }
+      ],
+      "note": "各ノードに「何段目か(n/5段)」を出す",
+      "changed": true
+    },
+    {
+      "id": "person-swap",
+      "type": "actor",
+      "domain": "talk",
+      "text": "人",
+      "changed": true
+    },
+    {
+      "id": "cmd-swap-role",
+      "type": "command",
+      "domain": "talk",
+      "text": "役割を交代する",
+      "note": "ボタン、または声で「交代して」「戻して」。つなぎ直さず、会話の中で指示を送る",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "setRole",
+          "role": "rule"
+        },
+        {
+          "path": "src/talk/tools.ts",
+          "symbol": "switch_role",
+          "role": "contract"
+        },
+        {
+          "path": "web/main.ts",
+          "symbol": "roleBtn",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "ev-role-swapped",
+      "type": "event",
+      "domain": "talk",
+      "text": "役割が入れ替わった",
+      "note": "聞き手 ↔ 答える係。つなぎ直しても今の役割を指示に入れて引き継ぐ",
+      "changed": true
+    },
+    {
+      "id": "person-ask",
+      "type": "actor",
+      "domain": "talk",
+      "text": "人",
+      "changed": true
+    },
+    {
+      "id": "cmd-ask",
+      "type": "command",
+      "domain": "talk",
+      "text": "Gemini に聞く",
+      "note": "自分が知らないことを聞く。Gemini は Google 検索で確かめて答え、木には足さない",
+      "changed": true
+    },
+    {
+      "id": "ext-search",
+      "type": "external",
+      "domain": "talk",
+      "text": "Google 検索(Gemini の検索機能)",
+      "attach": {
+        "to": "cmd-ask",
+        "pos": "below"
+      },
+      "note": "2026-11-14 の確認: 関数と同時に使える。出典ページは返らず、検索した言葉だけ返ることがある",
+      "changed": true
+    },
+    {
+      "id": "ev-answered",
+      "type": "event",
+      "domain": "talk",
+      "text": "Gemini が答えた",
+      "note": "質問・答え・検索した言葉・出典を「Gemini に聞いたこと」に記録する(未確認として扱う)",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "recordAnswer",
+          "role": "rule"
+        },
+        {
+          "path": "web/live.ts",
+          "symbol": "groundingMetadata",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "rm-answers",
+      "type": "readModel",
+      "domain": "talk",
+      "text": "画面の答えと出典",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "web/ui.ts",
+          "symbol": "renderAnswers",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "hs-sources",
+      "type": "hotspot",
+      "domain": "talk",
+      "text": "出典ページが返らないとき、答えの確かさをどう伝えるか(今は検索した言葉と「未確認」で示す)",
+      "attach": {
+        "to": "ev-answered",
+        "pos": "above"
+      },
+      "changed": true
+    },
+    {
+      "id": "pol-goaway",
+      "type": "policy",
+      "domain": "talk",
+      "text": "接続が切れそうになったら(goAway・25分)",
+      "execution": "sync",
       "note": "新しいトークンを取り、引き継ぎの番号でつなぎ直す。番号が使えなければ木の要約と会話の最後を渡して続ける",
-      "evidence": [{ "path": "web/reconnect.ts", "symbol": "nextConnection", "role": "rule" }] },
-    { "id": "hs-voice", "type": "hotspot", "domain": "talk", "text": "日本語で聞きやすい声の既定は、試して決める", "attach": { "to": "cmd-connect", "pos": "above" }, "changed": true },
-    { "id": "person-organise", "type": "actor", "domain": "handoff", "text": "人", "changed": true },
-    { "id": "cmd-organise", "type": "command", "domain": "handoff", "text": "整理する", "changed": true },
-    { "id": "ev-draft", "type": "event", "domain": "handoff", "text": "方針の下書きができた", "changed": true,
+      "evidence": [
+        {
+          "path": "web/reconnect.ts",
+          "symbol": "nextConnection",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "pol-link-stalled",
+      "type": "policy",
+      "domain": "talk",
+      "text": "話し続けているのに15秒何も返ってこなかったら",
+      "execution": "sync",
+      "note": "切れずに止まった接続とみなし、引き継ぎの番号ですぐつなぎ直す。人の声がないときは Live は何も送らないので、黙っているだけでは動かない",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "web/diag.ts",
+          "symbol": "createLinkWatch",
+          "role": "rule"
+        },
+        {
+          "path": "web/live.ts",
+          "symbol": "reconnect",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "hs-stall",
+      "type": "hotspot",
+      "domain": "talk",
+      "text": "2026-11-14 の声の試しで5分止まった原因はまだ特定できていない(診断の記録 events.jsonl で次に確かめる)",
+      "attach": {
+        "to": "pol-link-stalled",
+        "pos": "above"
+      },
+      "changed": true
+    },
+    {
+      "id": "hs-voice",
+      "type": "hotspot",
+      "domain": "talk",
+      "text": "日本語で聞きやすい声の既定は、試して決める",
+      "attach": {
+        "to": "cmd-connect",
+        "pos": "above"
+      }
+    },
+    {
+      "id": "person-organise",
+      "type": "actor",
+      "domain": "handoff",
+      "text": "人"
+    },
+    {
+      "id": "cmd-organise",
+      "type": "command",
+      "domain": "handoff",
+      "text": "整理する"
+    },
+    {
+      "id": "ev-draft",
+      "type": "event",
+      "domain": "handoff",
+      "text": "方針の下書きができた",
       "note": "Gemini が propose_direction を呼ぶ",
-      "evidence": [{ "path": "src/talk/session.ts", "symbol": "setDraft", "role": "rule" }] },
-    { "id": "rm-draft", "type": "readModel", "domain": "handoff", "text": "方針の欄(方針・理由・見送った案・残った疑問)", "changed": true },
-    { "id": "person-send", "type": "actor", "domain": "handoff", "text": "人", "changed": true },
-    { "id": "cmd-send", "type": "command", "domain": "handoff", "text": "直して送信する", "changed": true,
-      "evidence": [{ "path": "src/talk/session.ts", "symbol": "submit", "role": "entry" }] },
-    { "id": "agg-session-send", "type": "aggregate", "domain": "handoff", "text": "壁打ちのセッション", "changed": true,
-      "invariants": ["方針が空なら送れない", "送信は一度だけ"],
-      "evidence": [{ "path": "src/talk/session.ts", "symbol": "submit", "role": "rule" }] },
-    { "id": "ev-sent", "type": "event", "domain": "handoff", "text": "方針を送った", "changed": true,
-      "note": "コマンドが結果を出力して終わる(終了コード 0)",
-      "evidence": [{ "path": "src/talk/result.ts", "symbol": "renderResultMarkdown", "role": "contract" }] },
-    { "id": "ext-agent-session", "type": "external", "domain": "handoff", "text": "エージェントのセッション", "attach": { "to": "ev-sent", "pos": "below" }, "changed": true,
-      "note": "Claude Code は裏で実行したコマンドの終了通知で、Codex は前面のコマンドの出力で受け取る" },
-    { "id": "pol-abandon", "type": "policy", "domain": "handoff", "text": "タブが閉じて60秒戻らなかったら", "execution": "sync", "changed": true,
-      "evidence": [{ "path": "src/talk/server.ts", "symbol": "leaseGraceMs", "role": "rule" }] },
-    { "id": "cmd-cancel", "type": "command", "domain": "handoff", "text": "取りやめる", "changed": true,
-      "evidence": [{ "path": "src/talk/session.ts", "symbol": "cancel", "role": "entry" }] },
-    { "id": "ev-cancelled", "type": "event", "domain": "handoff", "text": "取りやめた", "changed": true,
-      "note": "終了コード 1。そこまでの記録はフォルダに残る" }
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "setDraft",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "rm-draft",
+      "type": "readModel",
+      "domain": "handoff",
+      "text": "方針の欄(方針・理由・見送った案・残った疑問)"
+    },
+    {
+      "id": "person-send",
+      "type": "actor",
+      "domain": "handoff",
+      "text": "人"
+    },
+    {
+      "id": "cmd-send",
+      "type": "command",
+      "domain": "handoff",
+      "text": "直して送信する",
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "submit",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "agg-session-send",
+      "type": "aggregate",
+      "domain": "handoff",
+      "text": "壁打ちのセッション",
+      "invariants": [
+        "方針が空なら送れない",
+        "送信は一度だけ"
+      ],
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "submit",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "ev-sent",
+      "type": "event",
+      "domain": "handoff",
+      "text": "方針を送った",
+      "note": "コマンドが結果を出力して終わる(終了コード 0)。結果に「深さ不足の枝」と「Gemini に聞いたこと」が加わる",
+      "evidence": [
+        {
+          "path": "src/talk/result.ts",
+          "symbol": "renderResultMarkdown",
+          "role": "contract"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "ext-agent-session",
+      "type": "external",
+      "domain": "handoff",
+      "text": "エージェントのセッション",
+      "attach": {
+        "to": "ev-sent",
+        "pos": "below"
+      },
+      "note": "Claude Code は裏で実行したコマンドの終了通知で、Codex は前面のコマンドの出力で受け取る"
+    },
+    {
+      "id": "pol-abandon",
+      "type": "policy",
+      "domain": "handoff",
+      "text": "タブが閉じて60秒戻らなかったら",
+      "execution": "sync",
+      "evidence": [
+        {
+          "path": "src/talk/server.ts",
+          "symbol": "leaseGraceMs",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "cmd-cancel",
+      "type": "command",
+      "domain": "handoff",
+      "text": "取りやめる",
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "cancel",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "ev-cancelled",
+      "type": "event",
+      "domain": "handoff",
+      "text": "取りやめた",
+      "note": "終了コード 1。そこまでの記録はフォルダに残る"
+    }
   ],
   "edges": [
-    { "from": "agent", "to": "cmd-start-talk", "kind": "flow" },
-    { "from": "cmd-start-talk", "to": "agg-session", "kind": "flow" },
-    { "from": "agg-session", "to": "ev-page-opened", "kind": "flow" },
-    { "from": "ev-page-opened", "to": "person", "kind": "flow" },
-    { "from": "person", "to": "cmd-connect", "kind": "flow" },
-    { "from": "cmd-connect", "to": "ev-connected", "kind": "flow" },
-    { "from": "ev-connected", "to": "cmd-speak", "kind": "flow" },
-    { "from": "cmd-speak", "to": "ev-said", "kind": "flow" },
-    { "from": "ev-said", "to": "pol-new-reason", "kind": "flow" },
-    { "from": "pol-new-reason", "to": "cmd-grow-tree", "kind": "flow" },
-    { "from": "cmd-grow-tree", "to": "agg-tree", "kind": "flow" },
-    { "from": "agg-tree", "to": "ev-tree-grown", "kind": "flow" },
-    { "from": "ev-tree-grown", "to": "rm-tree-view", "kind": "result" },
-    { "from": "ev-said", "to": "rm-tree-view", "kind": "result" },
-    { "from": "rm-tree-view", "to": "person-organise", "kind": "flow" },
-    { "from": "ev-connected", "to": "pol-goaway", "kind": "flow" },
-    { "from": "pol-goaway", "to": "cmd-connect", "kind": "flow" },
-    { "from": "person-organise", "to": "cmd-organise", "kind": "flow" },
-    { "from": "cmd-organise", "to": "ev-draft", "kind": "flow" },
-    { "from": "ev-draft", "to": "rm-draft", "kind": "result" },
-    { "from": "rm-draft", "to": "person-send", "kind": "flow" },
-    { "from": "person-send", "to": "cmd-send", "kind": "flow" },
-    { "from": "cmd-send", "to": "agg-session-send", "kind": "flow" },
-    { "from": "agg-session-send", "to": "ev-sent", "kind": "flow" },
-    { "from": "ev-page-opened", "to": "pol-abandon", "kind": "flow" },
-    { "from": "pol-abandon", "to": "cmd-cancel", "kind": "flow" },
-    { "from": "cmd-cancel", "to": "agg-session-send", "kind": "flow" },
-    { "from": "agg-session-send", "to": "ev-cancelled", "kind": "flow" }
+    {
+      "from": "agent",
+      "to": "cmd-start-talk",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-start-talk",
+      "to": "agg-session",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-session",
+      "to": "ev-page-opened",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-page-opened",
+      "to": "person",
+      "kind": "flow"
+    },
+    {
+      "from": "person",
+      "to": "cmd-connect",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-connect",
+      "to": "ev-connected",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-connected",
+      "to": "cmd-speak",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-speak",
+      "to": "ev-said",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-said",
+      "to": "pol-new-reason",
+      "kind": "flow"
+    },
+    {
+      "from": "pol-new-reason",
+      "to": "cmd-grow-tree",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-grow-tree",
+      "to": "agg-tree",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-tree",
+      "to": "ev-tree-grown",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-tree-grown",
+      "to": "rm-tree-view",
+      "kind": "result"
+    },
+    {
+      "from": "ev-said",
+      "to": "rm-tree-view",
+      "kind": "result"
+    },
+    {
+      "from": "rm-tree-view",
+      "to": "person-organise",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-connected",
+      "to": "pol-goaway",
+      "kind": "flow"
+    },
+    {
+      "from": "pol-goaway",
+      "to": "cmd-connect",
+      "kind": "flow"
+    },
+    {
+      "from": "person-organise",
+      "to": "cmd-organise",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-organise",
+      "to": "ev-draft",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-draft",
+      "to": "rm-draft",
+      "kind": "result"
+    },
+    {
+      "from": "rm-draft",
+      "to": "person-send",
+      "kind": "flow"
+    },
+    {
+      "from": "person-send",
+      "to": "cmd-send",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-send",
+      "to": "agg-session-send",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-session-send",
+      "to": "ev-sent",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-page-opened",
+      "to": "pol-abandon",
+      "kind": "flow"
+    },
+    {
+      "from": "pol-abandon",
+      "to": "cmd-cancel",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-cancel",
+      "to": "agg-session-send",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-session-send",
+      "to": "ev-cancelled",
+      "kind": "flow"
+    },
+    {
+      "from": "rm-tree-view",
+      "to": "person-swap",
+      "kind": "flow"
+    },
+    {
+      "from": "person-swap",
+      "to": "cmd-swap-role",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-swap-role",
+      "to": "ev-role-swapped",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-role-swapped",
+      "to": "person-ask",
+      "kind": "flow"
+    },
+    {
+      "from": "person-ask",
+      "to": "cmd-ask",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-ask",
+      "to": "ev-answered",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-answered",
+      "to": "rm-answers",
+      "kind": "result"
+    },
+    {
+      "from": "rm-answers",
+      "to": "person-organise",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-connected",
+      "to": "pol-link-stalled",
+      "kind": "flow"
+    },
+    {
+      "from": "pol-link-stalled",
+      "to": "cmd-connect",
+      "kind": "flow"
+    }
   ]
 }

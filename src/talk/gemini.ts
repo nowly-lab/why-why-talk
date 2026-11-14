@@ -31,17 +31,27 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "",
     "進め方:",
     "- 一度に1つだけ、短く質問する。答えを急がせない。相手の言葉を言い換えて確かめてから次に進む。",
-    "- 「なぜ?」で深く掘り、「他には?」で横に広げる。",
+    "- 1本の枝を、根から数えて5段になるまで「なぜ?」で掘る。5段に届くまでは「他には?」で横に広げない。",
+    "- 次の「なぜ?」は、相手の直前の言葉をそのまま引いて「なぜ〇〇が大事なのですか?」「なぜ〇〇が起きるのですか?」と聞く。",
+    "- 相手を褒めたり励ましたりしない。「いいですね」「自信を持って」などは言わない。評価せず、次の問いだけを返す。",
+    "- 5段に届かないうちにまとめに入らない。関数の結果の belowTarget に残っている枝があれば、そこを掘る。",
+    "- 5段より浅いところで葉にするのは、相手がそれ以上掘れない理由を言ったときだけ。reason には相手が言った理由をそのまま入れる。自分で理由を作らない。相手が理由を言わずに終わりにしたがったら、葉にせず「なぜそこで止めてよいのですか?」と聞く。",
     "- 観点(仕組み・道具/人・体制/手順・プロセス/検知/前提・外部)を、掘り残しを探すチェックリストとして使う。全部を埋める必要はない。",
     "- ときどき「それだけで起きますか?」と聞いて横の見落としを、逆から「だから」でつないで縦の飛躍を確かめる。",
     "- 人を責めず、どの仕組みや手順が誤りを通したかを聞く。対策は「気をつける」ではなく仕組みの変更にする。",
     "",
     "木の扱い(関数):",
     "- 新しい理由が出たら add_whys で木に足す。根 n0 は論点そのもの。",
+    "- ある枝の下になぜを足したら、その枝を update_branch で digging(掘っている)にする。掘っている枝を未調査のまま残さない。",
     "- 事実が出たら add_fact、枝を掘り始める・止めるときは update_branch。",
-    "- 関数の結果には木の一覧が返る。ID はそれを見て使う。ID や関数名は声に出さない。",
+    "- 関数の結果には木の一覧(各ノードの段数 depth つき)と、まだ5段に届いていない枝の先 belowTarget が返る。ID はそれを見て使う。ID や関数名は声に出さない。",
     "- 関数が失敗したら、理由を読んで正しく呼び直す。",
     "- 相手が「まとめて」と言ったら、propose_direction で方針・理由・見送った案・残った疑問を下書きし、要点を短く声で伝える。",
+    "",
+    "役割の交代:",
+    "- 相手が「交代して」と言ったら switch_role(to=\"answerer\")、「戻して」と言ったら switch_role(to=\"interviewer\") を呼ぶ。",
+    "- 画面から「役割を交代します」と届いたら、その役割で続ける(関数は呼ばない)。",
+    ...roleBrief(s.role),
     "",
     "最初に、論点を一言で確かめてから、最初の「なぜ?」を聞く。",
     "",
@@ -54,7 +64,7 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
   ];
   if (opts.fallback) {
     const tree = treeSummary(s.analysis)
-      .map((n) => `${n.id} (親 ${n.parentId ?? "-"}, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}`)
+      .map((n) => `${n.id} (親 ${n.parentId ?? "-"}, ${n.depth}段, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}`)
       .join("\n");
     const all = s.transcript.map((t) => `${t.speaker === "person" ? "相手" : "あなた"}: ${t.text}`).join("\n");
     const tail = redactSecrets(all.length > FALLBACK_TAIL ? all.slice(-FALLBACK_TAIL) : all);
@@ -71,12 +81,24 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
   return parts.join("\n");
 }
 
+function roleBrief(role: TalkSession["role"]): string[] {
+  if (role === "interviewer") return ["今の役割: 聞き手", "- Google 検索は使わない。"];
+  return [
+    "今の役割: 答える係",
+    "- 相手の質問に、Google 検索で確かめてから日本語で短く答える。確かでないことは「確かではありません」と言う。",
+    "- 木の関数(add_whys / add_fact / update_branch)は呼ばない。",
+    "- 答えたら「他に聞きたいことはありますか? 戻すときは『戻して』と言ってください」と聞く。",
+  ];
+}
+
 export function liveConfig(s: TalkSession, opts: { fallback: boolean; voice: string }): LiveConnectConfig {
   return {
     responseModalities: [Modality.AUDIO],
     systemInstruction: systemInstruction(s, { fallback: opts.fallback }),
-    tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
-    inputAudioTranscription: {},
+    // Search is on in both roles (the token locks the config); the interviewer brief forbids it.
+    tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }, { googleSearch: {} }],
+    // Japanese only: auto-detection turned quiet Japanese into Spanish/English fragments (voice trial 2026-11-14).
+    inputAudioTranscription: { languageCodes: ["ja-JP"] },
     outputAudioTranscription: {},
     contextWindowCompression: { slidingWindow: {} },
     // Suspected from the voice trials (2026-11-14): Gemini Live's default end-of-speech detection (high) cuts

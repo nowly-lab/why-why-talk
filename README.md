@@ -1,6 +1,6 @@
 # why-why-talk
 
-Deep-dive one planning question **by voice**. An agent runs one command; a local page opens; you talk with **Gemini Live**, which plays the interviewer: it asks "why?" to go deeper and "what else?" to go wider, and grows a **why tree** on screen as you talk (through function calls). When you are done, Gemini drafts the direction, you edit it and press 送信, and the command prints the result for the agent and exits — the same shape as a [Plannotator](https://github.com/backnotprop/plannotator) plan review.
+Deep-dive one planning question **by voice**. An agent runs one command; a local page opens; you talk with **Gemini Live**, which plays the interviewer: it asks "why?" to go deeper and "what else?" to go wider, and grows a **why tree** on screen as you talk (through function calls). It keeps digging one branch until it is five whys deep. Press 役割を交代 (or say 「交代して」) to ask Gemini about something you don't know; it answers with Google Search, and those answers go to the result marked unverified. When you are done, Gemini drafts the direction, you edit it and press 送信, and the command prints the result for the agent and exits — the same shape as a [Plannotator](https://github.com/backnotprop/plannotator) plan review.
 
 [日本語は下にあります](#日本語)
 
@@ -24,7 +24,7 @@ npx -y github:nowly-lab/why-why-talk --topic "How do we stop payment errors from
 | 1 | Cancelled, or the tab was closed for 60 s | `取りやめ (<reason>) record: <dir>` |
 | 2 | Could not start | — (message on stderr) |
 
-The record (`result.md`, `result.json`, `tree.mmd`, `transcript.md`, `session.json`) is written to `--out` (default `.why-why/<time>-<slug>/`). Agents: see [`skills/why-why-talk/SKILL.md`](skills/why-why-talk/SKILL.md).
+The record (`result.md`, `result.json`, `tree.mmd`, `transcript.md`, `session.json`, and `events.jsonl` with connection and mic diagnostics) is written to `--out` (default `.why-why/<time>-<slug>/`). Agents: see [`skills/why-why-talk/SKILL.md`](skills/why-why-talk/SKILL.md).
 
 | Env | Default | |
 | --- | --- | --- |
@@ -33,7 +33,7 @@ The record (`result.md`, `result.json`, `tree.mmd`, `transcript.md`, `session.js
 | `WHY_WHY_VOICE` | `Kore` | Any Gemini voice name |
 | `WHY_WHY_BROWSER` | — | `none` to never open a browser |
 
-Long talks keep going: each Live connection (about 10 minutes) is renewed with a fresh token and the session-resumption handle, and if that fails the talk restarts seeded with the tree and the end of the transcript. Gemini Live pricing is roughly $0.005/min for audio in and $0.018/min out. On the free tier, Google may use what you send to improve its products.
+Pick the microphone in the header (switchable mid-talk; the level meter warns when no sound arrives). If Gemini goes quiet after you spoke, 「Gemini に呼びかけ直す」 nudges it; if you keep talking and nothing at all comes back for 15 s, the page reconnects by itself. Long talks keep going: each Live connection (about 10 minutes) is renewed with a fresh token and the session-resumption handle, and if that fails the talk restarts seeded with the tree and the end of the transcript. Gemini Live pricing is roughly $0.005/min for audio in and $0.018/min out. On the free tier, Google may use what you send to improve its products.
 
 ## Develop
 

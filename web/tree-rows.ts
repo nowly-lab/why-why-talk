@@ -7,7 +7,15 @@ export type TreeNode = {
   facts?: Array<{ summary: string; supports: boolean }>;
   reason?: string;
   countermeasure?: string;
+  depth?: number;
 };
+
+export const TARGET_DEPTH = 5;
+
+/** "2/5段" below the target, plain "7段" at or past it (same as the result Markdown). */
+export function depthTag(depth: number): string {
+  return depth < TARGET_DEPTH ? `${depth}/${TARGET_DEPTH}段` : `${depth}段`;
+}
 
 /** Depth-first rows (children in insertion order) for drawing the tree as an indented list. */
 export function treeRows<T extends TreeNode>(nodes: T[]): Array<{ node: T; depth: number }> {
