@@ -2,6 +2,8 @@
 //   node scripts/live-smoke.ts
 // Mints a token through our code, asks in text, expects an add_whys tool call and Japanese speech
 // (output transcription), then reconnects with the session-resumption handle on a fresh token.
+// Then checks the five-whys rule (a shallow leaf without a reason is refused), the role swap
+// (switch_role on 「交代して」) and Google Search grounding while Gemini is the answerer.
 import { GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -19,14 +21,13 @@ const s = new TalkSession({
   outDir: await mkdtemp(join(tmpdir(), "live-smoke-")),
 });
 
-type Run = { session: Session; transcript: string; toolCalls: string[]; handle: string | null; turnDone: Promise<void> };
+type Run = { session: Session; transcript: string; toolCalls: string[]; toolErrors: string[]; queries: string[]; handle: string | null; turnDone: Promise<void>; finishTurn: () => void };
 
 async function connect(handle: string | null, label: string): Promise<Run> {
   const t = await mintToken({ apiKey: apiKey!, model, voice }, s, { fallback: false });
   const ai = new GoogleGenAI({ apiKey: t.token, httpOptions: { apiVersion: "v1beta" } });
-  const run = { transcript: "", toolCalls: [] as string[], handle: null as string | null } as Run;
-  let doneTurn!: () => void;
-  run.turnDone = new Promise((r) => (doneTurn = r));
+  const run = { transcript: "", toolCalls: [] as string[], toolErrors: [] as string[], queries: [] as string[], handle: null as string | null } as Run;
+  run.turnDone = new Promise((r) => (run.finishTurn = r));
   run.session = await ai.live.connect({
     model: t.model,
     config: { ...t.config, sessionResumption: { handle: handle ?? undefined } },
@@ -38,11 +39,13 @@ async function connect(handle: string | null, label: string): Promise<Run> {
           const functionResponses = m.toolCall.functionCalls.map((c) => {
             run.toolCalls.push(c.name ?? "?");
             const r = s.applyTool(c.name ?? "", c.args ?? {});
+            if (!r.ok) run.toolErrors.push(r.error);
             return { id: c.id, name: c.name, response: r as unknown as Record<string, unknown> };
           });
           run.session.sendToolResponse({ functionResponses });
         }
-        if (m.serverContent?.turnComplete) doneTurn();
+        for (const q of m.serverContent?.groundingMetadata?.webSearchQueries ?? []) run.queries.push(q);
+        if (m.serverContent?.turnComplete) run.finishTurn();
       },
       onerror: (e: ErrorEvent) => console.error(`[${label}] error`, e.message),
       onclose: (e: CloseEvent) => console.error(`[${label}] closed`, e.code, e.reason),
@@ -79,3 +82,31 @@ if (a.handle) {
   console.log("resumed said:", b.transcript.slice(0, 200));
   b.session.close();
 }
+
+// Five whys, role swap and search, on a fresh connection.
+async function say(run: Run, text: string, waitMs = 60_000): Promise<void> {
+  run.turnDone = new Promise((r) => (run.finishTurn = r));
+  const before = run.toolCalls.length;
+  const settle = setInterval(() => {
+    // A tool call ends a turn early; give the spoken follow-up a moment.
+    if (run.toolCalls.length > before) setTimeout(run.finishTurn, 8_000);
+  }, 500);
+  run.session.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
+  await Promise.race([run.turnDone, timeout(waitMs)]).finally(() => clearInterval(settle));
+}
+
+const c = await connect(null, "roles");
+const tip = s.analysis.nodes.find((n) => n.parentId === "n0")?.id ?? "n1";
+s.applyTool("update_branch", { node_id: tip, state: "digging" });
+await say(c, `${tip} の枝は掘り終わりにして、葉にしてください。対策は「期限を監視する」です。理由は言いません。`);
+const tipNode = s.analysis.nodes.find((n) => n.id === tip);
+console.log("shallow leaf refused:", c.toolErrors.some((e) => /whys deep/.test(e)), "| errors:", c.toolErrors.join(" / ") || "(none)");
+console.log("shallow leaf without the person's reason avoided:", tipNode?.state !== "leaf");
+console.log("tip after:", JSON.stringify(s.analysis.nodes.find((n) => n.id === tip)));
+await say(c, "交代して。");
+console.log("role after 交代して:", s.role, "| calls:", c.toolCalls.join(", "));
+await say(c, "Cloudflare Workers の無料プランで、1日に使えるリクエスト数の上限は?");
+console.log("grounding queries:", c.queries.join(" / ") || "(none)");
+console.log("answer:", c.transcript.slice(-200));
+c.session.close();
+process.exit(0);

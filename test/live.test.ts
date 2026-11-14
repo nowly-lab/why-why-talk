@@ -37,3 +37,67 @@ test("a server that accepts and closes after 0.5 s ends in failed, not an endles
   assert.equal(tokens, MAX_RETRIES + 1);
   live.close();
 });
+
+test("forwards groundingMetadata and turnComplete", async () => {
+  let cb: Parameters<LiveConnect>[2] | undefined;
+  const connect: LiveConnect = async (_t, _c, callbacks) => {
+    cb = callbacks;
+    return { sendClientContent() {}, sendRealtimeInput() {}, sendToolResponse() {}, close() {} };
+  };
+  const seen: string[] = [];
+  const live = connectLive(async () => ({ token: "t", model: "m", expiresAt: "", config: {} }), {
+    onAudio() {}, onInterrupted() {}, onTranscript() {}, onToolCall: async () => [], onStatus() {},
+    onGrounding: (m) => seen.push(`g:${JSON.stringify(m)}`),
+    onTurnComplete: () => seen.push("done"),
+  }, { hasHistory: false, connect });
+  await live.start();
+  cb!.onmessage({ serverContent: { groundingMetadata: { webSearchQueries: ["q"] }, turnComplete: true } } as never);
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(seen, ['g:{"webSearchQueries":["q"]}', "done"]);
+  live.close();
+});
+
+test("a tool call still gets a response when the handler throws", async () => {
+  let cb: Parameters<LiveConnect>[2] | undefined;
+  const sent: Array<Array<{ id?: string; name?: string; response: Record<string, unknown> }>> = [];
+  const connect: LiveConnect = async (_t, _c, callbacks) => {
+    cb = callbacks;
+    return { sendClientContent() {}, sendRealtimeInput() {}, sendToolResponse: (p) => void sent.push(p.functionResponses), close() {} };
+  };
+  const live = connectLive(async () => ({ token: "t", model: "m", expiresAt: "", config: {} }), {
+    onAudio() {}, onInterrupted() {}, onTranscript() {}, onStatus() {},
+    onToolCall: async () => {
+      throw new Error("refresh failed");
+    },
+  }, { hasHistory: false, connect });
+  await live.start();
+  cb!.onmessage({ toolCall: { functionCalls: [{ id: "c1", name: "add_whys", args: {} }, { id: "c2", name: "add_fact", args: {} }] } } as never);
+  for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0]!.map((r) => [r.id, r.name]), [["c1", "add_whys"], ["c2", "add_fact"]]);
+  assert.match(String(sent[0]![0]!.response.error), /refresh failed/);
+  live.close();
+});
+
+test("reconnect() opens a fresh connection with the resumption handle and reports server messages", async () => {
+  const cbs: Array<Parameters<LiveConnect>[2]> = [];
+  const configs: unknown[] = [];
+  const connect: LiveConnect = async (_t, config, callbacks) => {
+    cbs.push(callbacks);
+    configs.push(config);
+    return { sendClientContent() {}, sendRealtimeInput() {}, sendToolResponse() {}, close() {} };
+  };
+  let messages = 0;
+  const live = connectLive(async () => ({ token: "t", model: "m", expiresAt: "", config: {} }), {
+    onAudio() {}, onInterrupted() {}, onTranscript() {}, onToolCall: async () => [], onStatus() {},
+    onServerMessage: () => void messages++,
+  }, { hasHistory: false, connect });
+  await live.start();
+  cbs[0]!.onmessage({ sessionResumptionUpdate: { resumable: true, newHandle: "h9" } } as never);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(messages, 1);
+  await live.reconnect();
+  assert.equal(cbs.length, 2);
+  assert.deepEqual((configs[1] as { sessionResumption: unknown }).sessionResumption, { handle: "h9" });
+  live.close();
+});

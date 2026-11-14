@@ -35,6 +35,7 @@ export type LinkState = { handle: string | null; connectedAt: number | null };
 export type LinkEvent =
   | { kind: "start"; hasHistory: boolean }
   | { kind: "goAway" }
+  | { kind: "stalled" }
   | { kind: "closed" }
   | { kind: "handleRejected" }
   | { kind: "tick"; now: number };
@@ -50,6 +51,7 @@ export function nextConnection(state: LinkState, event: LinkEvent): Connection |
       // A reloaded page has no handle; when the talk already has history, seed the new Live session with it.
       return { handle: null, fallback: event.hasHistory };
     case "goAway":
+    case "stalled":
     case "closed":
       return state.handle ? { handle: state.handle, fallback: false } : { handle: null, fallback: true };
     case "handleRejected":

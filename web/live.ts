@@ -8,6 +8,11 @@ export type LiveHandlers = {
   onTranscript(speaker: "person" | "gemini", text: string): void;
   onToolCall(calls: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>): Promise<Array<{ id?: string; name?: string; response: Record<string, unknown> }>>;
   onStatus(status: "connecting" | "connected" | "reconnecting" | "closed" | "error" | "failed", detail?: string): void;
+  /** Google Search grounding for the current answer (search words, source pages when Live sends them). */
+  onGrounding?(meta: unknown): void;
+  onTurnComplete?(): void;
+  /** Any message on the current connection: the link is alive. */
+  onServerMessage?(): void;
 };
 
 const QUICK_CLOSE_MS = 3_000;
@@ -83,6 +88,7 @@ export function connectLive(
 
   // Messages from an older connection that is still draining are handled too (a tool call there must still land).
   async function onMessage(from: LiveSession, m: LiveServerMessage): Promise<void> {
+    if (from === current) h.onServerMessage?.();
     const sc = m.serverContent;
     if (sc?.interrupted) h.onInterrupted();
     for (const part of sc?.modelTurn?.parts ?? []) {
@@ -90,11 +96,16 @@ export function connectLive(
     }
     if (sc?.inputTranscription?.text) h.onTranscript("person", sc.inputTranscription.text);
     if (sc?.outputTranscription?.text) h.onTranscript("gemini", sc.outputTranscription.text);
+    if (sc?.groundingMetadata) h.onGrounding?.(sc.groundingMetadata);
+    if (sc?.turnComplete) h.onTurnComplete?.();
     if (from === current && m.sessionResumptionUpdate?.resumable && m.sessionResumptionUpdate.newHandle) {
       state.handle = m.sessionResumptionUpdate.newHandle;
     }
     if (m.toolCall?.functionCalls?.length) {
-      const functionResponses = await h.onToolCall(m.toolCall.functionCalls);
+      // Gemini waits for an answer to every call: a failing handler still answers each one with the error.
+      const calls = m.toolCall.functionCalls;
+      const functionResponses = await h.onToolCall(calls).catch((e: unknown) =>
+        calls.map((c) => ({ id: c.id, name: c.name, response: { error: (e as Error)?.message ?? String(e) } })));
       try {
         from.sendToolResponse({ functionResponses });
       } catch {
@@ -143,6 +154,8 @@ export function connectLive(
 
   return {
     start: () => event({ kind: "start", hasHistory: opts.hasHistory }),
+    /** The link looks dead without having closed: resume on a fresh connection now. */
+    reconnect: () => event({ kind: "stalled" }, "応答が止まったのでつなぎ直します"),
     /** After "failed": try again from the start of the backoff. */
     retry() {
       budget.reset();

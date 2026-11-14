@@ -115,3 +115,193 @@ test("retry budget: a connection that stayed up resets the budget", () => {
   b.stable();
   assert.equal(b.failed(), 1000);
 });
+
+test("tool response for Gemini keeps belowTarget", async () => {
+  const { toGeminiResponse } = await import("../web/api.ts");
+  const ok = toGeminiResponse({ ok: true, added: ["n1"], tree: [{ id: "n1", text: "t", state: "candidate", depth: 1 }], belowTarget: [{ id: "n1", depth: 1 }] });
+  assert.deepEqual(ok.belowTarget, [{ id: "n1", depth: 1 }]);
+  assert.equal(ok.result, "ok");
+  const bad = toGeminiResponse({ ok: false, error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
+  assert.deepEqual(bad, { error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
+});
+
+test("treeRows depth matches server depth and the depth tag", async () => {
+  const { depthTag } = await import("../web/tree-rows.ts");
+  const nodes = [
+    { id: "n0", parentId: null, text: "論点", state: "digging", depth: 0 },
+    { id: "n1", parentId: "n0", text: "a", state: "digging", depth: 1 },
+    { id: "n2", parentId: "n1", text: "b", state: "leaf", depth: 2, reason: "範囲外" },
+  ];
+  assert.deepEqual(treeRows(nodes).map((r) => r.depth), [0, 1, 2]);
+  assert.equal(depthTag(2), "2/5段");
+  assert.equal(depthTag(7), "7段");
+});
+
+// --- answers (plan v1 Task 5) ---
+test("readGrounding reads queries and web chunks", async () => {
+  const { readGrounding } = await import("../web/answers.ts");
+  assert.deepEqual(
+    readGrounding({ webSearchQueries: ["a", "b"], groundingChunks: [{ web: { uri: "https://x.example/p", title: "X" } }, { web: { uri: "" } }, {}] }),
+    { queries: ["a", "b"], sources: [{ title: "X", uri: "https://x.example/p" }] },
+  );
+});
+
+test("readGrounding tolerates missing metadata", async () => {
+  const { readGrounding } = await import("../web/answers.ts");
+  assert.deepEqual(readGrounding(undefined), { queries: [], sources: [] });
+  assert.deepEqual(readGrounding({ webSearchQueries: "nope" }), { queries: [], sources: [] });
+});
+
+test("collector pairs the person's question with Gemini's answer", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Workers の無料枠は");
+  c.person("1日何回まで?");
+  c.gemini("1日10万");
+  c.gemini("リクエストです。");
+  c.grounding({ queries: ["workers free limit"], sources: [] });
+  c.grounding({ queries: ["workers free limit", "cloudflare 上限"], sources: [{ title: "D", uri: "https://d.example" }] });
+  assert.deepEqual(c.turnComplete(), {
+    question: "Workers の無料枠は1日何回まで?",
+    answer: "1日10万リクエストです。",
+    queries: ["workers free limit", "cloudflare 上限"],
+    sources: [{ title: "D", uri: "https://d.example" }],
+  });
+});
+
+test("skips an interrupted turn with no answer", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("質問");
+  c.interrupted();
+  assert.equal(c.turnComplete(), null);
+});
+
+test("collector resets after turnComplete", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("q1");
+  c.gemini("a1");
+  assert.ok(c.turnComplete());
+  assert.equal(c.turnComplete(), null);
+  c.person("q2");
+  c.gemini("a2");
+  assert.equal(c.turnComplete()?.question, "q2");
+});
+
+// --- review round 1 ---
+test("an interrupted question does not leak into the next answer", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.gemini("partial");
+  c.interrupted();
+  assert.equal(c.turnComplete(), null);
+  c.person("Q2");
+  c.gemini("A2");
+  assert.equal(c.turnComplete()?.question, "Q2");
+});
+
+test("a follow-up spoken before the interrupt is kept as the question", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.gemini("partial");
+  c.person("Q2");
+  c.interrupted();
+  c.gemini("A2");
+  assert.deepEqual([c.turnComplete()?.question, c.turnComplete()], ["Q2", null]);
+});
+
+test("Gemini speaking as interviewer ends the person's turn; the question said with 交代して is kept", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("昔の発言");
+  c.otherTurn(); // Gemini spoke as the interviewer
+  c.person("交代して。Workers の無料枠は?");
+  // switch_role arrives; the page starts feeding Gemini's words
+  c.gemini("10万です");
+  assert.equal(c.turnComplete()?.question, "交代して。Workers の無料枠は?");
+});
+
+test("reset clears everything for a role change from the button", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.reset();
+  c.gemini("A");
+  assert.equal(c.turnComplete()?.question, "");
+});
+
+test("submit queued behind a pending answer runs after it", async () => {
+  const q = createSerialQueue();
+  const order: string[] = [];
+  void q(async () => { await new Promise((r) => setTimeout(r, 20)); order.push("transcript"); });
+  void q(async () => { order.push("answer"); });
+  await q(async () => { order.push("submit"); });
+  assert.deepEqual(order, ["transcript", "answer", "submit"]);
+});
+
+// --- review round 2 ---
+test("follow-up fragments on both sides of the interrupt stay one question", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.gemini("partial");
+  c.person("Workers の");
+  c.interrupted();
+  c.person("無料枠は?");
+  c.gemini("A2");
+  assert.equal(c.turnComplete()?.question, "Workers の無料枠は?");
+});
+
+test("submitAfterAnswers freezes, records the answer in progress, then submits after queued writes", async () => {
+  const { submitAfterAnswers, createAnswerCollector, createPendingAnswers } = await import("../web/answers.ts");
+  const q = createSerialQueue();
+  const order: string[] = [];
+  const c = createAnswerCollector();
+  c.person("無料枠は?");
+  c.gemini("10万です");
+  const pending = createPendingAnswers(async (e) => { order.push(`answer:${e.question}`); });
+  void q(async () => { await new Promise((r) => setTimeout(r, 20)); order.push("transcript"); });
+  await submitAfterAnswers({ queue: q, collector: c, answering: true, freeze: () => order.push("freeze"), pending, submit: async () => { order.push("submit"); } });
+  assert.deepEqual(order, ["freeze", "transcript", "answer:無料枠は?", "submit"]);
+});
+
+test("a failed answer write blocks the submit and is retried next time", async () => {
+  const { submitAfterAnswers, createAnswerCollector, createPendingAnswers } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("q");
+  c.gemini("a");
+  let fail = true;
+  const saved: string[] = [];
+  const pending = createPendingAnswers(async (e) => { if (fail) throw new Error("HTTP 500"); saved.push(e.answer); });
+  let submitted = 0;
+  const opts = { queue: createSerialQueue(), collector: c, answering: true, freeze() {}, pending, submit: async () => { submitted++; } };
+  await assert.rejects(submitAfterAnswers(opts), /Gemini の答えを記録できませんでした: HTTP 500/);
+  assert.equal(submitted, 0);
+  assert.equal(pending.size(), 1);
+  fail = false;
+  await submitAfterAnswers(opts);
+  assert.deepEqual(saved, ["a"]);
+  assert.equal(submitted, 1);
+  assert.equal(pending.size(), 0);
+});
+
+test("an empty turnComplete after the interrupt keeps the follow-up started before it", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.gemini("partial");
+  c.person("Workers の");
+  c.interrupted();
+  assert.equal(c.turnComplete(), null);
+  c.person("無料枠は?");
+  c.gemini("A2");
+  assert.equal(c.turnComplete()?.question, "Workers の無料枠は?");
+});
+
+test("a stalled link resumes with the handle, or falls back to the transcript without one", () => {
+  assert.deepEqual(nextConnection({ handle: "h1", connectedAt: 0 }, { kind: "stalled" }), { handle: "h1", fallback: false });
+  assert.deepEqual(nextConnection({ handle: null, connectedAt: 0 }, { kind: "stalled" }), { handle: null, fallback: true });
+});
