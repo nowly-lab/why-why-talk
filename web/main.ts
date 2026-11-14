@@ -284,15 +284,18 @@ export async function boot(): Promise<void> {
         const playerReady = player.resume();
         // Falls back to the system default if the remembered mic is gone; a mic picked meanwhile is applied after.
         if (!(await mics.start())) return;
-        void refreshMics();
         await playerReady;
+        if (mics.ended()) return;
+        void refreshMics();
         await live.start();
+        if (mics.ended()) return;
         micBtn.textContent = "ミュート";
         roleBtn.disabled = false;
       } catch (e) {
-        setStatus(`マイクを使えません: ${(e as Error).message}`, "error");
+        if (!mics.ended()) setStatus(`マイクを使えません: ${(e as Error).message}`, "error");
       } finally {
-        micBtn.disabled = false;
+        // After the talk ended the page keeps every control disabled.
+        if (!mics.ended()) micBtn.disabled = false;
       }
       return;
     }

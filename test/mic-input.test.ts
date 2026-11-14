@@ -60,15 +60,16 @@ type FakeMic = { id: string; active: string; stopped: boolean; switchDevice(id: 
 
 /** A mic whose switches resolve when the test says so; the newest pending switch wins, like createInputSlot. */
 function fakeMic(id: string, opts: { failing?: Set<string> } = {}) {
-  const pending: { id: string; resolve: () => void }[] = [];
+  const pending: { id: string; resolve: () => void; fail?: boolean }[] = [];
   let generation = 0;
+  const failNext = new Set<number>();
   const mic: FakeMic = {
     id, active: id, stopped: false,
     switchDevice(next) {
       const mine = ++generation;
       return new Promise<SwitchResult>((resolve, reject) => {
         pending.push({ id: next, resolve: () => {
-          if (opts.failing?.has(next)) return reject(new Error("NotFound"));
+          if (opts.failing?.has(next) || failNext.has(mine)) return reject(new Error("NotFound"));
           if (mic.stopped) return resolve("stopped");
           if (mine !== generation) return resolve("superseded");
           mic.active = next;
@@ -82,10 +83,13 @@ function fakeMic(id: string, opts: { failing?: Set<string> } = {}) {
   };
   const settle = async (next: string) => {
     const i = pending.findIndex((p) => p.id === next);
+    if (i < 0) throw new Error(`no pending switch to ${next}`);
     pending.splice(i, 1)[0]!.resolve();
     await new Promise((r) => setImmediate(r));
   };
-  return { mic, settle };
+  /** Makes the n-th switch request (1-based) fail. */
+  const failRequest = (n: number) => void failNext.add(n);
+  return { mic, settle, failRequest };
 }
 
 const controller = (initial: string, start: (id: string) => Promise<FakeMic>) => {
@@ -195,4 +199,35 @@ test("a mic chosen during start that cannot be opened keeps the started mic and 
   assert.equal(c.active(), "a1");
   assert.equal(c.choice(), "a1");
   assert.deepEqual(errors, ["NotFound"]);
+});
+
+test("an older failing request for the same mic does not undo a newer choice of it (B, A, B)", async () => {
+  const a = fakeMic("a1");
+  const { c } = controller("a1", async () => a.mic);
+  await c.start();
+  a.failRequest(1);
+  const first = c.choose("b2").catch((e: Error) => e.message);
+  void c.choose("a1");
+  const second = c.choose("b2");
+  await a.settle("b2");
+  await a.settle("b2");
+  assert.equal(await first, "NotFound");
+  await second;
+  await flush();
+  assert.equal(c.choice(), "b2");
+  assert.equal(c.active(), "b2");
+  assert.equal(a.mic.active, "b2");
+});
+
+test("start returns null when the talk ended during the follow-up switch", async () => {
+  const gate = deferred<void>();
+  const a = fakeMic("a1");
+  const { c } = controller("a1", async () => (await gate.promise, a.mic));
+  const starting = c.start();
+  void c.choose("b2");
+  gate.resolve();
+  await flush();
+  c.stop();
+  await a.settle("b2");
+  assert.equal(await starting, null);
 });

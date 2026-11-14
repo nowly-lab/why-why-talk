@@ -52,6 +52,8 @@ export function createMicController<M extends Switchable>(
   initial: string,
 ) {
   let choice = initial;
+  // Bumped on every selection, so a failure only rolls back the selection it belongs to.
+  let revision = 0;
   let active: string | null = null;
   let mic: M | null = null;
   let ended = false;
@@ -60,11 +62,12 @@ export function createMicController<M extends Switchable>(
   async function sync(): Promise<void> {
     while (mic && !ended && choice !== active) {
       const target = choice;
+      const asked = revision;
       let result: SwitchResult;
       try {
         result = await mic.switchDevice(target);
       } catch (e) {
-        if (choice === target && active !== null) {
+        if (revision === asked && active !== null) {
           choice = active;
           deps.persist(active);
         }
@@ -89,6 +92,7 @@ export function createMicController<M extends Switchable>(
         if (!used || ended) throw e;
         if (choice === used) {
           choice = "";
+          revision++;
           deps.persist("");
         }
         used = "";
@@ -102,14 +106,16 @@ export function createMicController<M extends Switchable>(
       active = used;
       // A choice made while starting that cannot be opened leaves the started mic running.
       await sync().catch((e: unknown) => deps.onSwitchError?.(e as Error));
-      return mic;
+      return ended ? null : mic;
     },
     /** The person picked a mic. While starting it is only remembered; start() applies it. */
     async choose(id: string): Promise<void> {
       choice = id;
+      revision++;
       deps.persist(id);
       await sync();
     },
+    ended: () => ended,
     stop() {
       ended = true;
       mic?.stop();
