@@ -1,8 +1,9 @@
+import { createInputSlot, type SwitchResult } from "./mic-input.ts";
 import { rms } from "./mic.ts";
 import { downsample, floatToPcm16Base64, pcm16Base64ToFloat } from "./pcm.ts";
 
 /** Microphone at 16 kHz, delivered as base64 PCM16 chunks (~100 ms). `deviceId` "" is the system default. */
-export type Mic = { stop(): void; setMuted(m: boolean): void; switchDevice(deviceId: string): Promise<void>; deviceLabel(): string };
+export type Mic = { stop(): void; setMuted(m: boolean): void; switchDevice(deviceId: string): Promise<SwitchResult>; deviceLabel(): string };
 
 function micConstraints(deviceId: string): MediaStreamConstraints {
   return {
@@ -21,42 +22,46 @@ export async function startMic(
   // (Firefox refuses a 16 kHz context for a 48 kHz mic), and downsample to 16 kHz.
   const ctx = new AudioContext();
   const resumed = ctx.resume();
-  let stream = await navigator.mediaDevices.getUserMedia(micConstraints(opts.deviceId ?? ""));
+  const stream = await navigator.mediaDevices.getUserMedia(micConstraints(opts.deviceId ?? ""));
   await resumed;
   await ctx.audioWorklet.addModule("/audio-worklet.js");
-  let source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, "mic-chunker");
   let muted = false;
   node.port.onmessage = (e: MessageEvent<Float32Array>) => {
     opts.onLevel?.(rms(e.data));
     if (!muted) onChunk(floatToPcm16Base64(downsample(e.data, ctx.sampleRate, 16_000)));
   };
+  let source: MediaStreamAudioSourceNode | null = null;
+  const slot = createInputSlot(stream, {
+    attach(s) {
+      source = ctx.createMediaStreamSource(s);
+      source.connect(node);
+    },
+    detach() {
+      source?.disconnect();
+      source = null;
+    },
+  });
+  source = ctx.createMediaStreamSource(stream);
   source.connect(node);
   return {
     stop() {
+      slot.stop();
       node.disconnect();
-      source.disconnect();
-      for (const t of stream.getTracks()) t.stop();
       void ctx.close();
     },
     setMuted(m: boolean) {
       muted = m;
     },
     // Same audio context and Gemini connection; only the input changes. If the new mic fails, the old one stays.
-    async switchDevice(deviceId: string) {
-      const next = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId));
-      source.disconnect();
-      for (const t of stream.getTracks()) t.stop();
-      stream = next;
-      source = ctx.createMediaStreamSource(stream);
-      source.connect(node);
-    },
-    deviceLabel: () => stream.getAudioTracks()[0]?.label ?? "",
+    // A switch that lands after stop() or after a newer switch stops its own stream ("stopped" / "superseded").
+    switchDevice: (deviceId: string) => slot.switchTo(() => navigator.mediaDevices.getUserMedia(micConstraints(deviceId))),
+    deviceLabel: () => slot.current().getAudioTracks()[0]?.label ?? "",
   };
 }
 
 /** Plays Gemini's 24 kHz PCM16 audio back to back; `interrupt` stops what is queued (the person spoke over it). */
-export function createPlayer(): { play(base64: string): void; interrupt(): void; resume(): Promise<void>; close(): void } {
+export function createPlayer(): { play(base64: string): void; interrupt(): void; busy(): boolean; resume(): Promise<void>; close(): void } {
   const ctx = new AudioContext({ sampleRate: 24_000 });
   let playhead = 0;
   const playing = new Set<AudioBufferSourceNode>();
@@ -80,6 +85,8 @@ export function createPlayer(): { play(base64: string): void; interrupt(): void;
       playing.clear();
       playhead = ctx.currentTime;
     },
+    // Gemini's audio is still queued or playing (its reply is arriving, so the link is alive).
+    busy: () => playing.size > 0,
     // Safari keeps a context made before a click suspended; call this from the click that starts the talk.
     resume: () => ctx.resume(),
     close() {
