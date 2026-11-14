@@ -34,21 +34,41 @@ export function toGeminiResponse(r: ToolResult): Record<string, unknown> {
   return { result: "ok", added: r.added ?? [], note: r.note, tree: r.tree, belowTarget: r.belowTarget ?? [], ...(r.role ? { role: r.role } : {}) };
 }
 
+/** Gemini waits for every tool answer; a local request that hangs must still end so Gemini gets an error back. */
+export const TOOL_TIMEOUT_MS = 20_000;
+
 /** The local server's API. Every write carries the session nonce so an old tab cannot change this talk. */
-export function createApi(nonce: string) {
-  const post = async <T>(path: string, body: unknown): Promise<T> => {
-    const res = await fetch(path, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-why-why-session": nonce },
-      body: JSON.stringify(body),
-    });
-    const json = (await res.json().catch(() => ({}))) as T & { error?: string };
+export function createApi(nonce: string, opts: { toolTimeoutMs?: number } = {}) {
+  const toolTimeoutMs = opts.toolTimeoutMs ?? TOOL_TIMEOUT_MS;
+  const post = async <T>(path: string, body: unknown, timeoutMs?: number): Promise<T> => {
+    const abort = timeoutMs ? new AbortController() : null;
+    const timer = abort ? setTimeout(() => abort.abort(), timeoutMs) : null;
+    const signal = abort?.signal;
+    let res: Response;
+    let json: T & { error?: string };
+    try {
+      res = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-why-why-session": nonce },
+        body: JSON.stringify(body),
+        signal,
+      });
+      json = (await res.json().catch((e: unknown) => {
+        if (signal?.aborted) throw e;
+        return {};
+      })) as T & { error?: string };
+    } catch (e) {
+      if (signal?.aborted) throw new Error(`ローカルのサーバーから ${Math.round(timeoutMs! / 1000)} 秒応答がありません`);
+      throw e;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
     return json;
   };
   return {
     token: (fallback: boolean) => post<TokenInfo>("/api/token", { fallback }),
-    tool: (name: string, args: unknown) => post<ToolResult>("/api/tool", { name, args }),
+    tool: (name: string, args: unknown) => post<ToolResult>("/api/tool", { name, args }, toolTimeoutMs),
     transcript: (speaker: Speaker, text: string) => post<{ ok: true }>("/api/transcript", { speaker, text }),
     draft: (d: Direction) => post<{ ok: true }>("/api/draft", d),
     submit: (d: Direction) => post<{ ok: true }>("/api/submit", d),

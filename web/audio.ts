@@ -85,8 +85,9 @@ export function createPlayer(): { play(base64: string): void; interrupt(): void;
       playing.clear();
       playhead = ctx.currentTime;
     },
-    // Gemini's audio is still queued or playing (its reply is arriving, so the link is alive).
-    busy: () => playing.size > 0,
+    // Gemini's audio is still playing (its reply is arriving, so the link is alive). Measured on the audio clock,
+    // so a context that never runs (suspended) cannot hold the link watch off forever.
+    busy: () => ctx.state === "running" && playhead > ctx.currentTime,
     // Safari keeps a context made before a click suspended; call this from the click that starts the talk.
     resume: () => ctx.resume(),
     close() {

@@ -305,3 +305,17 @@ test("a stalled link resumes with the handle, or falls back to the transcript wi
   assert.deepEqual(nextConnection({ handle: "h1", connectedAt: 0 }, { kind: "stalled" }), { handle: "h1", fallback: false });
   assert.deepEqual(nextConnection({ handle: null, connectedAt: 0 }, { kind: "stalled" }), { handle: null, fallback: true });
 });
+
+test("a tool call whose local request never answers fails after the deadline instead of hanging", async (t) => {
+  const { createApi } = await import("../web/api.ts");
+  const original = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = original;
+  });
+  globalThis.fetch = ((_url: string, init?: RequestInit) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+    })) as typeof fetch;
+  const api = createApi("n", { toolTimeoutMs: 30 });
+  await assert.rejects(api.tool("add_whys", {}), /秒応答がありません/);
+});
