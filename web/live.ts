@@ -12,7 +12,8 @@ export type LiveHandlers = {
   onGrounding?(meta: unknown): void;
   onTurnComplete?(): void;
   /** Any message on the current connection: the link is alive. */
-  onServerMessage?(): void;
+  /** Every message on the current connection; `content` is true when it carries a reply (serverContent or a tool call). */
+  onServerMessage?(content: boolean): void;
 };
 
 const QUICK_CLOSE_MS = 3_000;
@@ -88,7 +89,7 @@ export function connectLive(
 
   // Messages from an older connection that is still draining are handled too (a tool call there must still land).
   async function onMessage(from: LiveSession, m: LiveServerMessage): Promise<void> {
-    if (from === current) h.onServerMessage?.();
+    if (from === current) h.onServerMessage?.(Boolean(m.serverContent || m.toolCall));
     const sc = m.serverContent;
     if (sc?.interrupted) h.onInterrupted();
     for (const part of sc?.modelTurn?.parts ?? []) {

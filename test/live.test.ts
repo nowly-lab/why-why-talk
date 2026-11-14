@@ -87,15 +87,17 @@ test("reconnect() opens a fresh connection with the resumption handle and report
     configs.push(config);
     return { sendClientContent() {}, sendRealtimeInput() {}, sendToolResponse() {}, close() {} };
   };
-  let messages = 0;
+  const messages: boolean[] = [];
   const live = connectLive(async () => ({ token: "t", model: "m", expiresAt: "", config: {} }), {
     onAudio() {}, onInterrupted() {}, onTranscript() {}, onToolCall: async () => [], onStatus() {},
-    onServerMessage: () => void messages++,
+    onServerMessage: (content) => void messages.push(content),
   }, { hasHistory: false, connect });
   await live.start();
   cbs[0]!.onmessage({ sessionResumptionUpdate: { resumable: true, newHandle: "h9" } } as never);
+  cbs[0]!.onmessage({ serverContent: { inputTranscription: { text: "はい" } } } as never);
   await new Promise((r) => setImmediate(r));
-  assert.equal(messages, 1);
+  // Only a reply counts as content; resumption updates keep the link watch's give-up count.
+  assert.deepEqual(messages, [false, true]);
   await live.reconnect();
   assert.equal(cbs.length, 2);
   assert.deepEqual((configs[1] as { sessionResumption: unknown }).sessionResumption, { handle: "h9" });
