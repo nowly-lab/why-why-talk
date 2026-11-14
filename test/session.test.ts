@@ -165,3 +165,50 @@ test("tool result carries depth and belowTarget", async () => {
   assert.ok(!bad.ok);
   assert.deepEqual(bad.belowTarget, [{ id: "n1", depth: 1 }]);
 });
+
+// --- depth in the result (plan v1 Task 3) ---
+function dig(s: TalkSession, levels: number): string {
+  let parent = "n0";
+  for (let i = 1; i <= levels; i++) {
+    const r = s.applyTool("add_whys", { parent_id: parent, items: [{ text: `理由${i}`, viewpoint: "仕組み・道具" }] });
+    assert.ok(r.ok);
+    parent = r.added[0]!;
+    assert.ok(s.applyTool("update_branch", { node_id: parent, state: "digging" }).ok);
+  }
+  return parent;
+}
+
+test("result lists shallow leaves", async () => {
+  const { s } = await session();
+  const tip = dig(s, 2);
+  assert.ok(s.applyTool("update_branch", { node_id: tip, state: "leaf", countermeasure: "監視", reason: "会議の進め方は範囲外" }).ok);
+  s.submit(direction);
+  const md = renderResultMarkdown(s);
+  const i = md.indexOf("## 深さ不足の枝");
+  assert.ok(i > md.indexOf("## 残った疑問") && i < md.indexOf("## なぜの木"));
+  assert.match(md, /## 深さ不足の枝\n\n- n2 理由2（2\/5段） 理由: 会議の進め方は範囲外/);
+});
+
+test("result says none when all leaves reach five", async () => {
+  const { s } = await session();
+  const tip = dig(s, 5);
+  assert.ok(s.applyTool("update_branch", { node_id: tip, state: "leaf", countermeasure: "監視" }).ok);
+  s.submit(direction);
+  assert.match(renderResultMarkdown(s), /## 深さ不足の枝\n\n\(なし\)/);
+});
+
+test("node list shows depth", async () => {
+  const { s } = await session();
+  dig(s, 2);
+  s.submit(direction);
+  assert.match(renderResultMarkdown(s), /- n2 理由2 — 掘っている · 2\/5段 · 仕組み・道具 · 親 n1/);
+});
+
+test("resultJson tree has depth and shallow flag", async () => {
+  const { s } = await session();
+  const tip = dig(s, 2);
+  s.applyTool("update_branch", { node_id: tip, state: "leaf", countermeasure: "監視", reason: "範囲外" });
+  s.submit(direction);
+  const json = resultJson(s);
+  assert.deepEqual(json.tree.map((n) => [n.id, n.depth, n.shallow]), [["n1", 1, false], ["n2", 2, true]]);
+});

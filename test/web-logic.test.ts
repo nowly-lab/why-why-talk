@@ -124,3 +124,15 @@ test("tool response for Gemini keeps belowTarget", async () => {
   const bad = toGeminiResponse({ ok: false, error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
   assert.deepEqual(bad, { error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
 });
+
+test("treeRows depth matches server depth and the depth tag", async () => {
+  const { depthTag } = await import("../web/tree-rows.ts");
+  const nodes = [
+    { id: "n0", parentId: null, text: "論点", state: "digging", depth: 0 },
+    { id: "n1", parentId: "n0", text: "a", state: "digging", depth: 1 },
+    { id: "n2", parentId: "n1", text: "b", state: "leaf", depth: 2, reason: "範囲外" },
+  ];
+  assert.deepEqual(treeRows(nodes).map((r) => r.depth), [0, 1, 2]);
+  assert.equal(depthTag(2), "2/5段");
+  assert.equal(depthTag(7), "7段");
+});

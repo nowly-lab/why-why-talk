@@ -1,6 +1,6 @@
 import type { Direction } from "./api.ts";
 import type { Line } from "./transcript.ts";
-import { treeRows, type TreeNode } from "./tree-rows.ts";
+import { depthTag, TARGET_DEPTH, treeRows, type TreeNode } from "./tree-rows.ts";
 
 const STATE_LABEL: Record<string, string> = {
   candidate: "未調査",
@@ -20,7 +20,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 export function renderTree(container: HTMLElement, nodes: TreeNode[], fresh: Set<string>): void {
   container.replaceChildren();
   for (const { node, depth } of treeRows(nodes)) {
-    const row = el("div", `node s-${node.parentId === null ? "root" : node.state}${fresh.has(node.id) ? " fresh" : ""}`);
+    const shallow = node.parentId !== null && node.state === "leaf" && depth < TARGET_DEPTH;
+    const row = el("div", `node s-${node.parentId === null ? "root" : node.state}${shallow ? " shallow" : ""}${fresh.has(node.id) ? " fresh" : ""}`);
     row.style.setProperty("--depth", String(depth));
     const head = el("div", "head");
     const backed = node.facts?.some((f) => f.supports);
@@ -30,12 +31,13 @@ export function renderTree(container: HTMLElement, nodes: TreeNode[], fresh: Set
     if (node.parentId !== null) {
       const meta = el("div", "meta");
       meta.append(el("span", "tag", STATE_LABEL[node.state] ?? node.state));
+      meta.append(el("span", "tag depth", depthTag(depth)));
       if (node.viewpoint) meta.append(el("span", "tag", node.viewpoint));
       row.append(meta);
     }
     for (const f of node.facts ?? []) row.append(el("div", f.supports ? "fact sup" : "fact neg", `${f.supports ? "支持" : "否定"}: ${f.summary}`));
     if (node.countermeasure) row.append(el("div", "cm", `対策: ${node.countermeasure}`));
-    if (node.reason) row.append(el("div", "reason", `理由: ${node.reason}`));
+    if (node.reason) row.append(el("div", shallow ? "reason shallow-reason" : "reason", `${shallow ? "深さ不足の理由" : "理由"}: ${node.reason}`));
     container.append(row);
   }
 }
