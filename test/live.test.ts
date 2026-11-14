@@ -37,3 +37,22 @@ test("a server that accepts and closes after 0.5 s ends in failed, not an endles
   assert.equal(tokens, MAX_RETRIES + 1);
   live.close();
 });
+
+test("forwards groundingMetadata and turnComplete", async () => {
+  let cb: Parameters<LiveConnect>[2] | undefined;
+  const connect: LiveConnect = async (_t, _c, callbacks) => {
+    cb = callbacks;
+    return { sendClientContent() {}, sendRealtimeInput() {}, sendToolResponse() {}, close() {} };
+  };
+  const seen: string[] = [];
+  const live = connectLive(async () => ({ token: "t", model: "m", expiresAt: "", config: {} }), {
+    onAudio() {}, onInterrupted() {}, onTranscript() {}, onToolCall: async () => [], onStatus() {},
+    onGrounding: (m) => seen.push(`g:${JSON.stringify(m)}`),
+    onTurnComplete: () => seen.push("done"),
+  }, { hasHistory: false, connect });
+  await live.start();
+  cb!.onmessage({ serverContent: { groundingMetadata: { webSearchQueries: ["q"] }, turnComplete: true } } as never);
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(seen, ['g:{"webSearchQueries":["q"]}', "done"]);
+  live.close();
+});

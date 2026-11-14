@@ -136,3 +136,55 @@ test("treeRows depth matches server depth and the depth tag", async () => {
   assert.equal(depthTag(2), "2/5段");
   assert.equal(depthTag(7), "7段");
 });
+
+// --- answers (plan v1 Task 5) ---
+test("readGrounding reads queries and web chunks", async () => {
+  const { readGrounding } = await import("../web/answers.ts");
+  assert.deepEqual(
+    readGrounding({ webSearchQueries: ["a", "b"], groundingChunks: [{ web: { uri: "https://x.example/p", title: "X" } }, { web: { uri: "" } }, {}] }),
+    { queries: ["a", "b"], sources: [{ title: "X", uri: "https://x.example/p" }] },
+  );
+});
+
+test("readGrounding tolerates missing metadata", async () => {
+  const { readGrounding } = await import("../web/answers.ts");
+  assert.deepEqual(readGrounding(undefined), { queries: [], sources: [] });
+  assert.deepEqual(readGrounding({ webSearchQueries: "nope" }), { queries: [], sources: [] });
+});
+
+test("collector pairs the person's question with Gemini's answer", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Workers の無料枠は");
+  c.person("1日何回まで?");
+  c.gemini("1日10万");
+  c.gemini("リクエストです。");
+  c.grounding({ queries: ["workers free limit"], sources: [] });
+  c.grounding({ queries: ["workers free limit", "cloudflare 上限"], sources: [{ title: "D", uri: "https://d.example" }] });
+  assert.deepEqual(c.turnComplete(), {
+    question: "Workers の無料枠は1日何回まで?",
+    answer: "1日10万リクエストです。",
+    queries: ["workers free limit", "cloudflare 上限"],
+    sources: [{ title: "D", uri: "https://d.example" }],
+  });
+});
+
+test("skips an interrupted turn with no answer", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("質問");
+  c.interrupted();
+  assert.equal(c.turnComplete(), null);
+});
+
+test("collector resets after turnComplete", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("q1");
+  c.gemini("a1");
+  assert.ok(c.turnComplete());
+  assert.equal(c.turnComplete(), null);
+  c.person("q2");
+  c.gemini("a2");
+  assert.equal(c.turnComplete()?.question, "q2");
+});

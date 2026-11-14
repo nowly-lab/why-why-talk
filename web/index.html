@@ -50,6 +50,14 @@ section h2 { margin: 0; padding: 10px 14px; font-size: 13px; color: var(--muted)
 .node.s-leaf { border-color: var(--ok); border-width: 2px; }
 .node.s-rejected { opacity: .55; }
 .node.s-hypothesis { border-color: var(--warn); border-style: dashed; }
+.role { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.role[data-role="answerer"] { color: var(--dig); border-color: var(--dig); }
+.asked-box { border-top: 1px solid var(--border); padding: 8px 14px 12px; max-height: 40%; overflow: auto; }
+.asked-box h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.asked { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: var(--gemini); font-size: 14px; }
+.asked .src { font-size: 12px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+.asked .unverified { color: var(--warn); font-weight: 600; }
+.asked a { color: var(--accent); }
 .node.shallow { border-color: var(--warn); }
 .shallow-reason { color: var(--warn); }
 .node.fresh { animation: fresh 2s ease-out; }
@@ -84,6 +92,8 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
     <div class="label">深掘り(Gemini Live との壁打ち)</div>
     <h1 id="topic">読み込んでいます…</h1>
   </div>
+  <span id="role" class="role" data-role="interviewer">Gemini: 聞き手</span>
+  <button id="role-btn" type="button" disabled>役割を交代</button>
   <span id="status" data-kind="idle">読み込んでいます…</span>
   <button id="mic" class="primary" type="button">マイクを開始</button>
 </header>
@@ -91,6 +101,10 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
   <section aria-labelledby="h-talk">
     <h2 id="h-talk">会話</h2>
     <div id="transcript" class="scroll" aria-live="polite"></div>
+    <div id="asked" class="asked-box" hidden>
+      <h3>Gemini に聞いたこと(未確認)</h3>
+      <div class="asked-list"></div>
+    </div>
   </section>
   <section aria-labelledby="h-tree">
     <h2 id="h-tree">なぜの木(✓ 事実で裏付けあり / ? まだ裏付けなし)</h2>

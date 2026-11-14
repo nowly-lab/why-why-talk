@@ -1,10 +1,11 @@
-import { createApi, loadSession, toGeminiResponse, type Direction } from "./api.ts";
+import { createAnswerCollector, readGrounding } from "./answers.ts";
+import { createApi, loadSession, toGeminiResponse, type Direction, type Role } from "./api.ts";
 import { createPlayer, startMic } from "./audio.ts";
 import { connectLive } from "./live.ts";
 import { createSerialQueue } from "./queue.ts";
 import { appendFragment, type Line } from "./transcript.ts";
 import type { TreeNode } from "./tree-rows.ts";
-import { fillDirection, readDirection, renderTranscript, renderTree } from "./ui.ts";
+import { fillDirection, readDirection, renderAnswers, renderTranscript, renderTree } from "./ui.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -24,12 +25,24 @@ export async function boot(): Promise<void> {
   const organiseBtn = $<HTMLButtonElement>("organise");
   const sendBtn = $<HTMLButtonElement>("send");
   const cancelBtn = $<HTMLButtonElement>("cancel");
+  const roleBtn = $<HTMLButtonElement>("role-btn");
+  const roleBadge = $("role");
+  const askedEl = $("asked");
+  let role: Role = view.role;
+  const applyRole = (next: Role) => {
+    role = next;
+    roleBadge.dataset.role = next;
+    roleBadge.textContent = next === "answerer" ? "Gemini: 答える係" : "Gemini: 聞き手";
+    roleBtn.textContent = next === "answerer" ? "聞き手に戻す" : "役割を交代";
+  };
   const setStatus = (text: string, kind: "idle" | "live" | "warn" | "error") => {
     status.textContent = text;
     status.dataset.kind = kind;
   };
   renderTree(treeEl, tree, new Set());
   renderTranscript(transcriptEl, lines);
+  renderAnswers(askedEl, view.asked);
+  applyRole(view.role);
   if (view.draft) fillDirection(form, view.draft);
   if (view.status !== "talking") return finished(view.status === "sent" ? "送信済みです。このタブは閉じて構いません。" : "取りやめました。");
 
@@ -43,14 +56,27 @@ export async function boot(): Promise<void> {
   let muted = false;
 
   const sendInOrder = createSerialQueue();
+  const answers = createAnswerCollector();
   const hasHistory = view.transcript.length > 0 || view.tree.length > 1;
   const live = connectLive((fallback) => api.token(fallback), {
     onAudio: (b64) => player.play(b64),
-    onInterrupted: () => player.interrupt(),
+    onInterrupted: () => {
+      player.interrupt();
+      answers.interrupted();
+    },
     onTranscript: (speaker, text) => {
       lines = appendFragment(lines, speaker, text, Date.now());
       renderTranscript(transcriptEl, lines);
       void sendInOrder(() => api.transcript(speaker, text)).catch(() => undefined);
+      if (role === "answerer") (speaker === "person" ? answers.person(text) : answers.gemini(text));
+    },
+    onGrounding: (meta) => {
+      if (role === "answerer") answers.grounding(readGrounding(meta));
+    },
+    onTurnComplete: () => {
+      if (role !== "answerer") return;
+      const entry = answers.turnComplete();
+      if (entry) void sendInOrder(() => api.answer(entry)).then(() => refresh(new Set())).catch(() => undefined);
     },
     onToolCall: async (calls) => {
       const out = [];
@@ -61,6 +87,10 @@ export async function boot(): Promise<void> {
           response = toGeminiResponse(r);
         } catch (e) {
           response = { error: (e as Error).message };
+        }
+        if (typeof response.role === "string" && response.role !== role) {
+          applyRole(response.role as Role);
+          if (role === "answerer") answers.interrupted();
         }
         out.push({ id: call.id, name: call.name, response });
       }
@@ -86,6 +116,8 @@ export async function boot(): Promise<void> {
     const v = await loadSession();
     tree = v.tree;
     renderTree(treeEl, tree, fresh);
+    renderAnswers(askedEl, v.asked);
+    if (v.role !== role) applyRole(v.role);
     if (v.draft && !form.dataset.edited) fillDirection(form, v.draft);
   }
 
@@ -105,6 +137,7 @@ export async function boot(): Promise<void> {
         await playerReady;
         await live.start();
         micBtn.textContent = "ミュート";
+        roleBtn.disabled = false;
       } catch (e) {
         setStatus(`マイクを使えません: ${(e as Error).message}`, "error");
         mic = null;
@@ -117,6 +150,23 @@ export async function boot(): Promise<void> {
     mic.setMuted(muted);
     micBtn.textContent = muted ? "ミュート解除" : "ミュート";
     setStatus(muted ? "ミュート中" : "話しています", "live");
+  });
+
+  roleBtn.addEventListener("click", async () => {
+    const next: Role = role === "answerer" ? "interviewer" : "answerer";
+    roleBtn.disabled = true;
+    try {
+      await api.role(next);
+      applyRole(next);
+      answers.interrupted();
+      live.sendText(next === "answerer"
+        ? "役割を交代します。ここからあなたは答える係です。私の質問に、Google 検索で確かめてから短く答えてください。木の関数は呼ばないでください。"
+        : "役割を交代します。聞き手に戻ってください。直前に掘っていた枝の続きから、なぜを聞いてください。");
+    } catch (e) {
+      setStatus(`役割を変えられませんでした: ${(e as Error).message}`, "error");
+    } finally {
+      roleBtn.disabled = false;
+    }
   });
 
   organiseBtn.addEventListener("click", () => {
@@ -167,7 +217,7 @@ export async function boot(): Promise<void> {
   function finished(message: string): void {
     document.body.dataset.done = "1";
     setStatus(message, "idle");
-    for (const b of [micBtn, organiseBtn, sendBtn, cancelBtn]) b.disabled = true;
+    for (const b of [micBtn, organiseBtn, sendBtn, cancelBtn, roleBtn]) b.disabled = true;
   }
 }
 

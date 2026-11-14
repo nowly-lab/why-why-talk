@@ -8,6 +8,9 @@ export type LiveHandlers = {
   onTranscript(speaker: "person" | "gemini", text: string): void;
   onToolCall(calls: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>): Promise<Array<{ id?: string; name?: string; response: Record<string, unknown> }>>;
   onStatus(status: "connecting" | "connected" | "reconnecting" | "closed" | "error" | "failed", detail?: string): void;
+  /** Google Search grounding for the current answer (search words, source pages when Live sends them). */
+  onGrounding?(meta: unknown): void;
+  onTurnComplete?(): void;
 };
 
 const QUICK_CLOSE_MS = 3_000;
@@ -90,6 +93,8 @@ export function connectLive(
     }
     if (sc?.inputTranscription?.text) h.onTranscript("person", sc.inputTranscription.text);
     if (sc?.outputTranscription?.text) h.onTranscript("gemini", sc.outputTranscription.text);
+    if (sc?.groundingMetadata) h.onGrounding?.(sc.groundingMetadata);
+    if (sc?.turnComplete) h.onTurnComplete?.();
     if (from === current && m.sessionResumptionUpdate?.resumable && m.sessionResumptionUpdate.newHandle) {
       state.handle = m.sessionResumptionUpdate.newHandle;
     }

@@ -1,4 +1,4 @@
-import type { Direction } from "./api.ts";
+import type { AskedView, Direction } from "./api.ts";
 import type { Line } from "./transcript.ts";
 import { depthTag, TARGET_DEPTH, treeRows, type TreeNode } from "./tree-rows.ts";
 
@@ -65,4 +65,35 @@ export function fillDirection(form: HTMLFormElement, d: Direction): void {
   set("reasons", d.reasons);
   set("rejected", d.rejected);
   set("openQuestions", d.openQuestions);
+}
+
+/** What the person asked Gemini as the answerer: unverified, with search words or source pages. */
+export function renderAnswers(container: HTMLElement, asked: AskedView[]): void {
+  container.hidden = asked.length === 0;
+  const list = container.querySelector(".asked-list") ?? container;
+  list.replaceChildren(
+    ...asked.map((a) => {
+      const item = el("div", "asked");
+      item.append(el("div", "q", `質問: ${a.question || "(聞き取れず)"}`), el("div", "a", `答え: ${a.answer}`));
+      const note = el("div", "src");
+      note.append(el("span", "unverified", "未確認"));
+      if (a.sources.length > 0) {
+        note.append(document.createTextNode(" · 出典: "));
+        a.sources.forEach((src, i) => {
+          if (i > 0) note.append(document.createTextNode(" / "));
+          const link = el("a", undefined, src.title);
+          if (/^https?:\/\//.test(src.uri)) link.href = src.uri;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          note.append(link);
+        });
+      } else if (a.queries.length > 0) {
+        note.append(document.createTextNode(` · 検索: ${a.queries.map((q) => `「${q}」`).join(" ")}`));
+      } else {
+        note.append(document.createTextNode(" · 出典なし"));
+      }
+      item.append(note);
+      return item;
+    }),
+  );
 }
