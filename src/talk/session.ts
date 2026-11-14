@@ -151,7 +151,11 @@ export class TalkSession {
       question: clean(e.question),
       answer,
       queries: e.queries.map(clean).filter((q) => q !== ""),
-      sources: e.sources.map((x) => ({ title: clean(x.title), uri: x.uri.trim() })),
+      // A link that carries a secret is kept as a title only.
+      sources: e.sources.map((x) => {
+        const uri = x.uri.trim();
+        return { title: clean(x.title), uri: redactSecrets(uri, { extra: this.secrets }) === uri ? uri : "" };
+      }),
     });
   }
 

@@ -80,7 +80,7 @@ function askedMarkdown(s: TalkSession): string {
   return s.asked
     .map((a) => {
       const source = a.sources.length > 0
-        ? `出典: ${a.sources.map((x) => `[${x.title.replace(/[[\]]/g, "")}](${x.uri})`).join(" / ")}`
+        ? `出典: ${a.sources.map((x) => (x.uri ? `[${x.title.replace(/[[\]]/g, "")}](${x.uri})` : x.title)).join(" / ")}`
         : a.queries.length > 0
           ? `検索した言葉: ${a.queries.map((q) => `「${q}」`).join("")}（出典ページなし）`
           : "出典なし";

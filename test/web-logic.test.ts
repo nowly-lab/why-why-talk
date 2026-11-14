@@ -188,3 +188,56 @@ test("collector resets after turnComplete", async () => {
   c.gemini("a2");
   assert.equal(c.turnComplete()?.question, "q2");
 });
+
+// --- review round 1 ---
+test("an interrupted question does not leak into the next answer", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.gemini("partial");
+  c.interrupted();
+  assert.equal(c.turnComplete(), null);
+  c.person("Q2");
+  c.gemini("A2");
+  assert.equal(c.turnComplete()?.question, "Q2");
+});
+
+test("a follow-up spoken before the interrupt is kept as the question", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.gemini("partial");
+  c.person("Q2");
+  c.interrupted();
+  c.gemini("A2");
+  assert.deepEqual([c.turnComplete()?.question, c.turnComplete()], ["Q2", null]);
+});
+
+test("Gemini speaking as interviewer ends the person's turn; the question said with 交代して is kept", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("昔の発言");
+  c.otherTurn(); // Gemini spoke as the interviewer
+  c.person("交代して。Workers の無料枠は?");
+  // switch_role arrives; the page starts feeding Gemini's words
+  c.gemini("10万です");
+  assert.equal(c.turnComplete()?.question, "交代して。Workers の無料枠は?");
+});
+
+test("reset clears everything for a role change from the button", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.person("Q1");
+  c.reset();
+  c.gemini("A");
+  assert.equal(c.turnComplete()?.question, "");
+});
+
+test("submit queued behind a pending answer runs after it", async () => {
+  const q = createSerialQueue();
+  const order: string[] = [];
+  void q(async () => { await new Promise((r) => setTimeout(r, 20)); order.push("transcript"); });
+  void q(async () => { order.push("answer"); });
+  await q(async () => { order.push("submit"); });
+  assert.deepEqual(order, ["transcript", "answer", "submit"]);
+});

@@ -284,3 +284,21 @@ test("resultJson has asked", async () => {
   s.submit(direction);
   assert.equal(resultJson(s).asked.length, 1);
 });
+
+test("recordAnswer drops a source link that carries a secret", async () => {
+  const c = clock();
+  const outDir = await mkdtemp(join(tmpdir(), "why-why-talk-"));
+  const s = new TalkSession({ topic: "t", context: "", outDir, now: c.now, secrets: ["example-private-value"] });
+  s.recordAnswer({ question: "q", answer: "a", queries: [], sources: [
+    { title: "leak", uri: "https://example.com/?token=example-private-value" },
+    { title: "gh", uri: "https://example.com/ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123/x" },
+    { title: "ok", uri: "https://example.com/docs" },
+  ] });
+  const json = JSON.stringify(s.snapshot().asked);
+  assert.ok(!json.includes("example-private-value"));
+  assert.ok(!json.includes("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123"));
+  assert.deepEqual(s.asked[0]!.sources.map((x) => [x.title, x.uri]), [["leak", ""], ["gh", ""], ["ok", "https://example.com/docs"]]);
+  s.submit(direction);
+  const md = renderResultMarkdown(s);
+  assert.match(md, /出典: leak \/ gh \/ \[ok\]\(https:\/\/example\.com\/docs\)/);
+});

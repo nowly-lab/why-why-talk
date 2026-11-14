@@ -19,23 +19,27 @@ export function readGrounding(meta: unknown): Grounding {
 
 /**
  * Pairs one question from the person with Gemini's answer while Gemini is the answerer.
- * The page feeds it transcript fragments and grounding, and calls turnComplete at the end of Gemini's turn.
+ * The page feeds it the person's words in every role (so a question said together with 「交代して」 is kept),
+ * Gemini's words and grounding only as the answerer, and calls turnComplete at the end of Gemini's turn.
  */
 export function createAnswerCollector() {
   let question = "";
   let answer = "";
   let queries: string[] = [];
   let sources: Source[] = [];
+  // The person's current words belong to a turn that already ended (answered, interrupted or not recorded).
+  let stale = false;
   const reset = () => {
     question = "";
     answer = "";
     queries = [];
     sources = [];
+    stale = false;
   };
   return {
     person(text: string) {
-      // The person speaking after an answer starts a new question.
-      if (answer !== "") reset();
+      // Speaking after an answer, an interruption or another turn starts a new question.
+      if (answer !== "" || stale) reset();
       question += text;
     },
     gemini(text: string) {
@@ -45,13 +49,24 @@ export function createAnswerCollector() {
       for (const q of g.queries) if (!queries.includes(q)) queries.push(q);
       for (const s of g.sources) if (!sources.some((x) => x.uri === s.uri)) sources.push(s);
     },
+    /** Gemini was cut off: drop its partial answer; the next words from the person start a new question. */
     interrupted() {
       answer = "";
       queries = [];
       sources = [];
+      stale = true;
     },
+    /** Gemini spoke in a turn that is not recorded (as the interviewer). */
+    otherTurn() {
+      stale = true;
+    },
+    /** Forget everything (role changed from the button). */
+    reset,
     turnComplete(): AnswerEntry | null {
-      if (answer.trim() === "") return null;
+      if (answer.trim() === "") {
+        stale = true;
+        return null;
+      }
       const entry = { question: question.trim(), answer: answer.trim(), queries, sources };
       reset();
       return entry;

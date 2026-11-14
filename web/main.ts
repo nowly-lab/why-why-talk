@@ -68,15 +68,25 @@ export async function boot(): Promise<void> {
       lines = appendFragment(lines, speaker, text, Date.now());
       renderTranscript(transcriptEl, lines);
       void sendInOrder(() => api.transcript(speaker, text)).catch(() => undefined);
-      if (role === "answerer") (speaker === "person" ? answers.person(text) : answers.gemini(text));
+      // The person's words are kept in every role, so a question said together with 「交代して」 is not lost.
+      if (speaker === "person") answers.person(text);
+      else if (role === "answerer") answers.gemini(text);
+      else answers.otherTurn();
     },
     onGrounding: (meta) => {
       if (role === "answerer") answers.grounding(readGrounding(meta));
     },
     onTurnComplete: () => {
-      if (role !== "answerer") return;
+      if (role !== "answerer") {
+        answers.otherTurn();
+        return;
+      }
       const entry = answers.turnComplete();
-      if (entry) void sendInOrder(() => api.answer(entry)).then(() => refresh(new Set())).catch(() => undefined);
+      if (entry) {
+        void sendInOrder(() => api.answer(entry))
+          .then(() => refresh(new Set()))
+          .catch((e: unknown) => setStatus(`Gemini の答えを記録できませんでした: ${(e as Error).message}`, "warn"));
+      }
     },
     onToolCall: async (calls) => {
       const out = [];
@@ -90,7 +100,8 @@ export async function boot(): Promise<void> {
         }
         if (typeof response.role === "string" && response.role !== role) {
           applyRole(response.role as Role);
-          if (role === "answerer") answers.interrupted();
+          // Switched by voice: keep the question said in this turn; going back forgets the answerer's turn.
+          if (role === "interviewer") answers.reset();
         }
         out.push({ id: call.id, name: call.name, response });
       }
@@ -158,7 +169,7 @@ export async function boot(): Promise<void> {
     try {
       await api.role(next);
       applyRole(next);
-      answers.interrupted();
+      answers.reset();
       live.sendText(next === "answerer"
         ? "役割を交代します。ここからあなたは答える係です。私の質問に、Google 検索で確かめてから短く答えてください。木の関数は呼ばないでください。"
         : "役割を交代します。聞き手に戻ってください。直前に掘っていた枝の続きから、なぜを聞いてください。");
@@ -196,7 +207,8 @@ export async function boot(): Promise<void> {
     }
     sendBtn.disabled = true;
     try {
-      await api.submit(d);
+      // Behind the queued transcript and answer writes, so an answer just given is recorded before the session ends.
+      await sendInOrder(() => api.submit(d));
       end();
       finished("送信しました。エージェントに結果が届きます。このタブは閉じて構いません。");
     } catch (err) {
