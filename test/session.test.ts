@@ -302,3 +302,14 @@ test("recordAnswer drops a source link that carries a secret", async () => {
   const md = renderResultMarkdown(s);
   assert.match(md, /出典: leak \/ gh \/ \[ok\]\(https:\/\/example\.com\/docs\)/);
 });
+
+test("adding whys under a candidate tells Gemini to mark the parent as digging", async () => {
+  const { s } = await session();
+  s.applyTool("add_whys", { parent_id: "n0", items: [{ text: "コストを抑えたい", viewpoint: "前提・外部" }] });
+  const r = s.applyTool("add_whys", { parent_id: "n1", items: [{ text: "売れるか分からない", viewpoint: "前提・外部" }] });
+  assert.ok(r.ok);
+  assert.match(r.ok ? r.note ?? "" : "", /n1 is still candidate.*update_branch.*n1.*digging/);
+  s.applyTool("update_branch", { node_id: "n1", state: "digging" });
+  const r2 = s.applyTool("add_whys", { parent_id: "n1", items: [{ text: "数を打ちたい", viewpoint: "前提・外部" }] });
+  assert.equal(r2.ok ? r2.note : "x", undefined);
+});

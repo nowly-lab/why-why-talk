@@ -105,7 +105,14 @@ export class TalkSession {
           const r = addWhys(this.analysis, a.parent_id, a.items, this.now);
           this.analysis = r.analysis;
           added = r.added;
-          if (r.skipped.length > 0) note = `already there, skipped: ${r.skipped.join(" / ")}`;
+          const notes: string[] = [];
+          if (r.skipped.length > 0) notes.push(`already there, skipped: ${r.skipped.join(" / ")}`);
+          // The branch being dug should say so: in the 2026-11-14 trial every dug node stayed candidate (未調査).
+          const parent = this.analysis.nodes.find((n) => n.id === a.parent_id);
+          if (parent && parent.parentId !== null && parent.state === "candidate") {
+            notes.push(`${parent.id} is still candidate; you are digging it, so call update_branch(node_id="${parent.id}", state="digging")`);
+          }
+          if (notes.length > 0) note = notes.join("; ");
           break;
         }
         case "add_fact": {

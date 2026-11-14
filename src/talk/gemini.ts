@@ -42,6 +42,7 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "",
     "木の扱い(関数):",
     "- 新しい理由が出たら add_whys で木に足す。根 n0 は論点そのもの。",
+    "- ある枝の下になぜを足したら、その枝を update_branch で digging(掘っている)にする。掘っている枝を未調査のまま残さない。",
     "- 事実が出たら add_fact、枝を掘り始める・止めるときは update_branch。",
     "- 関数の結果には木の一覧(各ノードの段数 depth つき)と、まだ5段に届いていない枝の先 belowTarget が返る。ID はそれを見て使う。ID や関数名は声に出さない。",
     "- 関数が失敗したら、理由を読んで正しく呼び直す。",
