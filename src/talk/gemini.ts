@@ -97,7 +97,8 @@ export function liveConfig(s: TalkSession, opts: { fallback: boolean; voice: str
     systemInstruction: systemInstruction(s, { fallback: opts.fallback }),
     // Search is on in both roles (the token locks the config); the interviewer brief forbids it.
     tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }, { googleSearch: {} }],
-    inputAudioTranscription: {},
+    // Japanese only: auto-detection turned quiet Japanese into Spanish/English fragments (voice trial 2026-11-14).
+    inputAudioTranscription: { languageCodes: ["ja-JP"] },
     outputAudioTranscription: {},
     contextWindowCompression: { slidingWindow: {} },
     // Suspected from the voice trials (2026-11-14): Gemini Live's default end-of-speech detection (high) cuts

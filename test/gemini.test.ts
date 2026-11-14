@@ -44,7 +44,8 @@ test("fallback includes tree summary and transcript tail", async () => {
 test("live config has audio, transcription, compression and tools", async () => {
   const c = liveConfig(await session(), { fallback: false, voice: "Kore" });
   assert.deepEqual(c.responseModalities, ["AUDIO"]);
-  assert.deepEqual(c.inputAudioTranscription, {});
+  // Pinned to Japanese: in the 2026-11-14 trial auto-detection heard Japanese as Spanish and English fragments.
+  assert.deepEqual(c.inputAudioTranscription, { languageCodes: ["ja-JP"] });
   assert.deepEqual(c.outputAudioTranscription, {});
   assert.deepEqual(c.contextWindowCompression, { slidingWindow: {} });
   assert.equal(c.sessionResumption, undefined, "the handle is added by the browser per connection");
