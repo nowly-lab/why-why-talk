@@ -41,7 +41,7 @@ npx -y github:nowly-lab/why-why-talk --topic "<the point>" --context <file.md>
 
 | Exit | Meaning | stdout |
 | --- | --- | --- |
-| 0 | The person sent it | Markdown: 方針, 理由, 見送った案, 残った疑問, なぜの木 (Mermaid + node list), 会話の全文, then a `files:` line |
+| 0 | The person sent it | Markdown: 方針, 理由, 見送った案, 残った疑問, 深さ不足の枝, Gemini に聞いたこと, なぜの木 (Mermaid + node list with each node's depth), 会話の全文, then a `files:` line |
 | 1 | Cancelled, or the tab was closed for 60 s | `取りやめ (<reason>) record: <dir>` |
 | 2 | Could not start (no key, bad arguments, unwritable `--out`) | message on stderr |
 
@@ -52,4 +52,6 @@ Treat exit 0 with an empty or malformed body (no `# 深掘りの結果:` heading
 - Fold the direction and its reasons into the plan. Quote the person's words where they decided something.
 - Treat 残った疑問 as open items: answer the ones the code can answer; ask the rest in the Plannotator Inbox.
 - Branches marked hypothesis are not facts; verify them before building on them.
+- Gemini digs each branch five whys deep; a leaf stopped earlier carries the person's reason and is listed under 深さ不足の枝. Dig those further in the plan, or check that the reason holds.
+- Gemini に聞いたこと holds what the person asked Gemini after swapping roles (button or 「交代して」). Those answers came from Google Search and are unverified: check them before using them.
 - On 取りやめ, do not guess the outcome. The partial record in `<dir>` (transcript, tree) may still help; ask the person how to proceed.

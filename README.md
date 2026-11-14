@@ -1,6 +1,6 @@
 # why-why-talk
 
-Deep-dive one planning question **by voice**. An agent runs one command; a local page opens; you talk with **Gemini Live**, which plays the interviewer: it asks "why?" to go deeper and "what else?" to go wider, and grows a **why tree** on screen as you talk (through function calls). When you are done, Gemini drafts the direction, you edit it and press 送信, and the command prints the result for the agent and exits — the same shape as a [Plannotator](https://github.com/backnotprop/plannotator) plan review.
+Deep-dive one planning question **by voice**. An agent runs one command; a local page opens; you talk with **Gemini Live**, which plays the interviewer: it asks "why?" to go deeper and "what else?" to go wider, and grows a **why tree** on screen as you talk (through function calls). It keeps digging one branch until it is five whys deep. Press 役割を交代 (or say 「交代して」) to ask Gemini about something you don't know; it answers with Google Search, and those answers go to the result marked unverified. When you are done, Gemini drafts the direction, you edit it and press 送信, and the command prints the result for the agent and exits — the same shape as a [Plannotator](https://github.com/backnotprop/plannotator) plan review.
 
 [日本語は下にあります](#日本語)
 

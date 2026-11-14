@@ -112,6 +112,7 @@ test("instruction asks for five whys before widening", async () => {
   assert.match(text, /なぜ〇〇が大事なのですか/);
   assert.match(text, /褒め/);
   assert.match(text, /belowTarget/);
+  assert.match(text, /自分で理由を作らない/);
 });
 
 test("fallback tree lines show depth", async () => {

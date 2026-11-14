@@ -1,25 +1,253 @@
 {
   "schema": "domain-glossary/v1",
   "title": "用語集",
-  "checked": { "revision": "312b216", "date": "2026-11-13" },
+  "checked": {
+    "revision": "32134da",
+    "date": "2026-11-14"
+  },
   "terms": [
-    { "term": "論点", "meaning": "計画の途中で深掘りしたい一点。木の根(n0)になる。", "code": ["topic", "n0"], "nodes": ["cmd-start-talk"], "changed": true },
-    { "term": "調べた内容", "meaning": "エージェントが --context で渡す材料。伏せ字にしてから Gemini への指示に入れる(最大 60,000 文字)。", "code": ["context"], "nodes": ["cmd-start-talk"], "changed": true },
-    { "term": "壁打ちのセッション", "meaning": "1回の深掘り。木・会話・方針の下書きと、送信か取りやめかの結果を持つ。", "code": ["TalkSession"], "nodes": ["agg-session", "agg-session-send"], "changed": true,
-      "evidence": [{ "path": "src/talk/session.ts", "symbol": "TalkSession" }] },
-    { "term": "合言葉", "meaning": "セッションごとの番号。画面からの書き込みに付け、古いタブからの書き込みを断る。", "code": ["nonce"], "nodes": ["agg-session"], "changed": true },
-    { "term": "短期トークン", "meaning": "手元のサーバーが接続ごとに作る、使い捨ての Gemini 用の鍵。モデル・指示・関数が固定される。", "code": ["mintToken"], "nodes": ["cmd-connect"], "changed": true,
-      "evidence": [{ "path": "src/talk/gemini.ts", "symbol": "mintToken" }] },
-    { "term": "なぜ(ノード)", "meaning": "親の現象が起きた理由の候補。観点と状態を持つ。", "code": ["WhyNode"], "nodes": ["agg-tree"], "changed": true,
-      "evidence": [{ "path": "src/model.ts", "symbol": "WhyNode" }] },
-    { "term": "観点", "meaning": "なぜを多方向に出すためのチェックリスト。仕組み・道具/人・体制/手順・プロセス/検知/前提・外部。", "code": ["Viewpoint"], "nodes": ["cmd-grow-tree"], "changed": true },
-    { "term": "事実", "meaning": "人が話した、枝を支持するか否定する事柄。", "code": ["Fact"], "nodes": ["cmd-grow-tree"], "changed": true,
-      "evidence": [{ "path": "src/model.ts", "symbol": "Fact" }] },
-    { "term": "止めた枝", "meaning": "葉(対策あり)・却下(理由あり)・仮説(理由あり)にした枝。その下は掘らない。", "code": ["stoppedAncestor"], "nodes": ["agg-tree"], "changed": true },
-    { "term": "つなぎ直し", "meaning": "Gemini の接続が切れる前(goAway、または25分)に、新しいトークンと引き継ぎの番号で会話を続けること。", "code": ["nextConnection", "sessionResumption"], "nodes": ["pol-goaway"], "changed": true },
-    { "term": "方針の下書き", "meaning": "Gemini が propose_direction で作る、方針・理由・見送った案・残った疑問。人が直してから送る。", "code": ["Direction", "propose_direction"], "nodes": ["ev-draft", "rm-draft"], "changed": true },
-    { "term": "結果", "meaning": "送信で出力するもの。方針・理由・見送った案・残った疑問・なぜの木・会話の全文。", "code": ["renderResultMarkdown", "result.json"], "nodes": ["ev-sent"], "changed": true,
-      "evidence": [{ "path": "src/talk/result.ts", "symbol": "renderResultMarkdown" }] },
-    { "term": "取りやめ", "meaning": "人が取りやめを押すか、タブが閉じて60秒戻らないとき。終了コード 1 で、記録はフォルダに残る。", "code": ["cancel"], "nodes": ["ev-cancelled"], "changed": true }
+    {
+      "term": "論点",
+      "meaning": "計画の途中で深掘りしたい一点。木の根(n0)になる。",
+      "code": [
+        "topic",
+        "n0"
+      ],
+      "nodes": [
+        "cmd-start-talk"
+      ]
+    },
+    {
+      "term": "調べた内容",
+      "meaning": "エージェントが --context で渡す材料。伏せ字にしてから Gemini への指示に入れる(最大 60,000 文字)。",
+      "code": [
+        "context"
+      ],
+      "nodes": [
+        "cmd-start-talk"
+      ]
+    },
+    {
+      "term": "壁打ちのセッション",
+      "meaning": "1回の深掘り。木・会話・方針の下書きと、送信か取りやめかの結果を持つ。",
+      "code": [
+        "TalkSession"
+      ],
+      "nodes": [
+        "agg-session",
+        "agg-session-send"
+      ],
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "TalkSession"
+        }
+      ]
+    },
+    {
+      "term": "合言葉",
+      "meaning": "セッションごとの番号。画面からの書き込みに付け、古いタブからの書き込みを断る。",
+      "code": [
+        "nonce"
+      ],
+      "nodes": [
+        "agg-session"
+      ]
+    },
+    {
+      "term": "短期トークン",
+      "meaning": "手元のサーバーが接続ごとに作る、使い捨ての Gemini 用の鍵。モデル・指示・関数が固定される。",
+      "code": [
+        "mintToken"
+      ],
+      "nodes": [
+        "cmd-connect"
+      ],
+      "evidence": [
+        {
+          "path": "src/talk/gemini.ts",
+          "symbol": "mintToken"
+        }
+      ]
+    },
+    {
+      "term": "なぜ(ノード)",
+      "meaning": "親の現象が起きた理由の候補。観点と状態を持つ。",
+      "code": [
+        "WhyNode"
+      ],
+      "nodes": [
+        "agg-tree"
+      ],
+      "evidence": [
+        {
+          "path": "src/model.ts",
+          "symbol": "WhyNode"
+        }
+      ]
+    },
+    {
+      "term": "観点",
+      "meaning": "なぜを多方向に出すためのチェックリスト。仕組み・道具/人・体制/手順・プロセス/検知/前提・外部。",
+      "code": [
+        "Viewpoint"
+      ],
+      "nodes": [
+        "cmd-grow-tree"
+      ]
+    },
+    {
+      "term": "事実",
+      "meaning": "人が話した、枝を支持するか否定する事柄。",
+      "code": [
+        "Fact"
+      ],
+      "nodes": [
+        "cmd-grow-tree"
+      ],
+      "evidence": [
+        {
+          "path": "src/model.ts",
+          "symbol": "Fact"
+        }
+      ]
+    },
+    {
+      "term": "止めた枝",
+      "meaning": "葉(対策あり)・却下(理由あり)・仮説(理由あり)にした枝。その下は掘らない。",
+      "code": [
+        "stoppedAncestor"
+      ],
+      "nodes": [
+        "agg-tree"
+      ]
+    },
+    {
+      "term": "つなぎ直し",
+      "meaning": "Gemini の接続が切れる前(goAway、または25分)に、新しいトークンと引き継ぎの番号で会話を続けること。",
+      "code": [
+        "nextConnection",
+        "sessionResumption"
+      ],
+      "nodes": [
+        "pol-goaway"
+      ]
+    },
+    {
+      "term": "方針の下書き",
+      "meaning": "Gemini が propose_direction で作る、方針・理由・見送った案・残った疑問。人が直してから送る。",
+      "code": [
+        "Direction",
+        "propose_direction"
+      ],
+      "nodes": [
+        "ev-draft",
+        "rm-draft"
+      ]
+    },
+    {
+      "term": "結果",
+      "meaning": "送信で出力するもの。方針・理由・見送った案・残った疑問・深さ不足の枝・Gemini に聞いたこと・なぜの木・会話の全文。",
+      "code": [
+        "renderResultMarkdown",
+        "result.json"
+      ],
+      "nodes": [
+        "ev-sent"
+      ],
+      "evidence": [
+        {
+          "path": "src/talk/result.ts",
+          "symbol": "renderResultMarkdown"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "term": "取りやめ",
+      "meaning": "人が取りやめを押すか、タブが閉じて60秒戻らないとき。終了コード 1 で、記録はフォルダに残る。",
+      "code": [
+        "cancel"
+      ],
+      "nodes": [
+        "ev-cancelled"
+      ]
+    },
+    {
+      "term": "段数",
+      "meaning": "根(論点)から数えたなぜの深さ。根の直下が 1 段目。目標は 5 段。",
+      "code": [
+        "TARGET_DEPTH",
+        "depth"
+      ],
+      "nodes": [
+        "agg-tree",
+        "rm-tree-view"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/analysis.ts",
+          "symbol": "TARGET_DEPTH"
+        }
+      ]
+    },
+    {
+      "term": "深さ不足",
+      "meaning": "5 段より浅いところで葉にした枝。理由が必須で、結果に理由とともに出る。",
+      "code": [
+        "shallowLeaves"
+      ],
+      "nodes": [
+        "agg-tree",
+        "ev-sent"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/analysis.ts",
+          "symbol": "shallowLeaves"
+        }
+      ]
+    },
+    {
+      "term": "役割",
+      "meaning": "Gemini が聞き手か、答える係か。セッションが持ち、つなぎ直しても引き継ぐ。",
+      "code": [
+        "Role",
+        "setRole",
+        "switch_role"
+      ],
+      "nodes": [
+        "cmd-swap-role",
+        "ev-role-swapped"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "setRole"
+        }
+      ]
+    },
+    {
+      "term": "Gemini に聞いたこと",
+      "meaning": "答える係のときの質問・答え・検索した言葉・出典の記録。木には入れず、未確認として結果に出す。",
+      "code": [
+        "AskedEntry",
+        "recordAnswer"
+      ],
+      "nodes": [
+        "ev-answered",
+        "rm-answers"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "recordAnswer"
+        }
+      ]
+    }
   ]
 }
