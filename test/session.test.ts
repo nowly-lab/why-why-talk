@@ -253,3 +253,34 @@ test("empty answer is refused", async () => {
   const { s } = await session();
   assert.throws(() => s.recordAnswer({ question: "q", answer: "  ", queries: [], sources: [] }), (e: unknown) => e instanceof WhyError && e.code === "invalid_input");
 });
+
+// --- asked in the result (plan v1 Task 6) ---
+test("result lists asked answers as unverified", async () => {
+  const { s } = await session();
+  s.recordAnswer({ question: "無料枠は?", answer: "1日10万です", queries: ["q"], sources: [{ title: "Docs", uri: "https://d.example/p" }] });
+  s.submit(direction);
+  const md = renderResultMarkdown(s);
+  const i = md.indexOf("## Gemini に聞いたこと");
+  assert.ok(i > md.indexOf("## 深さ不足の枝") && i < md.indexOf("## なぜの木"));
+  assert.match(md, /### 質問: 無料枠は\?\n\n答え（未確認）: 1日10万です\n\n出典: \[Docs\]\(https:\/\/d\.example\/p\)/);
+});
+
+test("asked with only queries shows the search words", async () => {
+  const { s } = await session();
+  s.recordAnswer({ question: "q", answer: "a", queries: ["workers 上限", "free plan"], sources: [] });
+  s.submit(direction);
+  assert.match(renderResultMarkdown(s), /検索した言葉: 「workers 上限」「free plan」（出典ページなし）/);
+});
+
+test("no asked shows (なし)", async () => {
+  const { s } = await session();
+  s.submit(direction);
+  assert.match(renderResultMarkdown(s), /## Gemini に聞いたこと\n\n\(なし\)/);
+});
+
+test("resultJson has asked", async () => {
+  const { s } = await session();
+  s.recordAnswer({ question: "q", answer: "a", queries: [], sources: [] });
+  s.submit(direction);
+  assert.equal(resultJson(s).asked.length, 1);
+});

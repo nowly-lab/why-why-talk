@@ -31,6 +31,7 @@ export function renderResultMarkdown(s: TalkSession): string {
     section("見送った案", d?.rejected),
     section("残った疑問", d?.openQuestions),
     section("深さ不足の枝", shallow.join("\n")),
+    section("Gemini に聞いたこと", askedMarkdown(s)),
     `## なぜの木\n\n\`\`\`mermaid\n${renderMermaid(s.analysis)}\`\`\`\n\n${nodes.join("\n") || "(なし)"}\n`,
     `## 会話の全文\n\n${transcriptLines(s.transcript)}\n`,
     "---",
@@ -53,6 +54,7 @@ export function resultJson(s: TalkSession) {
       return { ...n, shallow: n.state === "leaf" && n.depth < TARGET_DEPTH, facts: full.facts, reason: full.reason, countermeasure: full.countermeasure };
     }),
     transcript: s.transcript,
+    asked: s.asked,
     startedAt: s.startedAt,
     files: FILES.map((f) => `${s.outDir}/${f}`),
   };
@@ -71,4 +73,18 @@ function clockTime(iso: string): string {
 /** "2/5段" below the target, plain "7段" at or past it. */
 export function depthLabel(depth: number): string {
   return depth < TARGET_DEPTH ? `${depth}/${TARGET_DEPTH}段` : `${depth}段`;
+}
+
+/** Answers Gemini gave as the answerer. Always marked unverified: they came from search, not from the person. */
+function askedMarkdown(s: TalkSession): string {
+  return s.asked
+    .map((a) => {
+      const source = a.sources.length > 0
+        ? `出典: ${a.sources.map((x) => `[${x.title.replace(/[[\]]/g, "")}](${x.uri})`).join(" / ")}`
+        : a.queries.length > 0
+          ? `検索した言葉: ${a.queries.map((q) => `「${q}」`).join("")}（出典ページなし）`
+          : "出典なし";
+      return `### 質問: ${a.question || "(聞き取れず)"}\n\n答え（未確認）: ${a.answer}\n\n${source}`;
+    })
+    .join("\n\n");
 }
