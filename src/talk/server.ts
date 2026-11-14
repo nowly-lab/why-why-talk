@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { z } from "zod";
-import { WhyError } from "../model.ts";
+import { RoleSchema, WhyError } from "../model.ts";
 import type { TokenInfo } from "./gemini.ts";
 import { renderResultMarkdown } from "./result.ts";
 import type { TalkSession } from "./session.ts";
@@ -31,6 +31,13 @@ const TYPES: Record<string, string> = {
 const DirectionBody = z.object({ direction: z.string(), reasons: z.string(), rejected: z.string(), openQuestions: z.string() });
 const TranscriptBody = z.object({ speaker: z.enum(["person", "gemini"]), text: z.string().max(20_000) });
 const ToolBody = z.object({ name: z.string(), args: z.unknown() });
+const RoleBody = z.object({ role: RoleSchema });
+const AnswerBody = z.object({
+  question: z.string().max(20_000),
+  answer: z.string().max(20_000),
+  queries: z.array(z.string().max(500)).max(20).default([]),
+  sources: z.array(z.object({ title: z.string().max(500), uri: z.string().url().max(2_000) })).max(20).default([]),
+});
 const TokenBody = z.object({ fallback: z.boolean().default(false) });
 
 /** Local server for one talk, bound to 127.0.0.1. Resolves `outcome` once: sent or cancelled. */
@@ -119,6 +126,16 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
         case "/api/transcript": {
           const t = TranscriptBody.parse(body);
           s.appendTranscript(t.speaker, t.text);
+          await s.persist();
+          return json(res, 200, { ok: true });
+        }
+        case "/api/role": {
+          s.setRole(RoleBody.parse(body).role);
+          await s.persist();
+          return json(res, 200, { ok: true, role: s.role });
+        }
+        case "/api/answer": {
+          s.recordAnswer(AnswerBody.parse(body));
           await s.persist();
           return json(res, 200, { ok: true });
         }

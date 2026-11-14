@@ -1,6 +1,6 @@
 import { Type, type FunctionDeclaration } from "@google/genai";
 import { z } from "zod";
-import { NODE_STATES, VIEWPOINTS, ViewpointSchema, NodeStateSchema } from "../model.ts";
+import { NODE_STATES, ROLES, RoleSchema, VIEWPOINTS, ViewpointSchema, NodeStateSchema } from "../model.ts";
 
 /** What Gemini may call during the talk. The server applies each call to the session's tree. */
 export const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
@@ -67,6 +67,15 @@ export const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
       required: ["direction", "reasons", "rejected", "open_questions"],
     },
   },
+  {
+    name: "switch_role",
+    description: "Switch your role when the person says 交代して (to=answerer: you answer their questions using Google Search) or 戻して (to=interviewer: you go back to asking why). Switching to the current role does nothing.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { to: { type: Type.STRING, enum: [...ROLES] } },
+      required: ["to"],
+    },
+  },
 ];
 
 export const ToolArgs = {
@@ -87,6 +96,7 @@ export const ToolArgs = {
     rejected: z.string(),
     open_questions: z.string(),
   }),
+  switch_role: z.object({ to: RoleSchema }),
 };
 
 export type ToolName = keyof typeof ToolArgs;

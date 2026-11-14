@@ -30,8 +30,8 @@ test("session starts talking with the topic as root and a nonce", async () => {
   assert.match(s.nonce, /^[0-9a-f]{32}$/);
 });
 
-test("function declarations are the four tools", () => {
-  assert.deepEqual(FUNCTION_DECLARATIONS.map((f) => f.name), ["add_whys", "add_fact", "update_branch", "propose_direction"]);
+test("function declarations are the five tools", () => {
+  assert.deepEqual(FUNCTION_DECLARATIONS.map((f) => f.name), ["add_whys", "add_fact", "update_branch", "propose_direction", "switch_role"]);
 });
 
 test("applyTool add_whys grows the tree and returns summary", async () => {
@@ -211,4 +211,45 @@ test("resultJson tree has depth and shallow flag", async () => {
   s.submit(direction);
   const json = resultJson(s);
   assert.deepEqual(json.tree.map((n) => [n.id, n.depth, n.shallow]), [["n1", 1, false], ["n2", 2, true]]);
+});
+
+// --- role and asked answers (plan v1 Task 4) ---
+test("setRole switches and survives snapshot", async () => {
+  const { s } = await session();
+  assert.equal(s.role, "interviewer");
+  s.setRole("answerer");
+  assert.equal(s.role, "answerer");
+  assert.equal(s.snapshot().role, "answerer");
+});
+
+test("switch_role to the current role is a no-op", async () => {
+  const { s } = await session();
+  const r = s.applyTool("switch_role", { to: "interviewer" });
+  assert.ok(r.ok);
+  assert.equal(r.role, "interviewer");
+  const r2 = s.applyTool("switch_role", { to: "answerer" });
+  assert.ok(r2.ok && r2.role === "answerer");
+  assert.equal(s.role, "answerer");
+  assert.ok(FUNCTION_DECLARATIONS.some((f) => f.name === "switch_role"));
+});
+
+test("switch_role after sent is refused", async () => {
+  const { s } = await session();
+  s.submit(direction);
+  assert.ok(!s.applyTool("switch_role", { to: "answerer" }).ok);
+  assert.throws(() => s.setRole("answerer"), (e: unknown) => e instanceof WhyError && e.code === "conflict");
+});
+
+test("recordAnswer redacts and stores", async () => {
+  const { s } = await session();
+  s.recordAnswer({ question: "上限は?", answer: "10万です ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123", queries: ["workers 上限"], sources: [{ title: "Docs", uri: "https://example.com/a" }] });
+  assert.equal(s.asked.length, 1);
+  assert.equal(s.asked[0]!.at, "2026-11-13T01:00:00.000Z");
+  assert.ok(!s.asked[0]!.answer.includes("ghp_"));
+  assert.deepEqual(s.snapshot().asked.length, 1);
+});
+
+test("empty answer is refused", async () => {
+  const { s } = await session();
+  assert.throws(() => s.recordAnswer({ question: "q", answer: "  ", queries: [], sources: [] }), (e: unknown) => e instanceof WhyError && e.code === "invalid_input");
 });

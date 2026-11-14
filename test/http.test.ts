@@ -160,3 +160,31 @@ test("server cancel settles the outcome", async () => {
   assert.deepEqual(await srv.outcome, { kind: "cancelled", reason: "コマンドが止められた" });
   await srv.close();
 });
+
+// --- role and answers (plan v1 Task 4) ---
+test("POST /api/role needs the nonce and switches", async () => {
+  const { srv, post, s } = await setup();
+  assert.equal((await post("/api/role", { role: "answerer" }, "old-tab")).status, 409);
+  const r = await post("/api/role", { role: "answerer" });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, role: "answerer" });
+  assert.equal(s.role, "answerer");
+  const snap = await (await fetch(`${srv.url}/api/session`)).json();
+  assert.equal(snap.role, "answerer");
+  await srv.close();
+});
+
+test("bad role is 400", async () => {
+  const { srv, post } = await setup();
+  assert.equal((await post("/api/role", { role: "boss" })).status, 400);
+  await srv.close();
+});
+
+test("POST /api/answer stores an entry", async () => {
+  const { srv, post, s } = await setup();
+  const r = await post("/api/answer", { question: "q", answer: "a", queries: ["w"], sources: [{ title: "t", uri: "https://example.com" }] });
+  assert.equal(r.status, 200);
+  assert.equal(s.asked.length, 1);
+  assert.equal((await post("/api/answer", { question: "q", answer: "" })).status, 400);
+  await srv.close();
+});

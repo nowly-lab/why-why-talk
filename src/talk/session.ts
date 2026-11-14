@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { addFact, addWhys, openBelowTarget, startAnalysis, treeSummary, updateNode, type Clock, type TreeSummary } from "../analysis.ts";
-import { WhyError, type Analysis } from "../model.ts";
+import { WhyError, type Analysis, type Role } from "../model.ts";
 import { redactSecrets } from "../redact.ts";
 import { renderMermaid } from "../render/mermaid.ts";
 import { isToolName, ToolArgs } from "./tools.ts";
@@ -11,10 +11,12 @@ import { renderResultMarkdown, renderTranscriptMarkdown, resultJson } from "./re
 export type Speaker = "person" | "gemini";
 export type TranscriptEntry = { at: string; speaker: Speaker; text: string };
 export type Direction = { direction: string; reasons: string; rejected: string; openQuestions: string };
+export type Source = { title: string; uri: string };
+export type AskedEntry = { at: string; question: string; answer: string; queries: string[]; sources: Source[] };
 export type SessionStatus = "talking" | "sent" | "cancelled";
 export type BelowTarget = Array<{ id: string; depth: number }>;
 export type ToolResult =
-  | { ok: true; added: string[]; tree: TreeSummary; belowTarget: BelowTarget; note?: string }
+  | { ok: true; added: string[]; tree: TreeSummary; belowTarget: BelowTarget; note?: string; role?: Role }
   | { ok: false; error: string; tree: TreeSummary; belowTarget: BelowTarget };
 
 const MERGE_WINDOW_MS = 4_000;
@@ -32,6 +34,10 @@ export class TalkSession {
   draft: Direction | null = null;
   sent: Direction | null = null;
   status: SessionStatus = "talking";
+  /** Who Gemini is right now: the interviewer, or (after 交代) the one answering the person's questions. */
+  role: Role = "interviewer";
+  /** What the person asked Gemini while it was the answerer. Not part of the tree; unverified. */
+  asked: AskedEntry[] = [];
   cancelReason: string | null = null;
   private readonly now: Clock;
   private saving: Promise<void> = Promise.resolve();
@@ -58,6 +64,8 @@ export class TalkSession {
       tree: this.analysis.nodes,
       transcript: this.transcript,
       draft: this.draft,
+      role: this.role,
+      asked: this.asked,
       startedAt: this.startedAt,
     };
   }
@@ -88,6 +96,7 @@ export class TalkSession {
     try {
       let added: string[] = [];
       let note: string | undefined;
+      let role: Role | undefined;
       switch (name) {
         case "add_whys": {
           const a = ToolArgs.add_whys.parse(args);
@@ -112,12 +121,38 @@ export class TalkSession {
           this.setDraft({ direction: a.direction, reasons: a.reasons, rejected: a.rejected, openQuestions: a.open_questions });
           break;
         }
+        case "switch_role": {
+          const a = ToolArgs.switch_role.parse(args);
+          this.setRole(a.to);
+          role = this.role;
+          break;
+        }
       }
-      return { ok: true, added, tree: treeSummary(this.analysis), belowTarget: openBelowTarget(this.analysis), ...(note ? { note } : {}) };
+      return { ok: true, added, tree: treeSummary(this.analysis), belowTarget: openBelowTarget(this.analysis), ...(note ? { note } : {}), ...(role ? { role } : {}) };
     } catch (e) {
       if (e instanceof WhyError) return fail(`${e.code}: ${e.message}`);
       throw e;
     }
+  }
+
+  /** Switching to the current role does nothing. */
+  setRole(role: Role): void {
+    this.assertTalking();
+    this.role = role;
+  }
+
+  recordAnswer(e: Omit<AskedEntry, "at">): void {
+    this.assertTalking();
+    const clean = (t: string) => redactSecrets(t.trim(), { extra: this.secrets });
+    const answer = clean(e.answer);
+    if (answer === "") throw new WhyError("invalid_input", "an answer needs text");
+    this.asked.push({
+      at: this.now(),
+      question: clean(e.question),
+      answer,
+      queries: e.queries.map(clean).filter((q) => q !== ""),
+      sources: e.sources.map((x) => ({ title: clean(x.title), uri: x.uri.trim() })),
+    });
   }
 
   setDraft(d: Direction): void {

@@ -47,6 +47,11 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "- 関数が失敗したら、理由を読んで正しく呼び直す。",
     "- 相手が「まとめて」と言ったら、propose_direction で方針・理由・見送った案・残った疑問を下書きし、要点を短く声で伝える。",
     "",
+    "役割の交代:",
+    "- 相手が「交代して」と言ったら switch_role(to=\"answerer\")、「戻して」と言ったら switch_role(to=\"interviewer\") を呼ぶ。",
+    "- 画面から「役割を交代します」と届いたら、その役割で続ける(関数は呼ばない)。",
+    ...roleBrief(s.role),
+    "",
     "最初に、論点を一言で確かめてから、最初の「なぜ?」を聞く。",
     "",
     "RESPOND IN JAPANESE. YOU MUST RESPOND UNMISTAKABLY IN JAPANESE.",
@@ -75,11 +80,22 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
   return parts.join("\n");
 }
 
+function roleBrief(role: TalkSession["role"]): string[] {
+  if (role === "interviewer") return ["今の役割: 聞き手", "- Google 検索は使わない。"];
+  return [
+    "今の役割: 答える係",
+    "- 相手の質問に、Google 検索で確かめてから日本語で短く答える。確かでないことは「確かではありません」と言う。",
+    "- 木の関数(add_whys / add_fact / update_branch)は呼ばない。",
+    "- 答えたら「他に聞きたいことはありますか? 戻すときは『戻して』と言ってください」と聞く。",
+  ];
+}
+
 export function liveConfig(s: TalkSession, opts: { fallback: boolean; voice: string }): LiveConnectConfig {
   return {
     responseModalities: [Modality.AUDIO],
     systemInstruction: systemInstruction(s, { fallback: opts.fallback }),
-    tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
+    // Search is on in both roles (the token locks the config); the interviewer brief forbids it.
+    tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }, { googleSearch: {} }],
     inputAudioTranscription: {},
     outputAudioTranscription: {},
     contextWindowCompression: { slidingWindow: {} },
