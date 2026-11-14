@@ -65,7 +65,7 @@ test("update_branch moves a branch and checks rules", async () => {
   assert.ok(s.applyTool("update_branch", { node_id: "n1", state: "digging" }).ok);
   const noCm = s.applyTool("update_branch", { node_id: "n1", state: "leaf" });
   assert.ok(!noCm.ok && /countermeasure/.test(noCm.error));
-  assert.ok(s.applyTool("update_branch", { node_id: "n1", state: "leaf", countermeasure: "期限の監視" }).ok);
+  assert.ok(s.applyTool("update_branch", { node_id: "n1", state: "leaf", countermeasure: "期限の監視", reason: "鍵の管理は外部" }).ok);
 });
 
 test("propose_direction sets draft", async () => {
