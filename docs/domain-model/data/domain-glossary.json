@@ -248,6 +248,62 @@
           "symbol": "recordAnswer"
         }
       ]
+    },
+    {
+      "term": "診断の記録",
+      "meaning": "画面が送る接続・関数・マイク・沈黙の出来事。<out>/events.jsonl に伏せ字をかけて追記する。結果の本文には入れない。",
+      "code": [
+        "appendEvents",
+        "events.jsonl",
+        "/api/log"
+      ],
+      "nodes": [
+        "pol-link-stalled"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "appendEvents"
+        }
+      ]
+    },
+    {
+      "term": "呼びかけ直し",
+      "meaning": "人が話してから15秒 Gemini が何も言わないときに出るボタン。短い一言を送って続きを促す。",
+      "code": [
+        "NUDGE_TEXT",
+        "createStallWatch"
+      ],
+      "nodes": [
+        "pol-link-stalled"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "web/diag.ts",
+          "symbol": "NUDGE_TEXT"
+        }
+      ]
+    },
+    {
+      "term": "マイクの選択",
+      "meaning": "使う入力機器。既定のマイクか一覧から選び、ブラウザに覚える。音量の目盛りと、5秒音が来ないときの警告がある。",
+      "code": [
+        "micOptions",
+        "switchDevice",
+        "createSilenceWatch"
+      ],
+      "nodes": [
+        "cmd-connect"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "web/audio.ts",
+          "symbol": "switchDevice"
+        }
+      ]
     }
   ]
 }

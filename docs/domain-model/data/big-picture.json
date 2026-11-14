@@ -96,8 +96,15 @@
           "path": "web/live.ts",
           "symbol": "connectLive",
           "role": "ui"
+        },
+        {
+          "path": "web/mic.ts",
+          "symbol": "micOptions",
+          "role": "ui"
         }
-      ]
+      ],
+      "note": "マイクは画面で選べ、会話中でもつなぎ直さずに切り替えられる。人の文字起こしは日本語(ja-JP)に固定",
+      "changed": true
     },
     {
       "id": "ext-gemini",
@@ -169,7 +176,7 @@
           "role": "contract"
         }
       ],
-      "note": "関数の結果に各ノードの段数と、まだ 5 段に届いていない枝の一覧を返す",
+      "note": "関数の結果に各ノードの段数と、まだ 5 段に届いていない枝の一覧を返す。未調査の枝の下になぜを足すと、その枝を digging にするよう結果で促す",
       "changed": true
     },
     {
@@ -351,6 +358,38 @@
           "role": "rule"
         }
       ]
+    },
+    {
+      "id": "pol-link-stalled",
+      "type": "policy",
+      "domain": "talk",
+      "text": "話し続けているのに15秒何も返ってこなかったら",
+      "execution": "sync",
+      "note": "切れずに止まった接続とみなし、引き継ぎの番号ですぐつなぎ直す。人の声がないときは Live は何も送らないので、黙っているだけでは動かない",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "web/diag.ts",
+          "symbol": "createLinkWatch",
+          "role": "rule"
+        },
+        {
+          "path": "web/live.ts",
+          "symbol": "reconnect",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "hs-stall",
+      "type": "hotspot",
+      "domain": "talk",
+      "text": "2026-11-14 の声の試しで5分止まった原因はまだ特定できていない(診断の記録 events.jsonl で次に確かめる)",
+      "attach": {
+        "to": "pol-link-stalled",
+        "pos": "above"
+      },
+      "changed": true
     },
     {
       "id": "hs-voice",
@@ -670,6 +709,16 @@
     {
       "from": "rm-answers",
       "to": "person-organise",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-connected",
+      "to": "pol-link-stalled",
+      "kind": "flow"
+    },
+    {
+      "from": "pol-link-stalled",
+      "to": "cmd-connect",
       "kind": "flow"
     }
   ]

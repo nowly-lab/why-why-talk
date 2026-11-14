@@ -12,7 +12,7 @@
       "tech": "TypeScript / Node.js node:http",
       "responsibility": "セッションを持ち、画面を配り、短期トークンを作り、木を守り、結果を出力する",
       "owns": [
-        "セッションの記録(<out>/session.json, transcript.md, tree.mmd, result.*)",
+        "セッションの記録(<out>/session.json, transcript.md, tree.mmd, result.*, events.jsonl)",
         "Gemini の API キー"
       ],
       "contract": [
@@ -114,7 +114,7 @@
     {
       "from": "web",
       "to": "cli",
-      "label": "関数呼び出し・文字起こし・役割・答えの記録・送信",
+      "label": "関数呼び出し・文字起こし・役割・答えの記録・送信・診断の記録",
       "changed": true
     },
     {
