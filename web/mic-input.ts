@@ -39,19 +39,80 @@ export function createInputSlot<S extends Stream>(first: S, wire: { attach(s: S)
   };
 }
 
-/** Starts the mic with the current choice, then applies a choice made while it was starting. A failing late switch keeps the first mic. */
-export async function startWithLatestChoice<M extends { switchDevice(id: string): Promise<unknown> }>(
-  choice: () => string,
-  start: (id: string) => Promise<M>,
-): Promise<{ mic: M; used: string; switchError?: Error }> {
-  const first = choice();
-  const mic = await start(first);
-  const latest = choice();
-  if (latest === first) return { mic, used: first };
-  try {
-    await mic.switchDevice(latest);
-    return { mic, used: latest };
-  } catch (e) {
-    return { mic, used: first, switchError: e as Error };
+type Switchable = { switchDevice(id: string): Promise<SwitchResult>; stop(): void };
+
+/**
+ * Owns which microphone is chosen and which one is actually feeding the talk. The started mic is handed to
+ * teardown before any follow-up switch, a choice made at any point (while starting or while another switch is
+ * pending) wins in the end, and stop() closes whatever has started, now or when it arrives.
+ * `persist` saves the choice and shows it in the selector. "" is the system default.
+ */
+export function createMicController<M extends Switchable>(
+  deps: { start(id: string): Promise<M>; persist(id: string): void; onSwitchError?(e: Error): void },
+  initial: string,
+) {
+  let choice = initial;
+  let active: string | null = null;
+  let mic: M | null = null;
+  let ended = false;
+
+  // Switch until the active mic matches the latest choice. A superseded switch leaves the newer call to finish.
+  async function sync(): Promise<void> {
+    while (mic && !ended && choice !== active) {
+      const target = choice;
+      let result: SwitchResult;
+      try {
+        result = await mic.switchDevice(target);
+      } catch (e) {
+        if (choice === target && active !== null) {
+          choice = active;
+          deps.persist(active);
+        }
+        throw e;
+      }
+      if (result !== "switched") return;
+      active = target;
+    }
   }
+
+  return {
+    choice: () => choice,
+    active: () => active,
+    mic: () => mic,
+    /** Starts the mic; a remembered mic that fails (unplugged) falls back to the system default. Null if stop() came first. */
+    async start(): Promise<M | null> {
+      let used = choice;
+      let started: M;
+      try {
+        started = await deps.start(used);
+      } catch (e) {
+        if (!used || ended) throw e;
+        if (choice === used) {
+          choice = "";
+          deps.persist("");
+        }
+        used = "";
+        started = await deps.start("");
+      }
+      if (ended) {
+        started.stop();
+        return null;
+      }
+      mic = started;
+      active = used;
+      // A choice made while starting that cannot be opened leaves the started mic running.
+      await sync().catch((e: unknown) => deps.onSwitchError?.(e as Error));
+      return mic;
+    },
+    /** The person picked a mic. While starting it is only remembered; start() applies it. */
+    async choose(id: string): Promise<void> {
+      choice = id;
+      deps.persist(id);
+      await sync();
+    },
+    stop() {
+      ended = true;
+      mic?.stop();
+    },
+  };
 }

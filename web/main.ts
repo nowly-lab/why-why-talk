@@ -3,7 +3,7 @@ import { createApi, loadSession, toGeminiResponse, type Direction, type Role } f
 import { createPlayer, startMic, type Mic } from "./audio.ts";
 import { createDiagLog, createLinkWatch, createStallWatch, NUDGE_TEXT } from "./diag.ts";
 import { connectLive } from "./live.ts";
-import { startWithLatestChoice } from "./mic-input.ts";
+import { createMicController } from "./mic-input.ts";
 import { createSilenceWatch, loadMicChoice, meterValue, micOptions, saveMicChoice } from "./mic.ts";
 import { createSerialQueue } from "./queue.ts";
 import { appendFragment, type Line } from "./transcript.ts";
@@ -58,7 +58,6 @@ export async function boot(): Promise<void> {
   setStatus("マイクを開始すると、Gemini が質問を始めます", "idle");
 
   const player = createPlayer();
-  let mic: Mic | null = null;
   let muted = false;
 
   // Microphone choice ("" = system default), remembered per browser; switchable mid-talk without reconnecting.
@@ -71,10 +70,21 @@ export async function boot(): Promise<void> {
       return null;
     }
   })();
-  let micChoice = loadMicChoice(storage);
+  // Which mic is chosen and which one actually feeds the talk; races between start, switches and the end live there.
+  const mics = createMicController<Mic>({
+    start: (id) => startMic((b64) => live.sendAudio(b64), { deviceId: id, onLevel }),
+    persist: (id) => {
+      saveMicChoice(storage, id);
+      micSelect.value = id;
+    },
+    onSwitchError: (e) => {
+      setStatus(`そのマイクを使えません: ${e.message}`, "error");
+      diag.log("mic.switch_failed", e.message);
+    },
+  }, loadMicChoice(storage));
   async function refreshMics(): Promise<void> {
     try {
-      const { options, selected } = micOptions(await navigator.mediaDevices.enumerateDevices(), micChoice);
+      const { options, selected } = micOptions(await navigator.mediaDevices.enumerateDevices(), mics.choice());
       micSelect.replaceChildren(...options.map((o) => new Option(o.label, o.id, false, o.id === selected)));
       micSelect.value = selected;
     } catch {
@@ -91,7 +101,7 @@ export async function boot(): Promise<void> {
     const change = silence.sample(level, muted, Date.now());
     if (change === "silent") {
       silentWarned = true;
-      diag.log("mic.silent", mic?.deviceLabel());
+      diag.log("mic.silent", mics.mic()?.deviceLabel());
       setStatus("マイクの音が届いていません。右のマイクの選択を確かめてください", "warn");
     } else if (change === "heard" && silentWarned) {
       diag.log("mic.heard");
@@ -101,25 +111,17 @@ export async function boot(): Promise<void> {
   };
   micSelect.addEventListener("change", async () => {
     const next = micSelect.value;
-    const previous = micChoice;
-    micChoice = next;
-    saveMicChoice(storage, next);
-    if (!mic) return;
-    micSelect.disabled = true;
     try {
-      const result = await mic.switchDevice(next);
+      // Before the mic has started this only remembers the choice; start applies it.
+      await mics.choose(next);
+      const mic = mics.mic();
       // A newer choice or the end of the talk overtook this one; that path owns the status line.
-      if (result !== "switched" || !mic) return;
+      if (!mic || mics.active() !== next) return;
       diag.log("mic.switch", mic.deviceLabel() || "default");
       setStatus(`マイクを切り替えました: ${mic.deviceLabel() || "既定のマイク"}`, "live");
     } catch (e) {
-      micChoice = previous;
-      micSelect.value = previous;
-      saveMicChoice(storage, previous);
       setStatus(`そのマイクを使えません: ${(e as Error).message}`, "error");
       diag.log("mic.switch_failed", (e as Error).message);
-    } finally {
-      micSelect.disabled = false;
     }
   });
 
@@ -131,8 +133,6 @@ export async function boot(): Promise<void> {
   const hasHistory = view.transcript.length > 0 || view.tree.length > 1;
   // Tool calls Gemini is waiting on; the link watch does not fire meanwhile.
   let toolsPending = 0;
-  // Set by end(): a mic that finishes starting afterwards is stopped at once.
-  let ended = false;
   const live = connectLive((fallback) => api.token(fallback), {
     onAudio: (b64) => {
       geminiActive();
@@ -276,33 +276,14 @@ export async function boot(): Promise<void> {
       live.retry();
       return;
     }
+    const mic = mics.mic();
     if (!mic) {
       micBtn.disabled = true;
       try {
         // Both audio contexts must start inside this click (Safari): start them before awaiting anything.
         const playerReady = player.resume();
-        // A mic picked in the selector while this one starts is applied once it has started.
-        const started = await startWithLatestChoice(() => micChoice, (id) =>
-          startMic((b64) => live.sendAudio(b64), { deviceId: id, onLevel }).catch((e: unknown) => {
-            // A remembered mic that was unplugged: fall back to the system default instead of failing.
-            if (!id) throw e;
-            if (micChoice === id) {
-              micChoice = "";
-              saveMicChoice(storage, "");
-            }
-            return startMic((b64) => live.sendAudio(b64), { deviceId: "", onLevel });
-          }));
-        if (ended) {
-          started.mic.stop();
-          return;
-        }
-        mic = started.mic;
-        if (started.switchError) {
-          micChoice = started.used;
-          micSelect.value = started.used;
-          saveMicChoice(storage, started.used);
-          diag.log("mic.switch_failed", started.switchError.message);
-        }
+        // Falls back to the system default if the remembered mic is gone; a mic picked meanwhile is applied after.
+        if (!(await mics.start())) return;
         void refreshMics();
         await playerReady;
         await live.start();
@@ -310,7 +291,6 @@ export async function boot(): Promise<void> {
         roleBtn.disabled = false;
       } catch (e) {
         setStatus(`マイクを使えません: ${(e as Error).message}`, "error");
-        mic = null;
       } finally {
         micBtn.disabled = false;
       }
@@ -350,12 +330,11 @@ export async function boot(): Promise<void> {
   form.addEventListener("change", () => void api.draft(readDirection(form)).catch(() => undefined));
 
   const end = () => {
-    ended = true;
     clearInterval(stallTimer);
     nudgeBtn.hidden = true;
     diag.flush();
     live.close();
-    mic?.stop();
+    mics.stop();
     player.close();
     lease.close();
   };
