@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createSilenceWatch, loadMicChoice, micOptions, MIC_STORAGE_KEY, rms, saveMicChoice } from "../web/mic.ts";
+import { createSilenceWatch, loadMicChoice, meterValue, micOptions, MIC_STORAGE_KEY, rms, saveMicChoice } from "../web/mic.ts";
 
 const dev = (kind: string, deviceId: string, label = "") => ({ kind, deviceId, label }) as MediaDeviceInfo;
 
@@ -48,4 +48,11 @@ test("silence watch never warns while muted, and restarts the clock after unmuti
   assert.equal(w.sample(0, false, 20_100), null);
   assert.equal(w.sample(0, false, 25_000), null);
   assert.equal(w.sample(0, false, 25_100), "silent");
+});
+
+test("meterValue maps -60..0 dBFS to 0..1", () => {
+  assert.equal(meterValue(0), 0);
+  assert.equal(meterValue(1), 1);
+  assert.equal(meterValue(0.001), 0);
+  assert.ok(Math.abs(meterValue(0.01) - 1 / 3) < 1e-9);
 });

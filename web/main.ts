@@ -3,7 +3,7 @@ import { createApi, loadSession, toGeminiResponse, type Direction, type Role } f
 import { createPlayer, startMic, type Mic } from "./audio.ts";
 import { createDiagLog, createStallWatch, NUDGE_TEXT } from "./diag.ts";
 import { connectLive } from "./live.ts";
-import { createSilenceWatch, loadMicChoice, micOptions, saveMicChoice } from "./mic.ts";
+import { createSilenceWatch, loadMicChoice, meterValue, micOptions, saveMicChoice } from "./mic.ts";
 import { createSerialQueue } from "./queue.ts";
 import { appendFragment, type Line } from "./transcript.ts";
 import type { TreeNode } from "./tree-rows.ts";
@@ -84,7 +84,7 @@ export async function boot(): Promise<void> {
   const silence = createSilenceWatch();
   let silentWarned = false;
   const onLevel = (level: number) => {
-    micLevel.value = Math.min(1, level * 8);
+    micLevel.value = meterValue(level);
     const change = silence.sample(level, muted, Date.now());
     if (change === "silent") {
       silentWarned = true;

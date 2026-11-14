@@ -44,6 +44,12 @@ export function rms(samples: Float32Array): number {
   return Math.sqrt(sum / samples.length);
 }
 
+/** 0..1 for the level meter on a -60..0 dBFS scale, so quiet speech still moves it. */
+export function meterValue(level: number): number {
+  if (level <= 0) return 0;
+  return Math.max(0, Math.min(1, (20 * Math.log10(level) + 60) / 60));
+}
+
 /**
  * Watches the input level. Emits "silent" once after SILENCE_WARN_MS of near-zero level while not muted,
  * and "heard" when sound comes back after that. Muting stops and restarts the clock.
