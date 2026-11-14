@@ -12,7 +12,21 @@ export type SessionView = {
   draft: Direction | null;
 };
 export type TokenInfo = { token: string; model: string; expiresAt: string; config: Record<string, unknown> };
-export type ToolResult = { ok: boolean; error?: string; added?: string[]; note?: string; tree: Array<{ id: string; text: string; state: string }> };
+export type ToolResult = {
+  ok: boolean;
+  error?: string;
+  added?: string[];
+  note?: string;
+  role?: "interviewer" | "answerer";
+  tree: Array<{ id: string; text: string; state: string; depth?: number }>;
+  belowTarget?: Array<{ id: string; depth: number }>;
+};
+
+/** What goes back to Gemini for one function call: the tree with depths and the branches still below 5 whys. */
+export function toGeminiResponse(r: ToolResult): Record<string, unknown> {
+  if (!r.ok) return { error: r.error, tree: r.tree, belowTarget: r.belowTarget ?? [] };
+  return { result: "ok", added: r.added ?? [], note: r.note, tree: r.tree, belowTarget: r.belowTarget ?? [], ...(r.role ? { role: r.role } : {}) };
+}
 
 /** The local server's API. Every write carries the session nonce so an old tab cannot change this talk. */
 export function createApi(nonce: string) {

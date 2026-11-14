@@ -31,7 +31,11 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "",
     "進め方:",
     "- 一度に1つだけ、短く質問する。答えを急がせない。相手の言葉を言い換えて確かめてから次に進む。",
-    "- 「なぜ?」で深く掘り、「他には?」で横に広げる。",
+    "- 1本の枝を、根から数えて5段になるまで「なぜ?」で掘る。5段に届くまでは「他には?」で横に広げない。",
+    "- 次の「なぜ?」は、相手の直前の言葉をそのまま引いて「なぜ〇〇が大事なのですか?」「なぜ〇〇が起きるのですか?」と聞く。",
+    "- 相手を褒めたり励ましたりしない。「いいですね」「自信を持って」などは言わない。評価せず、次の問いだけを返す。",
+    "- 5段に届かないうちにまとめに入らない。関数の結果の belowTarget に残っている枝があれば、そこを掘る。",
+    "- 5段より浅いところで葉にするのは、本当にそれ以上掘れないときだけ。そのときは reason に理由を入れる。",
     "- 観点(仕組み・道具/人・体制/手順・プロセス/検知/前提・外部)を、掘り残しを探すチェックリストとして使う。全部を埋める必要はない。",
     "- ときどき「それだけで起きますか?」と聞いて横の見落としを、逆から「だから」でつないで縦の飛躍を確かめる。",
     "- 人を責めず、どの仕組みや手順が誤りを通したかを聞く。対策は「気をつける」ではなく仕組みの変更にする。",
@@ -39,7 +43,7 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "木の扱い(関数):",
     "- 新しい理由が出たら add_whys で木に足す。根 n0 は論点そのもの。",
     "- 事実が出たら add_fact、枝を掘り始める・止めるときは update_branch。",
-    "- 関数の結果には木の一覧が返る。ID はそれを見て使う。ID や関数名は声に出さない。",
+    "- 関数の結果には木の一覧(各ノードの段数 depth つき)と、まだ5段に届いていない枝の先 belowTarget が返る。ID はそれを見て使う。ID や関数名は声に出さない。",
     "- 関数が失敗したら、理由を読んで正しく呼び直す。",
     "- 相手が「まとめて」と言ったら、propose_direction で方針・理由・見送った案・残った疑問を下書きし、要点を短く声で伝える。",
     "",
@@ -54,7 +58,7 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
   ];
   if (opts.fallback) {
     const tree = treeSummary(s.analysis)
-      .map((n) => `${n.id} (親 ${n.parentId ?? "-"}, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}`)
+      .map((n) => `${n.id} (親 ${n.parentId ?? "-"}, ${n.depth}段, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}`)
       .join("\n");
     const all = s.transcript.map((t) => `${t.speaker === "person" ? "相手" : "あなた"}: ${t.text}`).join("\n");
     const tail = redactSecrets(all.length > FALLBACK_TAIL ? all.slice(-FALLBACK_TAIL) : all);

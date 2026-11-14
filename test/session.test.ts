@@ -154,3 +154,14 @@ test("concurrent persists do not collide", async () => {
   for (let i = 0; i < 5; i++) s.appendTranscript("person", `発言${i}`);
   await Promise.all(Array.from({ length: 8 }, () => s.persist()));
 });
+
+test("tool result carries depth and belowTarget", async () => {
+  const { s } = await session();
+  const r = s.applyTool("add_whys", { parent_id: "n0", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
+  assert.ok(r.ok);
+  assert.deepEqual(r.tree.map((n) => n.depth), [0, 1]);
+  assert.deepEqual(r.belowTarget, [{ id: "n1", depth: 1 }]);
+  const bad = s.applyTool("update_branch", { node_id: "nope", state: "digging" });
+  assert.ok(!bad.ok);
+  assert.deepEqual(bad.belowTarget, [{ id: "n1", depth: 1 }]);
+});

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { addFact, addWhys, startAnalysis, treeSummary, updateNode, type Clock, type TreeSummary } from "../analysis.ts";
+import { addFact, addWhys, openBelowTarget, startAnalysis, treeSummary, updateNode, type Clock, type TreeSummary } from "../analysis.ts";
 import { WhyError, type Analysis } from "../model.ts";
 import { redactSecrets } from "../redact.ts";
 import { renderMermaid } from "../render/mermaid.ts";
@@ -12,9 +12,10 @@ export type Speaker = "person" | "gemini";
 export type TranscriptEntry = { at: string; speaker: Speaker; text: string };
 export type Direction = { direction: string; reasons: string; rejected: string; openQuestions: string };
 export type SessionStatus = "talking" | "sent" | "cancelled";
+export type BelowTarget = Array<{ id: string; depth: number }>;
 export type ToolResult =
-  | { ok: true; added: string[]; tree: TreeSummary; note?: string }
-  | { ok: false; error: string; tree: TreeSummary };
+  | { ok: true; added: string[]; tree: TreeSummary; belowTarget: BelowTarget; note?: string }
+  | { ok: false; error: string; tree: TreeSummary; belowTarget: BelowTarget };
 
 const MERGE_WINDOW_MS = 4_000;
 
@@ -76,7 +77,7 @@ export class TalkSession {
 
   /** Never throws for a bad call from Gemini: the error goes back to Gemini so it can try again. */
   applyTool(name: string, args: unknown): ToolResult {
-    const fail = (error: string): ToolResult => ({ ok: false, error, tree: treeSummary(this.analysis) });
+    const fail = (error: string): ToolResult => ({ ok: false, error, tree: treeSummary(this.analysis), belowTarget: openBelowTarget(this.analysis) });
     if (this.status !== "talking") return fail(`the session is ${this.status}`);
     if (!isToolName(name)) return fail(`unknown function ${name}`);
     const parsed = ToolArgs[name].safeParse(args);
@@ -112,7 +113,7 @@ export class TalkSession {
           break;
         }
       }
-      return { ok: true, added, tree: treeSummary(this.analysis), ...(note ? { note } : {}) };
+      return { ok: true, added, tree: treeSummary(this.analysis), belowTarget: openBelowTarget(this.analysis), ...(note ? { note } : {}) };
     } catch (e) {
       if (e instanceof WhyError) return fail(`${e.code}: ${e.message}`);
       throw e;

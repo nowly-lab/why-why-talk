@@ -104,3 +104,20 @@ test("speech detection waits through Japanese pauses but still hears quiet speec
     silenceDurationMs: 1000,
   });
 });
+
+// --- five whys (plan v1 Task 2) ---
+test("instruction asks for five whys before widening", async () => {
+  const text = systemInstruction(await session(), { fallback: false });
+  assert.match(text, /5段/);
+  assert.match(text, /なぜ〇〇が大事なのですか/);
+  assert.match(text, /褒め/);
+  assert.match(text, /belowTarget/);
+});
+
+test("fallback tree lines show depth", async () => {
+  const s = await session();
+  s.applyTool("add_whys", { parent_id: "n0", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
+  s.applyTool("add_whys", { parent_id: "n1", items: [{ text: "期限を誰も見ていない", viewpoint: "人・体制" }] });
+  const text = systemInstruction(s, { fallback: true });
+  assert.match(text, /n2 \(親 n1, 2段/);
+});

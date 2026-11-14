@@ -41,7 +41,7 @@ export const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     name: "update_branch",
-    description: "Change a branch: digging (we are exploring it), leaf (a mechanism change would prevent it; needs countermeasure), hypothesis (cannot be confirmed; needs reason), rejected (ruled out; needs reason), candidate (reopen; needs reason when coming back from rejected or hypothesis).",
+    description: "Change a branch: digging (we are exploring it), leaf (a mechanism change would prevent it; needs countermeasure, and a reason too when the node is fewer than 5 whys deep), hypothesis (cannot be confirmed; needs reason), rejected (ruled out; needs reason), candidate (reopen; needs reason when coming back from rejected or hypothesis).",
     parameters: {
       type: Type.OBJECT,
       properties: {

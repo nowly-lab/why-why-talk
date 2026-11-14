@@ -115,3 +115,12 @@ test("retry budget: a connection that stayed up resets the budget", () => {
   b.stable();
   assert.equal(b.failed(), 1000);
 });
+
+test("tool response for Gemini keeps belowTarget", async () => {
+  const { toGeminiResponse } = await import("../web/api.ts");
+  const ok = toGeminiResponse({ ok: true, added: ["n1"], tree: [{ id: "n1", text: "t", state: "candidate", depth: 1 }], belowTarget: [{ id: "n1", depth: 1 }] });
+  assert.deepEqual(ok.belowTarget, [{ id: "n1", depth: 1 }]);
+  assert.equal(ok.result, "ok");
+  const bad = toGeminiResponse({ ok: false, error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
+  assert.deepEqual(bad, { error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
+});

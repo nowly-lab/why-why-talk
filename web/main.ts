@@ -1,4 +1,4 @@
-import { createApi, loadSession, type Direction } from "./api.ts";
+import { createApi, loadSession, toGeminiResponse, type Direction } from "./api.ts";
 import { createPlayer, startMic } from "./audio.ts";
 import { connectLive } from "./live.ts";
 import { createSerialQueue } from "./queue.ts";
@@ -58,7 +58,7 @@ export async function boot(): Promise<void> {
         let response: Record<string, unknown>;
         try {
           const r = await api.tool(call.name ?? "", call.args ?? {});
-          response = r.ok ? { result: "ok", added: r.added ?? [], note: r.note, tree: r.tree } : { error: r.error, tree: r.tree };
+          response = toGeminiResponse(r);
         } catch (e) {
           response = { error: (e as Error).message };
         }
