@@ -1,0 +1,40 @@
+# why-why-talk's local page before a talk starts: topic, role, microphone, the why tree and the summary
+# fields. A direction is typed into 方針 but nothing is sent, and the microphone is not started, so Gemini
+# Live is never connected (it connects only on マイクを開始).
+# Local: npm ci (builds dist/), then
+#   GEMINI_API_KEY=<key> WHY_WHY_BROWSER=none node dist/cli.js --topic "デモ動画を毎回の PR に付けるべきか？" --out <dir> --no-open
+# It prints "open http://127.0.0.1:<port>" (a random port). Pass that URL as MAESTRO_WHY_URL:
+#   MAESTRO_WHY_URL=http://127.0.0.1:<port> python3 <implementation>/scripts/demo-video/demo_take.py web .maestro/demo/talk-page.yaml <out> \
+#     --points 1200x1222 --window-title "デモ動画を毎回"
+# The page title is "深掘り: <topic>": record by a unique part of the topic, never "深掘り" alone, which also
+# matches any other why-why tab open in your own Chrome.
+# Afterwards stop the CLI (Ctrl-C): it ends with 取りやめ (コマンドが止められた) and sends nothing.
+url: ${MAESTRO_WHY_URL}
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "マイクを開始"
+    timeout: 30000
+# Wait so OpenScreen starts recording before the first action.
+- extendedWaitUntil:
+    visible: "Never shown text"
+    timeout: 9000
+    optional: true
+- assertVisible:
+    text: "マイクを開始すると、Gemini が質問を始めます"
+    label: "声で深掘りする壁打ちページ"
+- scrollUntilVisible:
+    element:
+      text: "方針\\(必須\\)"
+    direction: DOWN
+    label: "なぜの木と整理欄"
+- tapOn:
+    text: "方針\\(必須\\)"
+    label: "方針を書き込む（送信しない）"
+- inputText: "画面が変わる PR には動画を付ける"
+# Hold the last screen briefly before the take ends.
+- extendedWaitUntil:
+    visible: "Never shown text"
+    timeout: 2500
+    optional: true
