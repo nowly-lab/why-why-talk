@@ -448,3 +448,17 @@ test("returnsAfterAnswer only for a swap made by a question, once an answer is r
   assert.equal(returnsAfterAnswer({ role: "answerer", byQuestion: false }, entry), false);
   assert.equal(returnsAfterAnswer({ role: "interviewer", byQuestion: true }, entry), false);
 });
+
+test("leaving the answerer records the answer once, by any path (review R3)", async () => {
+  const { createAnswerCollector, createPendingAnswers, leaveAnswerer } = await import("../web/answers.ts");
+  const saved: string[] = [];
+  const c = createAnswerCollector();
+  const pending = createPendingAnswers(async (e) => { saved.push(`${e.question}|${e.answer}|${e.queries.join(",")}`); });
+  c.person("無料枠の上限は?");
+  c.gemini("1日10万件です。");
+  c.grounding({ queries: ["workers free limit"], sources: [] });
+  assert.equal(leaveAnswerer(c, pending), true);
+  assert.equal(leaveAnswerer(c, pending), false, "nothing left to record the second time");
+  await pending.flush();
+  assert.deepEqual(saved, ["無料枠の上限は?|1日10万件です。|workers free limit"]);
+});

@@ -228,11 +228,9 @@ export class TalkSession {
       let note: string | undefined;
       let role: Role | undefined;
       // Live trial 2026-11-16: after answering a question Gemini went back to asking why without switch_role.
-      // A tree tool from an answerer that a question swapped in means it is interviewing again.
-      if (this.role === "answerer" && this.roleBy === "question" && (name === "add_whys" || name === "add_fact" || name === "update_branch")) {
-        this.setRole("interviewer");
-        role = this.role;
-      }
+      // A tree tool from an answerer that a question swapped in means it is interviewing again; the role changes
+      // only once the tool succeeds, so a refused call leaves everything as it was (review R3).
+      const backToInterviewing = this.role === "answerer" && this.roleBy === "question" && (name === "add_whys" || name === "add_fact" || name === "update_branch");
       switch (name) {
         case "add_whys": {
           const a = ToolArgs.add_whys.parse(args);
@@ -289,6 +287,10 @@ export class TalkSession {
           }
           break;
         }
+      }
+      if (backToInterviewing) {
+        this.setRole("interviewer");
+        role = this.role;
       }
       return { ok: true, added, tree: treeSummary(this.analysis), belowTarget: this.belowTarget(), current: this.current(), ...(note ? { note } : {}), ...(role ? { role } : {}) };
     } catch (e) {

@@ -82,6 +82,17 @@ export function createAnswerCollector() {
 
 type Collector = ReturnType<typeof createAnswerCollector>;
 
+/**
+ * Gemini stops being the answerer (its own switch, the page's fallback, or a role seen on refresh): record the
+ * answer collected so far before the role changes. Returns whether an answer was queued.
+ */
+export function leaveAnswerer(collector: Pick<Collector, "turnComplete">, pending: Pick<ReturnType<typeof createPendingAnswers>, "add">): boolean {
+  const entry = collector.turnComplete();
+  if (!entry) return false;
+  pending.add(entry);
+  return true;
+}
+
 /** After answering a question put to it, Gemini goes back to interviewing; the page switches back if Gemini forgot. */
 export function returnsAfterAnswer(state: { role: "interviewer" | "answerer"; byQuestion: boolean }, entry: AnswerEntry | null): boolean {
   return state.role === "answerer" && state.byQuestion && entry !== null;

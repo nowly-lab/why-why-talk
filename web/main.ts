@@ -1,4 +1,4 @@
-import { createAnswerCollector, createPendingAnswers, readGrounding, returnsAfterAnswer, submitAfterAnswers } from "./answers.ts";
+import { createAnswerCollector, createPendingAnswers, leaveAnswerer, readGrounding, returnsAfterAnswer, submitAfterAnswers } from "./answers.ts";
 import { createApi, loadSession, toGeminiResponse, type Direction, type FileView, type Phase, type Role } from "./api.ts";
 import { acceptDrop } from "./files.ts";
 import { createFreeTalk } from "./free-talk.ts";
@@ -544,12 +544,8 @@ export async function boot(): Promise<void> {
       if (call.name === "switch_role" && !response.error) byQuestion = call.args?.by === "question" && response.role === "answerer";
       if (typeof response.role === "string" && response.role !== role) {
         // Gemini answered a question and switches back within the same turn: record the answer before leaving.
-        if (response.role === "interviewer" && !finishing) {
-          const entry = answers.turnComplete();
-          if (entry) {
-            pendingAnswers.add(entry);
-            void sendInOrder(() => pendingAnswers.flush()).catch(() => undefined);
-          }
+        if (response.role === "interviewer" && role === "answerer" && !finishing && leaveAnswerer(answers, pendingAnswers)) {
+          void sendInOrder(() => pendingAnswers.flush()).catch(() => undefined);
         }
         applyRole(response.role as Role);
         // Switched by voice: keep the question said in this turn; going back starts fresh.
@@ -568,7 +564,14 @@ export async function boot(): Promise<void> {
     applyDives(v);
     showTree(fresh);
     renderAnswers(askedEl, v.asked);
-    if (v.role !== role) applyRole(v.role);
+    if (v.role !== role) {
+      // The server's role changed without a tool answer we saw: keep the answer before leaving the answerer.
+      if (role === "answerer" && !finishing && leaveAnswerer(answers, pendingAnswers)) {
+        void sendInOrder(() => pendingAnswers.flush()).catch(() => undefined);
+      }
+      byQuestion = v.roleBy === "question";
+      applyRole(v.role);
+    }
   }
 
   micBtn.addEventListener("click", async () => {

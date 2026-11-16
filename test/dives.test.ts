@@ -347,7 +347,19 @@ test("a tree tool from an answerer swapped in by a question brings Gemini back a
   assert.equal(s.role, "interviewer");
   assert.equal(r.ok && r.role, "interviewer");
   s.applyTool("switch_role", { to: "answerer" });
-  const refused = s.applyTool("add_whys", { parent_id: "q1", items: [{ text: "別", viewpoint: "検知" }] });
+  const manual = s.applyTool("add_whys", { parent_id: "q1", items: [{ text: "別", viewpoint: "検知" }] });
+  assert.ok(manual.ok && manual.role === undefined, "no implicit switch for an answerer the person asked for");
   assert.equal(s.role, "answerer", "an answerer the person asked for stays");
-  assert.ok(refused.ok || !refused.ok);
+});
+
+test("a rejected tree tool does not change the role (review R3)", async () => {
+  const s = await diving();
+  s.applyTool("switch_role", { to: "answerer", by: "question" });
+  const bad = s.applyTool("add_whys", { parent_id: "q2", items: [{ text: "x", viewpoint: "検知" }] });
+  assert.equal(bad.ok, false);
+  assert.equal(s.role, "answerer");
+  assert.equal(s.roleBy, "question");
+  const unknown = s.applyTool("update_branch", { node_id: "n99", state: "digging" });
+  assert.equal(unknown.ok, false);
+  assert.equal(s.role, "answerer");
 });
