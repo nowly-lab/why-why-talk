@@ -10,7 +10,8 @@ import { GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_MODEL, DEFAULT_VOICE, mintToken } from "../src/talk/gemini.ts";
+import { DEFAULT_MODEL, DEFAULT_VOICE, mintToken, type Seed } from "../src/talk/gemini.ts";
+import { ROLE_KICK } from "../web/answers.ts";
 import { TalkSession } from "../src/talk/session.ts";
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -29,8 +30,8 @@ s.startDeepDive();
 
 type Run = { session: Session; transcript: string; toolCalls: string[]; toolErrors: string[]; queries: string[]; handle: string | null; turnDone: Promise<void>; finishTurn: () => void };
 
-async function connect(handle: string | null, label: string): Promise<Run> {
-  const t = await mintToken({ apiKey: apiKey!, model, voice }, s, { fallback: false });
+async function connect(handle: string | null, label: string, seed: Seed = { fallback: false }): Promise<Run> {
+  const t = await mintToken({ apiKey: apiKey!, model, voice }, s, seed);
   const ai = new GoogleGenAI({ apiKey: t.token, httpOptions: { apiVersion: "v1beta" } });
   const run = { transcript: "", toolCalls: [] as string[], toolErrors: [] as string[], queries: [] as string[], handle: null as string | null } as Run;
   run.turnDone = new Promise((r) => (run.finishTurn = r));
@@ -111,10 +112,20 @@ console.log("shallow leaf without the person's reason avoided:", tipNode?.state 
 console.log("tip after:", JSON.stringify(s.analysis.nodes.find((n) => n.id === tip)));
 await say(c, "交代して。");
 console.log("role after 交代して:", s.role, "| calls:", c.toolCalls.join(", "));
-await say(c, "Cloudflare Workers の無料プランで、1日に使えるリクエスト数の上限は?");
-console.log("grounding queries:", c.queries.join(" / ") || "(none)");
-console.log("answer:", c.transcript.slice(-200));
 c.session.close();
+// As the page does after 交代して: a new session seeded for the role switch, with the talk so far.
+s.appendTranscript("person", "期限切れのキーで決済が止まったので、キーの期限を監視したいと思っています。");
+s.appendTranscript("gemini", "なぜそこで止めてよいのですか?");
+s.appendTranscript("person", "交代して。");
+const r = await connect(null, "role-restart", { fallback: true, roleSwitch: true });
+await say(r, ROLE_KICK.answerer);
+await say(r, "Cloudflare Workers の無料プランで、1日に使えるリクエスト数の上限は?");
+console.log("grounding queries:", r.queries.join(" / ") || "(none)");
+console.log("answer after the role-switch restart:", r.transcript.slice(-200));
+console.log("answered instead of asking why:", !/なぜ/.test(r.transcript.slice(-120)));
+await say(r, "私が最初に話していた、監視したいものは何でしたか?一言で。");
+console.log("remembers the talk before the switch:", /期限/.test(r.transcript.slice(-80)), "|", r.transcript.slice(-80));
+r.session.close();
 
 // A question put to Gemini while it interviews: it swaps by itself, answers with search and comes back.
 s.setRole("interviewer");
