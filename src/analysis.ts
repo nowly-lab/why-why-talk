@@ -15,18 +15,49 @@ const ALLOWED: Record<NodeState, NodeState[]> = {
   leaf: ["digging"],
 };
 
-export function startAnalysis(input: { id: string; title: string; problem: string }, now: Clock): Analysis {
+/** With a problem the tree starts at root n0; without one it starts empty and gets one root per question (addRoot). */
+export function startAnalysis(input: { id: string; title: string; problem?: string }, now: Clock): Analysis {
   const at = now();
-  const problem = redactSecrets(input.problem);
+  const problem = input.problem === undefined ? "" : redactSecrets(input.problem);
   return {
     id: input.id,
     title: redactSecrets(input.title),
     problem,
     status: "open",
-    nodes: [{ id: "n0", parentId: null, text: problem, viewpoint: null, state: "digging", facts: [] }],
+    nodes: input.problem === undefined ? [] : [{ id: "n0", parentId: null, text: problem, viewpoint: null, state: "digging", facts: [] }],
     createdAt: at,
     updatedAt: at,
   };
+}
+
+export const ROOT_ID = /^q[1-9][0-9]?$/;
+
+/** Adds the root of one checked question (q1, q2, … in list order). It starts as digging. */
+export function addRoot(a: Analysis, root: { id: string; text: string }, now: Clock): Analysis {
+  assertOpen(a);
+  if (!ROOT_ID.test(root.id)) throw new WhyError("invalid_input", `a question root id looks like q1, got ${root.id}`);
+  const text = redactSecrets(root.text.trim());
+  if (text === "") throw new WhyError("invalid_input", "a question needs text");
+  if (a.nodes.some((n) => n.id === root.id)) throw new WhyError("duplicate", `root ${root.id} already exists`);
+  return { ...a, nodes: [...a.nodes, { id: root.id, parentId: null, text, viewpoint: null, state: "digging", facts: [] }], updatedAt: now() };
+}
+
+/** The id of the root above a node (the node itself for a root). */
+export function rootOf(a: Analysis, nodeId: string): string {
+  let cur = findNode(a, nodeId);
+  for (let i = 0; cur.parentId !== null && i <= a.nodes.length; i++) cur = findNode(a, cur.parentId);
+  return cur.id;
+}
+
+/**
+ * Whether Gemini may move on from a question: a branch reached TARGET_DEPTH and no open branch tip is still shallower.
+ * `open` lists those shallow tips so a refusal can name them.
+ */
+export function questionReady(a: Analysis, rootId: string): { ready: boolean; reached: boolean; open: Array<{ id: string; depth: number }> } {
+  const depths = depthMap(a);
+  const reached = a.nodes.some((n) => (depths.get(n.id) ?? 0) >= TARGET_DEPTH && rootOf(a, n.id) === rootId);
+  const open = openBelowTarget(a, rootId);
+  return { ready: reached && open.length === 0, reached, open };
 }
 
 export function addWhys(
@@ -133,13 +164,16 @@ export function shallowLeaves(a: Analysis): WhyNode[] {
   return a.nodes.filter((n) => n.state === "leaf" && (depths.get(n.id) ?? 0) < TARGET_DEPTH);
 }
 
-/** Open branch tips (candidate or digging, with no open child) that are still shallower than TARGET_DEPTH. */
-export function openBelowTarget(a: Analysis): Array<{ id: string; depth: number }> {
+/** Open branch tips (candidate or digging, with no open, leaf or hypothesis child) that are still shallower than TARGET_DEPTH. */
+export function openBelowTarget(a: Analysis, rootId?: string): Array<{ id: string; depth: number }> {
   const depths = depthMap(a);
   const open = (n: WhyNode) => n.parentId !== null && (n.state === "candidate" || n.state === "digging");
   return a.nodes
     .filter((n) => open(n) && stoppedAncestor(a, n) === null)
-    .filter((n) => !a.nodes.some((c) => c.parentId === n.id && open(c)))
+    // A node whose branch went on (an open child) or ended below it (a leaf or hypothesis child) is not a tip.
+    // A rejected child does not count: the node still needs a reason.
+    .filter((n) => !a.nodes.some((c) => c.parentId === n.id && (open(c) || c.state === "leaf" || c.state === "hypothesis")))
+    .filter((n) => rootId === undefined || rootOf(a, n.id) === rootId)
     .map((n) => ({ id: n.id, depth: depths.get(n.id) ?? 0 }))
     .filter((t) => t.depth < TARGET_DEPTH);
 }
@@ -181,7 +215,8 @@ function assertOpen(a: Analysis): void {
 }
 
 function nextSeq(a: Analysis): number {
-  return a.nodes.reduce((max, n) => Math.max(max, Number(n.id.slice(1)) || 0), 0) + 1;
+  // Only why ids (n1, n2, …) count; question roots (q1, …) have their own numbering.
+  return a.nodes.reduce((max, n) => (n.id.startsWith("n") ? Math.max(max, Number(n.id.slice(1)) || 0) : max), 0) + 1;
 }
 
 function replaceNode(a: Analysis, node: WhyNode, now: Clock): Analysis {

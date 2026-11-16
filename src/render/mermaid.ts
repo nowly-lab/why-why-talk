@@ -15,7 +15,10 @@ const CLASS_DEFS: Array<[NodeState | "root", string]> = [
  * Mermaid flowchart of the tree. Node ids equal tree ids, so a comment on a node in the
  * Plannotator Inbox diagram viewer comes back with the id the MCP tools take.
  */
-export function renderMermaid(a: Analysis, opts: { maxNodes?: number } = {}): string {
+export function renderMermaid(whole: Analysis, opts: { maxNodes?: number; rootId?: string } = {}): string {
+  // One question's tree only, when asked; the rest of the rendering is unchanged.
+  const keep = opts.rootId === undefined ? null : subtreeIds(whole, [opts.rootId]);
+  const a = keep === null ? whole : { ...whole, nodes: whole.nodes.filter((n) => keep.has(n.id)) };
   const maxNodes = opts.maxNodes ?? 40;
   let hidden = new Set<string>();
   if (a.nodes.length > maxNodes) {
