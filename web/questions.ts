@@ -50,7 +50,7 @@ export function selectedLabel(list: Question[]): string {
 export const MAX_QUESTIONS = 10;
 
 /** The checklist rows (layout A): check, number, editable text, up, down, delete. Every edit calls `change`. */
-export function renderQuestionList(el: HTMLElement, list: Question[], on: { change(list: Question[]): void }): void {
+export function renderQuestionList(el: HTMLElement, list: Question[], on: { change(list: Question[]): void }, opts: { locked?: boolean } = {}): void {
   const rows = list.map((q, i) => {
     const row = document.createElement("div");
     row.className = "q-row";
@@ -67,13 +67,15 @@ export function renderQuestionList(el: HTMLElement, list: Question[], on: { chan
       b.addEventListener("click", fn);
       return b;
     };
+    // Locked while 深掘りを始める or 送信 is settling: an edit then could not reach the dive.
+    if (opts.locked) for (const c of [check, text]) c.disabled = true;
     row.append(
       check,
       num,
       text,
-      button("↑", "上へ", "move", () => on.change(moveQuestion(list, i, i - 1)), i === 0),
-      button("↓", "下へ", "move", () => on.change(moveQuestion(list, i, i + 1)), i === list.length - 1),
-      button("削除", "削除", "", () => on.change(list.filter((_, j) => j !== i))),
+      button("↑", "上へ", "move", () => on.change(moveQuestion(list, i, i - 1)), i === 0 || !!opts.locked),
+      button("↓", "下へ", "move", () => on.change(moveQuestion(list, i, i + 1)), i === list.length - 1 || !!opts.locked),
+      button("削除", "削除", "", () => on.change(list.filter((_, j) => j !== i)), !!opts.locked),
     );
     return row;
   });
@@ -120,6 +122,14 @@ export function createLatestSaver<T>(post: (value: T) => Promise<T>, apply: (sav
       return run;
     },
     settled: () => latest,
+    /** Waits until no save is left, including saves started while waiting; rejects if the last one failed. */
+    async drain(): Promise<void> {
+      let seen: Promise<void>;
+      do {
+        seen = latest;
+        await seen;
+      } while (seen !== latest);
+    },
   };
 }
 

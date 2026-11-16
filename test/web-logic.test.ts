@@ -409,3 +409,22 @@ test("a task tracker waits for every pending upload", async () => {
   assert.equal(done, true);
   assert.equal(t.pending(), 0);
 });
+
+// --- re-review R2: drain waits for saves started while waiting ---
+test("createLatestSaver.drain waits for a save started during the wait", async () => {
+  const { createLatestSaver } = await import("../web/questions.ts");
+  const releases: Array<() => void> = [];
+  const applied: string[] = [];
+  const saver = createLatestSaver<string>((v) => new Promise((r) => releases.push(() => r(v))), (v) => applied.push(v));
+  void saver.save("A");
+  await new Promise((r) => setTimeout(r, 0));
+  let drained = false;
+  const d = saver.drain().then(() => { drained = true; });
+  void saver.save("AB");
+  releases[0]();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(drained, false, "AB is still being saved");
+  releases[1]();
+  await d;
+  assert.deepEqual(applied, ["AB"]);
+});

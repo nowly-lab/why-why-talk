@@ -97,7 +97,7 @@ export async function boot(): Promise<void> {
     }));
   };
   const freeTalk = createFreeTalk({
-    postAudio: async (wav) => (await api.audio(wav)).text,
+    postAudio: async (wav, order) => (await api.audio(wav, order)).text,
     onText: (text, seq) => {
       freeLines.push({ at: Date.now(), text, seq });
       freeLines.sort((a, b) => a.seq - b.seq);
@@ -179,12 +179,18 @@ export async function boot(): Promise<void> {
   // --- question list ---
   const qListEl = $("q-list");
   const startBtn = $<HTMLButtonElement>("start-dive");
+  // Set while 深掘りを始める or 送信 is settling: the list cannot change under them.
+  let listLocked = false;
   const renderQuestions = () => {
-    renderQuestionList(qListEl, questions, { change: (next) => void saveQuestions(next) });
+    renderQuestionList(qListEl, questions, { change: (next) => void saveQuestions(next) }, { locked: listLocked });
     $("q-count").textContent = `${questions.length} / ${MAX_QUESTIONS}件`;
     $("q-selected").textContent = selectedLabel(questions);
-    startBtn.disabled = !canStart(questions);
-    $<HTMLButtonElement>("q-add").disabled = questions.length >= MAX_QUESTIONS;
+    startBtn.disabled = listLocked || !canStart(questions);
+    for (const id of ["q-add", "q-resplit", "q-back"]) $<HTMLButtonElement>(id).disabled = listLocked || (id === "q-add" && questions.length >= MAX_QUESTIONS);
+  };
+  const lockList = (locked: boolean) => {
+    listLocked = locked;
+    renderQuestions();
   };
   // Saves go in edit order and only the newest answer is applied, so a slow early save cannot undo a later check.
   const questionSaver = createLatestSaver<Question[]>(async (list) => (await api.questions(list)).questions, (saved) => {
@@ -591,14 +597,14 @@ export async function boot(): Promise<void> {
 
   // 深掘りを始める: the checked questions become the dives; Gemini Live connects if the mic is already open.
   startBtn.addEventListener("click", async () => {
-    startBtn.disabled = true;
+    lockList(true);
     try {
       if (!(await materialReady())) {
-        startBtn.disabled = !canStart(questions);
+        lockList(false);
         return;
       }
-      // The roots come from the list the server holds: wait until every edit is saved.
-      await questionSaver.settled();
+      // The roots come from the list the server holds: wait until every edit is saved (the list is locked meanwhile).
+      await questionSaver.drain();
       applyDives(await api.diveStart());
       setPhase("deep_dive");
       fillPick();
@@ -611,7 +617,7 @@ export async function boot(): Promise<void> {
         setStatus("マイクを開始すると、Gemini が最初の問いを読み上げて質問を始めます", "idle");
       }
     } catch (e) {
-      startBtn.disabled = !canStart(questions);
+      lockList(false);
       setStatus(`深掘りを始められませんでした: ${(e as Error).message}`, "error");
     }
   });
@@ -684,6 +690,7 @@ export async function boot(): Promise<void> {
       return;
     }
     sendBtn.disabled = true;
+    if (phase === "questions") lockList(true);
     try {
       // Freeze collection, record the answer heard so far, then submit behind every queued write.
       await submitAfterAnswers({
@@ -696,7 +703,7 @@ export async function boot(): Promise<void> {
         pending: pendingAnswers,
         submit: async () => {
           if (!(await materialReady())) throw new Error("文字起こしに失敗した部分があります");
-          await questionSaver.settled();
+          await questionSaver.drain();
           await api.submit(directions);
         },
       });
@@ -705,6 +712,7 @@ export async function boot(): Promise<void> {
     } catch (err) {
       finishing = false;
       sendBtn.disabled = false;
+      if (phase === "questions") lockList(false);
       setStatus(`送信できませんでした: ${(err as Error).message}`, "error");
     }
   });

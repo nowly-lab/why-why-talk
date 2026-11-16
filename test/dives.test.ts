@@ -312,3 +312,13 @@ test("addFile is refused in the deep dive before any model work (canAddFile)", a
   assert.equal(s.canAddFile(), false);
   assert.equal((await fresh()).canAddFile(), true);
 });
+
+// --- re-review R1: the server keeps free talk in speaking order, not arrival order ---
+test("a retried free-talk segment takes its place by order everywhere", async () => {
+  const s = await fresh();
+  s.appendFreeTalk("B: それは違う", 2);
+  s.appendFreeTalk("A: 古い案を使う", 1);
+  assert.deepEqual(s.freeTalk.map((t) => t.text), ["A: 古い案を使う", "B: それは違う"]);
+  assert.equal(s.splitInput().freeTalk, "A: 古い案を使う\nB: それは違う");
+  assert.match(renderResultMarkdown((s.submit({}), s)), /あなた: A: 古い案を使う\n.*あなた: B: それは違う/);
+});

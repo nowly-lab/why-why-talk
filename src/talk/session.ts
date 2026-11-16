@@ -10,7 +10,7 @@ import { renderResultMarkdown, renderTranscriptMarkdown, resultJson } from "./re
 import { MAX_QUESTIONS, type FileSummary, type SplitInput } from "./text-model.ts";
 
 export type Speaker = "person" | "gemini";
-export type TranscriptEntry = { at: string; speaker: Speaker; text: string };
+export type TranscriptEntry = { at: string; speaker: Speaker; text: string; order?: number };
 export type Direction = { direction: string; reasons: string; rejected: string; openQuestions: string };
 export type Source = { title: string; uri: string };
 export type AskedEntry = { at: string; question: string; answer: string; queries: string[]; sources: Source[] };
@@ -99,13 +99,19 @@ export class TalkSession {
     return d ? { questionId: d.questionId, text: d.text } : null;
   }
 
-  /** One transcribed free-talk segment. Segments are already whole utterances, so they are not merged. */
-  appendFreeTalk(text: string): void {
+  /**
+   * One transcribed free-talk segment, placed by `order` (when it was said): a segment retried after a later one
+   * succeeded still lands before it. Segments are whole utterances, so they are not merged.
+   */
+  appendFreeTalk(text: string, order?: number): void {
     this.assertTalking();
     this.assertPhase("free_talk");
     const t = this.clean(text);
     if (t === "") return;
-    this.freeTalk.push({ at: this.now(), speaker: "person", text: t });
+    const entry: TranscriptEntry = { at: this.now(), speaker: "person", text: t, ...(order !== undefined ? { order } : {}) };
+    const at = order === undefined ? -1 : this.freeTalk.findIndex((x) => x.order !== undefined && x.order > order);
+    if (at < 0) this.freeTalk.push(entry);
+    else this.freeTalk.splice(at, 0, entry);
   }
 
   addFile(f: FileSummary): void {

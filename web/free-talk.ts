@@ -3,7 +3,7 @@ import { bytesToBase64, createSegmenter, encodeWav, pcm16FromBase64, SEGMENT_DEF
 
 export type FreeTalkDeps = {
   /** Sends one WAV segment (base64) and returns its transcription. */
-  postAudio: (wavBase64: string) => Promise<string>;
+  postAudio: (wavBase64: string, order: number) => Promise<string>;
   /** `seq` is the segment's place in the talk; a retried segment keeps its original number. */
   onText: (text: string, seq: number) => void;
   /** How many segments failed and wait for 再試行 (or 捨てる). */
@@ -21,12 +21,14 @@ export function createFreeTalk(deps: FreeTalkDeps) {
   const queue = createSerialQueue();
   let failed: Segment[] = [];
   let pending: Promise<unknown> = Promise.resolve();
-  let nextSeq = 0;
+  // Orders grow with speaking time and stay unique across a page reload (the server sorts free talk by them).
+  let lastSeq = 0;
+  const nextOrder = () => (lastSeq = Math.max(lastSeq + 1, Date.now()));
 
   const send = (seg: Segment): Promise<void> => {
     const run = queue(async () => {
       try {
-        const text = await deps.postAudio(seg.wav);
+        const text = await deps.postAudio(seg.wav, seg.seq);
         if (text.trim() !== "") deps.onText(text, seg.seq);
       } catch {
         failed.push(seg);
@@ -37,7 +39,7 @@ export function createFreeTalk(deps: FreeTalkDeps) {
     return run;
   };
   const segmenter = createSegmenter(SEGMENT_DEFAULTS, (pcm) => {
-    void send({ seq: nextSeq++, wav: bytesToBase64(encodeWav(pcm, SEGMENT_DEFAULTS.sampleRate)) });
+    void send({ seq: nextOrder(), wav: bytesToBase64(encodeWav(pcm, SEGMENT_DEFAULTS.sampleRate)) });
   });
   const settle = () => pending.then(() => undefined, () => undefined);
 

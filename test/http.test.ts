@@ -351,3 +351,13 @@ test("a file sent after the deep dive started is refused without calling the mod
   assert.deepEqual(text.calls, []);
   await srv.close();
 });
+
+test("audio carries its order and the server stores in that order", async () => {
+  let n = 0;
+  const text = fakeText({ transcribe: async () => (++n === 1 ? "後の文" : "先の文") });
+  const { srv, post, s } = await setup({ mode: "free", text });
+  assert.equal((await post("/api/audio", { ...wav(10), order: 20 })).status, 200);
+  assert.equal((await post("/api/audio", { ...wav(10), order: 10 })).status, 200);
+  assert.deepEqual(s.freeTalk.map((t) => t.text), ["先の文", "後の文"]);
+  await srv.close();
+});

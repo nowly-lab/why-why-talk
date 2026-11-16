@@ -153,3 +153,20 @@ test("a retried segment keeps its original place", async () => {
   await ft.retry();
   assert.deepEqual(lines.sort((a, b) => a[0] - b[0]).map(([, t]) => t), ["文3", "文2"], "the first segment, retried last, still comes first");
 });
+
+test("each segment is posted with its order, a retry keeps it", async () => {
+  let calls = 0;
+  const orders: number[] = [];
+  const ft = createFreeTalk({
+    postAudio: async (_w, order) => { calls++; orders.push(order); if (calls === 1) throw new Error("502"); return "x"; },
+    onText: () => undefined,
+    onFailedChange: () => undefined,
+  });
+  say(ft, 1_000, 1_500);
+  say(ft, 1_000, 1_500);
+  await ft.idle();
+  await ft.retry();
+  assert.equal(orders.length, 3);
+  assert.ok(orders[0] < orders[1], "orders grow with speaking time");
+  assert.equal(orders[2], orders[0], "the retry is sent with the first segment's order");
+});

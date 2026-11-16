@@ -63,7 +63,7 @@ const LogBody = z.object({
   })).min(1).max(50),
 });
 const TokenBody = z.object({ fallback: z.boolean().default(false) });
-const AudioBody = z.object({ data: z.string().min(1), mimeType: z.literal("audio/wav") });
+const AudioBody = z.object({ data: z.string().min(1), mimeType: z.literal("audio/wav"), order: z.number().finite().optional() });
 const FileBody = z.object({ name: z.string().min(1).max(300), mimeType: z.string().max(200).default(""), data: z.string().min(1) });
 const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean() })) });
 const DraftBody = DirectionBody.extend({ questionId: z.string() });
@@ -183,11 +183,11 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
         }
         case "/api/audio": {
           const a = AudioBody.parse(body);
-          const text = await deps.text.transcribe(a);
-          s.appendFreeTalk(text);
+          const text = await deps.text.transcribe({ data: a.data, mimeType: a.mimeType });
+          s.appendFreeTalk(text, a.order);
           await s.persist();
           // The redacted text as stored (empty when the segment had no words).
-          return json(res, 200, { ok: true, text: text.trim() === "" ? "" : s.freeTalk.at(-1)!.text });
+          return json(res, 200, { ok: true, text: text.trim() === "" ? "" : (s.freeTalk.find((t) => t.order === a.order && a.order !== undefined) ?? s.freeTalk.at(-1)!).text });
         }
         case "/api/file": {
           const f = FileBody.parse(body);
