@@ -351,3 +351,19 @@ test("Gemini gets the current question with every tool answer", () => {
   const bad = toGeminiResponse({ ok: false, error: "x", tree: [], current: { questionId: "q1", text: "一" } });
   assert.deepEqual(bad.current, { questionId: "q1", text: "一" });
 });
+
+test("treeOf keeps only one question's tree", async () => {
+  const { treeOf } = await import("../web/questions.ts");
+  const nodes = [
+    { id: "q1", parentId: null }, { id: "q2", parentId: null },
+    { id: "n1", parentId: "q1" }, { id: "n2", parentId: "q2" }, { id: "n3", parentId: "n1" },
+  ];
+  assert.deepEqual(treeOf(nodes, "q1").map((n) => n.id), ["q1", "n1", "n3"]);
+  assert.deepEqual(treeOf(nodes, "q9"), []);
+});
+
+test("selectedLabel says how many are checked", async () => {
+  const { selectedLabel } = await import("../web/questions.ts");
+  assert.equal(selectedLabel([{ text: "A", checked: false }]), "0件を選択中 · 1件以上選ぶと始められます");
+  assert.equal(selectedLabel([{ text: "A", checked: true }, { text: "B", checked: true }]), "2件を選択中 · この順に深掘りします");
+});

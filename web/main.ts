@@ -1,5 +1,9 @@
 import { createAnswerCollector, createPendingAnswers, readGrounding, submitAfterAnswers } from "./answers.ts";
-import { createApi, loadSession, toGeminiResponse, type Direction, type Role } from "./api.ts";
+import { createApi, loadSession, toGeminiResponse, type Direction, type FileView, type Phase, type Role } from "./api.ts";
+import { acceptDrop } from "./files.ts";
+import { createFreeTalk } from "./free-talk.ts";
+import { canStart, MAX_QUESTIONS, renderDives, renderQuestionList, selectedLabel, treeOf, type CurrentQuestion, type Dive, type Question } from "./questions.ts";
+import { bytesToBase64 } from "./recorder.ts";
 import { createPlayer, startMic, type Mic } from "./audio.ts";
 import { createDiagLog, createLinkWatch, createStallWatch, NUDGE_TEXT } from "./diag.ts";
 import { connectLive } from "./live.ts";
@@ -18,8 +22,26 @@ export async function boot(): Promise<void> {
   const diag = createDiagLog((events) => api.log(events));
   const stall = createStallWatch();
   const link = createLinkWatch();
-  $("topic").textContent = view.topic;
-  document.title = `深掘り: ${view.topic}`;
+  $("topic").textContent = view.topic ?? "思うままに話してください";
+  document.title = `深掘り: ${view.topic ?? "自由に話す"}`;
+
+  let phase: Phase = view.phase;
+  let questions: Question[] = view.questions;
+  let dives: Dive[] = view.dives;
+  let current: CurrentQuestion = view.current;
+  let files: Array<FileView & { busy?: boolean; error?: string }> = [...view.files];
+  let freeLines = view.freeTalk.map((t) => ({ at: Date.parse(t.at), text: t.text }));
+  // Free-talk audio is taken only while this is true: 問いに分ける closes it before the phase changes on the server.
+  let freeOpen = true;
+  const setPhase = (next: Phase) => {
+    phase = next;
+    document.body.dataset.phase = next;
+    for (const el of document.querySelectorAll<HTMLElement>(".steps .step")) {
+      if (el.dataset.step === next) el.setAttribute("aria-current", "step");
+      else el.removeAttribute("aria-current");
+    }
+  };
+  setPhase(phase);
 
   let tree: TreeNode[] = view.tree;
   let lines: Line[] = view.transcript.map((t) => ({ speaker: t.speaker, text: t.text, at: Date.parse(t.at) }));
@@ -45,17 +67,215 @@ export async function boot(): Promise<void> {
     status.textContent = text;
     status.dataset.kind = kind;
   };
-  renderTree(treeEl, tree, new Set());
+  // --- free talk and files ---
+  const freeLinesEl = $("free-lines");
+  const fileListEl = $("file-list");
+  const freeFailed = $("free-failed");
+  const started = Date.now();
+  const clock = (at: number) => {
+    const s = Math.max(0, Math.round((at - (freeLines[0]?.at ?? started)) / 1000));
+    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  };
+  const renderFree = () => {
+    freeLinesEl.replaceChildren(...freeLines.map((l) => {
+      const row = Object.assign(document.createElement("div"), { className: "free-line" });
+      row.append(Object.assign(document.createElement("time"), { textContent: clock(l.at) }), Object.assign(document.createElement("div"), { className: "said", textContent: l.text }));
+      return row;
+    }));
+    freeLinesEl.scrollTop = freeLinesEl.scrollHeight;
+  };
+  const renderFiles = () => {
+    fileListEl.replaceChildren(...files.map((f) => {
+      const card = Object.assign(document.createElement("div"), { className: `file${f.busy ? " busy" : ""}${f.error ? " error" : ""}` });
+      card.append(
+        Object.assign(document.createElement("div"), { className: "name", textContent: f.name }),
+        Object.assign(document.createElement("div"), { className: "summary", textContent: f.error ?? (f.busy ? "要点を作っています…" : f.summary) }),
+      );
+      return card;
+    }));
+  };
+  const freeTalk = createFreeTalk({
+    postAudio: async (wav) => (await api.audio(wav)).text,
+    onText: (text) => {
+      freeLines.push({ at: Date.now(), text });
+      renderFree();
+    },
+    onFailedChange: (n) => {
+      freeFailed.hidden = n === 0;
+    },
+  });
+  $("free-retry").addEventListener("click", () => void freeTalk.retry());
+  async function addFiles(list: FileList | File[]): Promise<void> {
+    for (const file of Array.from(list)) {
+      const ok = acceptDrop(file);
+      if (!ok.ok) {
+        files.push({ name: file.name, mimeType: file.type, summary: "", error: ok.reason });
+        renderFiles();
+        continue;
+      }
+      const entry: FileView & { busy?: boolean; error?: string } = { name: file.name, mimeType: file.type, summary: "", busy: true };
+      files.push(entry);
+      renderFiles();
+      try {
+        const data = bytesToBase64(new Uint8Array(await file.arrayBuffer()));
+        const r = await api.file(file.name, file.type, data);
+        Object.assign(entry, r.file, { busy: false });
+      } catch (e) {
+        Object.assign(entry, { busy: false, error: `読めませんでした: ${(e as Error).message}` });
+      }
+      renderFiles();
+    }
+  }
+  const drop = $("drop");
+  const fileInput = $<HTMLInputElement>("file-input");
+  drop.addEventListener("click", () => fileInput.click());
+  drop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") fileInput.click();
+  });
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files) void addFiles(fileInput.files);
+    fileInput.value = "";
+  });
+  for (const target of [drop, document.body]) {
+    target.addEventListener("dragover", (e) => {
+      if (phase === "deep_dive") return;
+      e.preventDefault();
+      drop.classList.add("over");
+    });
+    target.addEventListener("dragleave", () => drop.classList.remove("over"));
+    target.addEventListener("drop", (e) => {
+      if (phase === "deep_dive") return;
+      e.preventDefault();
+      drop.classList.remove("over");
+      if (e.dataTransfer?.files.length) void addFiles(e.dataTransfer.files);
+    });
+  }
+  renderFree();
+  renderFiles();
+
+  // --- question list ---
+  const qListEl = $("q-list");
+  const startBtn = $<HTMLButtonElement>("start-dive");
+  const renderQuestions = () => {
+    renderQuestionList(qListEl, questions, { change: (next) => void saveQuestions(next) });
+    $("q-count").textContent = `${questions.length} / ${MAX_QUESTIONS}件`;
+    $("q-selected").textContent = selectedLabel(questions);
+    startBtn.disabled = !canStart(questions);
+    $<HTMLButtonElement>("q-add").disabled = questions.length >= MAX_QUESTIONS;
+  };
+  async function saveQuestions(next: Question[]): Promise<void> {
+    questions = next;
+    renderQuestions();
+    // A blank row is kept on screen until it has text; the server refuses empty questions.
+    if (next.some((q) => q.text.trim() === "")) return;
+    try {
+      questions = (await api.questions(next)).questions;
+      renderQuestions();
+    } catch (e) {
+      setStatus(`問いを保存できませんでした: ${(e as Error).message}`, "error");
+    }
+  }
+  async function split(): Promise<void> {
+    setStatus("話とファイルを問いに分けています…", "live");
+    for (const b of [$<HTMLButtonElement>("split"), $<HTMLButtonElement>("q-resplit")]) b.disabled = true;
+    const wasOpen = freeOpen;
+    freeOpen = false;
+    try {
+      await freeTalk.finish();
+      questions = (await api.split()).questions;
+      setPhase("questions");
+      renderQuestions();
+      setStatus(questions.length > 0 ? "深掘りしたい問いにチェックを入れてください" : "問いが出ませんでした。もう少し話してください", questions.length > 0 ? "idle" : "warn");
+    } catch (e) {
+      freeOpen = wasOpen;
+      setStatus(`問いに分けられませんでした: ${(e as Error).message}`, "error");
+    } finally {
+      for (const b of [$<HTMLButtonElement>("split"), $<HTMLButtonElement>("q-resplit")]) b.disabled = false;
+    }
+  }
+  $("split").addEventListener("click", () => void split());
+  $("q-resplit").addEventListener("click", () => void split());
+  $("q-add").addEventListener("click", () => {
+    questions = [...questions, { text: "", checked: false }];
+    renderQuestions();
+    qListEl.querySelector<HTMLInputElement>(".q-row:last-child input[type=text]")?.focus();
+  });
+  $("q-back").addEventListener("click", async () => {
+    try {
+      await api.freeTalk();
+      setPhase("free_talk");
+      freeOpen = true;
+      setStatus(mics.mic() ? "録音しています。Gemini は話しません" : "マイクを開始して、続きを話してください", "idle");
+    } catch (e) {
+      setStatus(`戻れませんでした: ${(e as Error).message}`, "error");
+    }
+  });
+  renderQuestions();
+
+  // --- deep dive: the question list, the current question's tree, per-question directions ---
+  const divesEl = $("dives");
+  const qPick = $<HTMLSelectElement>("f-question");
+  const drafts = new Map<string, Direction>(view.dives.filter((d) => d.draft).map((d) => [d.questionId, d.draft!]));
+  const edited = new Set<string>();
+  let shownQuestion = "";
+  const showTree = (fresh: Set<string>) => renderTree(treeEl, current ? treeOf(tree, current.questionId) : tree, fresh);
+  const fillPick = () => {
+    qPick.replaceChildren(...dives.map((d, i) => new Option(`${i + 1} ${d.text}`, d.questionId)));
+    if (!shownQuestion || !dives.some((d) => d.questionId === shownQuestion)) shownQuestion = current?.questionId ?? dives[0]?.questionId ?? "";
+    qPick.value = shownQuestion;
+    const d = drafts.get(shownQuestion);
+    if (d) fillDirection(form, d);
+    else form.reset();
+  };
+  const renderDive = (fresh: Set<string> = new Set()) => {
+    renderDives(divesEl, dives, current);
+    $<HTMLButtonElement>("next-q").disabled = current === null;
+    showTree(fresh);
+  };
+  qPick.addEventListener("change", () => {
+    if (shownQuestion) drafts.set(shownQuestion, readDirection(form));
+    shownQuestion = qPick.value;
+    const d = drafts.get(shownQuestion);
+    if (d) fillDirection(form, d);
+    else form.reset();
+    qPick.value = shownQuestion;
+  });
+  const applyDives = (v: { dives: Dive[]; current: CurrentQuestion }) => {
+    const moved = v.current?.questionId !== current?.questionId;
+    dives = v.dives;
+    current = v.current;
+    // Follow the question being dug unless the person is writing another one's direction.
+    if (moved && v.current && shownQuestion && !edited.has(shownQuestion)) {
+      shownQuestion = v.current.questionId;
+      fillPick();
+    }
+    for (const d of dives) if (d.draft && !edited.has(d.questionId)) drafts.set(d.questionId, d.draft);
+    if (dives.length > 0 && qPick.options.length !== dives.length) fillPick();
+    else if (!edited.has(shownQuestion) && drafts.get(shownQuestion)) fillDirection(form, drafts.get(shownQuestion)!);
+    renderDive();
+  };
+
+  showTree(new Set());
   renderTranscript(transcriptEl, lines);
   renderAnswers(askedEl, view.asked);
   applyRole(view.role);
-  if (view.draft) fillDirection(form, view.draft);
+  if (dives.length > 0) {
+    fillPick();
+    renderDive();
+  }
   if (view.status !== "talking") return finished(view.status === "sent" ? "送信済みです。このタブは閉じて構いません。" : "取りやめました。");
 
   // Keep the server's lease alive; a closed tab ends the talk after a grace period.
   const lease = new EventSource("/api/lease");
 
-  setStatus("マイクを開始すると、Gemini が質問を始めます", "idle");
+  setStatus(
+    phase === "free_talk" ? "マイクを開始して、思うままに話してください。Gemini は黙って聞きます"
+      : phase === "questions" ? "深掘りしたい問いにチェックを入れてください"
+        : "マイクを開始すると、Gemini が今の問いを読み上げて質問を始めます",
+    "idle",
+  );
+  // Started with a topic: make the list from the topic, the context and the attached files at once.
+  if (phase === "questions" && questions.length === 0) void split();
 
   const player = createPlayer();
   let muted = false;
@@ -72,7 +292,11 @@ export async function boot(): Promise<void> {
   })();
   // Which mic is chosen and which one actually feeds the talk; races between start, switches and the end live there.
   const mics = createMicController<Mic>({
-    start: (id) => startMic((b64) => live.sendAudio(b64), { deviceId: id, onLevel }),
+    // One microphone for the whole page: free talk records it, the deep dive streams it to Gemini, the list ignores it.
+    start: (id) => startMic((b64) => {
+      if (phase === "free_talk" && freeOpen) freeTalk.push(b64);
+      else if (phase === "deep_dive") live.sendAudio(b64);
+    }, { deviceId: id, onLevel }),
     persist: (id) => {
       saveMicChoice(storage, id);
       micSelect.value = id;
@@ -132,7 +356,7 @@ export async function boot(): Promise<void> {
   const pendingAnswers = createPendingAnswers((e) => api.answer(e));
   // Set while 送信 is settling: no new answer is collected, so nothing lands after the session is sent.
   let finishing = false;
-  const hasHistory = view.transcript.length > 0 || view.tree.length > 1;
+  const hasHistory = view.transcript.length > 0 || view.tree.some((n) => n.parentId !== null);
   // Tool calls Gemini is waiting on; the link watch does not fire meanwhile.
   let toolsPending = 0;
   const live = connectLive((fallback) => api.token(fallback), {
@@ -265,10 +489,10 @@ export async function boot(): Promise<void> {
   async function refresh(fresh: Set<string>): Promise<void> {
     const v = await loadSession();
     tree = v.tree;
-    renderTree(treeEl, tree, fresh);
+    applyDives(v);
+    showTree(fresh);
     renderAnswers(askedEl, v.asked);
     if (v.role !== role) applyRole(v.role);
-    if (v.draft && !form.dataset.edited) fillDirection(form, v.draft);
   }
 
   micBtn.addEventListener("click", async () => {
@@ -289,10 +513,14 @@ export async function boot(): Promise<void> {
         await playerReady;
         if (mics.ended()) return;
         void refreshMics();
-        await live.start();
-        if (mics.ended()) return;
         micBtn.textContent = "ミュート";
-        roleBtn.disabled = false;
+        if (phase === "deep_dive") {
+          await live.start();
+          if (mics.ended()) return;
+          roleBtn.disabled = false;
+        } else {
+          setStatus(phase === "free_talk" ? "録音しています。Gemini は話しません" : "マイクは開いています。問いを選んでください", "live");
+        }
       } catch (e) {
         if (!mics.ended()) setStatus(`マイクを使えません: ${(e as Error).message}`, "error");
       } finally {
@@ -304,7 +532,42 @@ export async function boot(): Promise<void> {
     muted = !muted;
     mic.setMuted(muted);
     micBtn.textContent = muted ? "ミュート解除" : "ミュート";
-    setStatus(muted ? "ミュート中" : "話しています", "live");
+    setStatus(muted ? "ミュート中" : phase === "free_talk" ? "録音しています。Gemini は話しません" : "話しています", "live");
+  });
+
+  // 深掘りを始める: the checked questions become the dives; Gemini Live connects if the mic is already open.
+  startBtn.addEventListener("click", async () => {
+    startBtn.disabled = true;
+    try {
+      await freeTalk.finish();
+      applyDives(await api.diveStart());
+      setPhase("deep_dive");
+      fillPick();
+      // The roots q1, q2, … exist only on the server until now.
+      await refresh(new Set());
+      if (mics.mic()) {
+        await live.start();
+        roleBtn.disabled = false;
+      } else {
+        setStatus("マイクを開始すると、Gemini が最初の問いを読み上げて質問を始めます", "idle");
+      }
+    } catch (e) {
+      startBtn.disabled = !canStart(questions);
+      setStatus(`深掘りを始められませんでした: ${(e as Error).message}`, "error");
+    }
+  });
+
+  // 次の問いへ: the person skips; this question stays 途中 and Gemini is told without a tool call.
+  $("next-q").addEventListener("click", async () => {
+    try {
+      const v = await api.diveNext();
+      applyDives(v);
+      if (v.current) live.sendText(`画面から: 次の問いへ進みます(${v.current.questionId} ${v.current.text})。`);
+      else live.sendText("画面から: 次の問いへ進みます。もう問いは残っていません。全部終わったことを伝えてください。");
+      setStatus(v.current ? `次の問い(${v.current.questionId})に進みました` : "全部の問いが終わりました。方針を確かめて送信してください", "live");
+    } catch (e) {
+      setStatus(`次の問いに進めませんでした: ${(e as Error).message}`, "error");
+    }
   });
 
   roleBtn.addEventListener("click", async () => {
@@ -325,14 +588,19 @@ export async function boot(): Promise<void> {
   });
 
   organiseBtn.addEventListener("click", () => {
-    live.sendText("ここまでをまとめて、propose_direction を呼んで方針の下書きを作ってください。要点を短く声で伝えてください。");
+    live.sendText(`ここまでをまとめて、propose_direction(question_id=${current?.questionId ?? shownQuestion}) を呼んで今の問いの方針の下書きを作ってください。要点を短く声で伝えてください。`);
     setStatus("方針を整理しています…", "live");
   });
 
   form.addEventListener("input", () => {
-    form.dataset.edited = "1";
+    if (shownQuestion) edited.add(shownQuestion);
   });
-  form.addEventListener("change", () => void api.draft(readDirection(form)).catch(() => undefined));
+  form.addEventListener("change", (e) => {
+    if (e.target === qPick || !shownQuestion) return;
+    const d = readDirection(form);
+    drafts.set(shownQuestion, d);
+    void api.draft(shownQuestion, d).catch(() => undefined);
+  });
 
   const end = () => {
     clearInterval(stallTimer);
@@ -346,9 +614,13 @@ export async function boot(): Promise<void> {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const d: Direction = readDirection(form);
-    if (d.direction.trim() === "") {
-      setStatus("方針の欄を書いてから送信してください", "error");
+    if (shownQuestion) drafts.set(shownQuestion, readDirection(form));
+    const directions = Object.fromEntries([...drafts].filter(([id]) => dives.some((d) => d.questionId === id)));
+    const missing = dives.find((d) => d.status === "done" && !(directions[d.questionId]?.direction ?? "").trim());
+    if (missing) {
+      shownQuestion = missing.questionId;
+      fillPick();
+      setStatus(`「${missing.text}」の方針を書いてから送信してください`, "error");
       $("f-direction").focus();
       return;
     }
@@ -363,7 +635,10 @@ export async function boot(): Promise<void> {
           finishing = true;
         },
         pending: pendingAnswers,
-        submit: () => api.submit(d),
+        submit: async () => {
+          await freeTalk.finish();
+          await api.submit(directions);
+        },
       });
       end();
       finished("送信しました。エージェントに結果が届きます。このタブは閉じて構いません。");
@@ -386,7 +661,7 @@ export async function boot(): Promise<void> {
   function finished(message: string): void {
     document.body.dataset.done = "1";
     setStatus(message, "idle");
-    for (const b of [micBtn, organiseBtn, sendBtn, cancelBtn, roleBtn, $<HTMLSelectElement>("mic-select")]) b.disabled = true;
+    for (const b of [micBtn, organiseBtn, sendBtn, cancelBtn, roleBtn, $<HTMLSelectElement>("mic-select"), $<HTMLButtonElement>("split"), startBtn, $<HTMLButtonElement>("next-q"), $<HTMLButtonElement>("q-add"), $<HTMLButtonElement>("q-resplit"), $<HTMLButtonElement>("q-back"), $<HTMLButtonElement>("free-retry")]) b.disabled = true;
   }
 }
 

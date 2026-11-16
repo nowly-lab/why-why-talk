@@ -77,3 +77,54 @@ test("acceptDrop refuses docx and files over 10MB", () => {
   const big = acceptDrop({ name: "a.pdf", type: "application/pdf", size: 10 * 1024 * 1024 + 1 });
   assert.ok(!big.ok && /10MB/.test(big.reason));
 });
+
+// --- free-talk controller ---
+import { createFreeTalk } from "../web/free-talk.ts";
+
+const chunk = (loud: boolean) => Buffer.from((loud ? speech() : silence()).buffer).toString("base64");
+const say = (ft: ReturnType<typeof createFreeTalk>, speechMs: number, quietMs: number) => {
+  for (let t = 0; t < speechMs; t += 100) ft.push(chunk(true));
+  for (let t = 0; t < quietMs; t += 100) ft.push(chunk(false));
+};
+
+test("free talk posts segments in order as WAV and reports the text", async () => {
+  const posted: string[] = [];
+  const texts: string[] = [];
+  const ft = createFreeTalk({
+    postAudio: async (wavB64) => { posted.push(wavB64); return `文${posted.length}`; },
+    onText: (t) => texts.push(t),
+    onFailedChange: () => undefined,
+  });
+  say(ft, 1_000, 1_500);
+  say(ft, 1_000, 1_500);
+  await ft.idle();
+  assert.equal(posted.length, 2);
+  assert.equal(Buffer.from(posted[0], "base64").subarray(0, 4).toString(), "RIFF");
+  assert.deepEqual(texts, ["文1", "文2"]);
+});
+
+test("a failed segment is kept and retried", async () => {
+  let fail = true;
+  const failed: number[] = [];
+  const texts: string[] = [];
+  const ft = createFreeTalk({
+    postAudio: async () => { if (fail) throw new Error("502"); return "取れた"; },
+    onText: (t) => texts.push(t),
+    onFailedChange: (n) => failed.push(n),
+  });
+  say(ft, 1_000, 1_500);
+  await ft.idle();
+  assert.deepEqual(failed, [1]);
+  fail = false;
+  await ft.retry();
+  assert.deepEqual(texts, ["取れた"]);
+  assert.deepEqual(failed, [1, 0]);
+});
+
+test("finish flushes the last words and waits for them", async () => {
+  const texts: string[] = [];
+  const ft = createFreeTalk({ postAudio: async () => "最後", onText: (t) => texts.push(t), onFailedChange: () => undefined });
+  say(ft, 800, 0);
+  await ft.finish();
+  assert.deepEqual(texts, ["最後"]);
+});
