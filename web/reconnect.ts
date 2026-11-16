@@ -39,7 +39,8 @@ export type LinkEvent =
   | { kind: "closed" }
   | { kind: "handleRejected" }
   | { kind: "tick"; now: number };
-export type Connection = { handle: string | null; fallback: boolean };
+/** `roleSwitch`: a new session seeded after a role switch; `kick` is the only text it is sent first. */
+export type Connection = { handle: string | null; fallback: boolean; roleSwitch?: boolean; kick?: string };
 
 /**
  * How to connect next. Resume with the session-resumption handle when there is one; when there is

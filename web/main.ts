@@ -1,4 +1,4 @@
-import { createAnswerCollector, createPendingAnswers, leaveAnswerer, readGrounding, returnsAfterAnswer, submitAfterAnswers } from "./answers.ts";
+import { createAnswerCollector, createPendingAnswers, leaveAnswerer, readGrounding, restartsOnSwitch, returnsAfterAnswer, ROLE_KICK, ROLE_RESTART_WAIT_MS, submitAfterAnswers } from "./answers.ts";
 import { createApi, loadSession, toGeminiResponse, type Direction, type FileView, type Phase, type Role } from "./api.ts";
 import { acceptDrop } from "./files.ts";
 import { createFreeTalk } from "./free-talk.ts";
@@ -421,7 +421,17 @@ export async function boot(): Promise<void> {
   const hasHistory = view.transcript.length > 0 || view.tree.some((n) => n.parentId !== null);
   // Tool calls Gemini is waiting on; the link watch does not fire meanwhile.
   let toolsPending = 0;
-  const live = connectLive((fallback) => api.token(fallback), {
+  // A voice switch (交代して / 戻して) waits for Gemini's reply to end, then starts a new session for the new role.
+  let roleRestartTimer: ReturnType<typeof setTimeout> | null = null;
+  const restartForRole = async (how: "button" | "voice"): Promise<void> => {
+    if (roleRestartTimer) clearTimeout(roleRestartTimer);
+    roleRestartTimer = null;
+    if (finishing) return;
+    diag.log("role.restart", `${how} role=${role}`);
+    player.interrupt();
+    await live.restart(ROLE_KICK[role]);
+  };
+  const live = connectLive((fallback, roleSwitch) => api.token(fallback, roleSwitch), {
     onAudio: (b64) => {
       geminiActive();
       player.play(b64);
@@ -450,8 +460,11 @@ export async function boot(): Promise<void> {
       geminiActive();
       diag.log("turn_complete");
       if (finishing) return;
+      // Gemini finished replying to 交代して / 戻して: the new role starts in a new session (after the answer is kept).
+      const restartDue = roleRestartTimer !== null;
       if (role !== "answerer") {
         answers.otherTurn();
+        if (restartDue) void restartForRole("voice");
         return;
       }
       const entry = answers.turnComplete();
@@ -466,6 +479,7 @@ export async function boot(): Promise<void> {
           .then(() => refresh(new Set()))
           .catch((e: unknown) => setStatus(`${(e as Error).message}(送信のときにもう一度試します)`, "warn"));
       }
+      if (restartDue) void restartForRole("voice");
     },
     onToolCall: async (calls) => {
       geminiActive();
@@ -542,6 +556,11 @@ export async function boot(): Promise<void> {
       }
       diag.log(response.error ? "tool.error" : "tool", `${call.name ?? "?"}${response.error ? `: ${String(response.error)}` : ""}`, performance.now() - started);
       if (call.name === "switch_role" && !response.error) byQuestion = call.args?.by === "question" && response.role === "answerer";
+      // 交代して / 戻して: once this reply ends (or after ROLE_RESTART_WAIT_MS), the new role gets a new session.
+      if (restartsOnSwitch(call, response, role) && !finishing) {
+        if (roleRestartTimer) clearTimeout(roleRestartTimer);
+        roleRestartTimer = setTimeout(() => restartForRole("voice"), ROLE_RESTART_WAIT_MS);
+      }
       if (typeof response.role === "string" && response.role !== role) {
         // Gemini answered a question and switches back within the same turn: record the answer before leaving.
         if (response.role === "interviewer" && role === "answerer" && !finishing && leaveAnswerer(answers, pendingAnswers)) {
@@ -662,9 +681,8 @@ export async function boot(): Promise<void> {
       byQuestion = false;
       applyRole(next);
       answers.reset();
-      live.sendText(next === "answerer"
-        ? "役割を交代します。ここからあなたは答える係です。私の質問に、Google 検索で確かめてから短く答えてください。木の関数は呼ばないでください。"
-        : "役割を交代します。聞き手に戻ってください。直前に掘っていた枝の続きから、なぜを聞いてください。");
+      // A new Live session whose instruction has the new role and the whole conversation so far.
+      await restartForRole("button");
     } catch (e) {
       setStatus(`役割を変えられませんでした: ${(e as Error).message}`, "error");
     } finally {
@@ -689,6 +707,8 @@ export async function boot(): Promise<void> {
 
   const end = () => {
     clearInterval(stallTimer);
+    if (roleRestartTimer) clearTimeout(roleRestartTimer);
+    roleRestartTimer = null;
     nudgeBtn.hidden = true;
     diag.flush();
     live.close();

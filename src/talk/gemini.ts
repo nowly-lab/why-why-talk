@@ -63,7 +63,7 @@ export function systemInstruction(s: TalkSession, opts: Seed): string {
     "",
     "役割の交代:",
     "- 相手が「交代して」と言ったら switch_role(to=\"answerer\")、「戻して」と言ったら switch_role(to=\"interviewer\") を呼ぶ。",
-    "- 画面から「役割を交代します」と届いたら、その役割で続ける(関数は呼ばない)。",
+    "- 画面から「役割を交代しました」と届いたら、その役割で続ける(関数は呼ばない)。",
     ...roleBrief(s.role, s.roleBy),
     "",
     ...(seeded ? [] : [`最初に、今の問い(${s.current()?.questionId ?? "q1"})を読み上げてから、最初の「なぜ?」を聞く。`, ""]),
