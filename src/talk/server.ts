@@ -6,12 +6,16 @@ import { RoleSchema, WhyError } from "../model.ts";
 import type { TokenInfo } from "./gemini.ts";
 import { renderResultMarkdown } from "./result.ts";
 import type { TalkSession } from "./session.ts";
+import { checkAttachment } from "./attachments.ts";
+import { TextModelError, type TextModel } from "./text-model.ts";
 
 export type Outcome = { kind: "sent"; markdown: string } | { kind: "cancelled"; reason: string };
 export type TalkServer = { url: string; outcome: Promise<Outcome>; cancel(reason: string): void; close(): Promise<void> };
 export type ServerDeps = {
   webRoot: string;
   mint: (opts: { fallback: boolean }) => Promise<TokenInfo>;
+  /** Transcribes free-talk segments, summarizes files and splits questions. */
+  text: TextModel;
   /** How long the page may be gone (closed tab, reload) before the talk counts as abandoned. */
   leaseGraceMs?: number;
   /** How long to wait for the first page to connect before giving up. */
@@ -20,6 +24,8 @@ export type ServerDeps = {
 
 const HEARTBEAT_MS = 15_000;
 const MAX_BODY = 1_000_000;
+// A 30 s segment of 16 kHz mono PCM16 is ~0.96 MB, ~1.3 MB in base64; a 10 MB file is ~13.4 MB in base64.
+const BODY_LIMIT: Record<string, number> = { "/api/audio": 2_000_000, "/api/file": 15_000_000 };
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -57,6 +63,11 @@ const LogBody = z.object({
   })).min(1).max(50),
 });
 const TokenBody = z.object({ fallback: z.boolean().default(false) });
+const AudioBody = z.object({ data: z.string().min(1), mimeType: z.literal("audio/wav") });
+const FileBody = z.object({ name: z.string().min(1).max(300), mimeType: z.string().max(200).default(""), data: z.string().min(1) });
+const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean() })) });
+const DraftBody = DirectionBody.extend({ questionId: z.string() });
+const SubmitBody = z.object({ directions: z.record(z.string(), DirectionBody) });
 
 /** Local server for one talk, bound to 127.0.0.1. Resolves `outcome` once: sent or cancelled. */
 export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise<TalkServer> {
@@ -127,12 +138,14 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
     if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
     if (req.headers["x-why-why-session"] !== s.nonce) return json(res, 409, { error: "session_mismatch: this tab belongs to an older talk" });
 
-    const body = await readJson(req);
     try {
+      // Inside the try: an oversized or non-JSON body is the caller's error (400), not ours.
+      const body = await readJson(req, BODY_LIMIT[url.pathname] ?? MAX_BODY);
       switch (url.pathname) {
         case "/api/token": {
           const { fallback } = TokenBody.parse(body ?? {});
           if (s.status !== "talking") return json(res, 409, { error: `the session is ${s.status}` });
+          if (s.phase !== "deep_dive") return json(res, 409, { error: "the deep dive has not started" });
           return json(res, 200, await deps.mint({ fallback }));
         }
         case "/api/tool": {
@@ -163,13 +176,57 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
           return json(res, 200, { ok: true });
         }
         case "/api/draft": {
-          s.setDraft(DirectionBody.parse(body));
+          const { questionId, ...d } = DraftBody.parse(body);
+          s.setDraft(questionId, d);
           await s.persist();
           return json(res, 200, { ok: true });
         }
+        case "/api/audio": {
+          const a = AudioBody.parse(body);
+          const text = await deps.text.transcribe(a);
+          s.appendFreeTalk(text);
+          await s.persist();
+          // The redacted text as stored (empty when the segment had no words).
+          return json(res, 200, { ok: true, text: text.trim() === "" ? "" : s.freeTalk.at(-1)!.text });
+        }
+        case "/api/file": {
+          const f = FileBody.parse(body);
+          const kind = checkAttachment(f.name, f.mimeType || undefined, Buffer.byteLength(f.data, "base64"));
+          const summary = await deps.text.summarizeFile({ name: f.name, mimeType: kind.mimeType, data: f.data });
+          s.addFile({ name: f.name, mimeType: kind.mimeType, summary });
+          await s.persist();
+          return json(res, 200, { ok: true, file: s.files.at(-1) });
+        }
+        case "/api/questions/split": {
+          if (!s.hasMaterial()) throw new WhyError("invalid_input", "話した内容がありません。話すか、ファイルを渡してください");
+          const texts = await deps.text.splitQuestions(s.splitInput());
+          s.setQuestions(texts);
+          await s.persist();
+          return json(res, 200, { questions: s.questions });
+        }
+        case "/api/questions": {
+          s.editQuestions(QuestionsBody.parse(body).questions);
+          await s.persist();
+          return json(res, 200, { questions: s.questions });
+        }
+        case "/api/free-talk": {
+          s.backToFreeTalk();
+          await s.persist();
+          return json(res, 200, { ok: true });
+        }
+        case "/api/dive/start": {
+          s.startDeepDive();
+          await s.persist();
+          return json(res, 200, { dives: s.dives, current: s.current() });
+        }
+        case "/api/dive/next": {
+          s.advance("person");
+          await s.persist();
+          return json(res, 200, { dives: s.dives, current: s.current() });
+        }
         // Answer the page first, then settle: the caller may close the server as soon as the outcome is known.
         case "/api/submit": {
-          s.submit(DirectionBody.parse(body));
+          s.submit(SubmitBody.parse(body).directions);
           await respondThen(res, () => finish({ kind: "sent", markdown: renderResultMarkdown(s) }));
           return;
         }
@@ -184,6 +241,8 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
     } catch (e) {
       if (e instanceof z.ZodError) return json(res, 400, { error: e.issues[0]?.message ?? "bad request" });
       if (e instanceof WhyError) return json(res, e.code === "conflict" ? 409 : 400, { error: `${e.code}: ${e.message}` });
+      // The text model failed upstream: the page keeps what it has and offers a retry.
+      if (e instanceof TextModelError) return json(res, 502, { error: e.message });
       throw e;
     }
   }
@@ -244,12 +303,12 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readJson(req: IncomingMessage, limit = MAX_BODY): Promise<unknown> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > MAX_BODY) throw new WhyError("invalid_input", "request body too large");
+    if (size > limit) throw new WhyError("invalid_input", "request body too large");
     chunks.push(chunk as Buffer);
   }
   if (chunks.length === 0) return undefined;

@@ -55,16 +55,17 @@ export const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     name: "propose_direction",
-    description: "When the person asks to wrap up, draft the final direction. All fields in Japanese.",
+    description: "Draft the direction for one question: when its branches are done (before next_question) or when the person asks to wrap up. All fields in Japanese.",
     parameters: {
       type: Type.OBJECT,
       properties: {
+        question_id: { type: Type.STRING, description: "The question this direction answers, e.g. q1." },
         direction: { type: Type.STRING, description: "The direction decided in the talk." },
         reasons: { type: Type.STRING, description: "Why, in a few sentences, citing the tree." },
         rejected: { type: Type.STRING, description: "Alternatives considered and set aside, with why." },
         open_questions: { type: Type.STRING, description: "What is still unclear or needs checking." },
       },
-      required: ["direction", "reasons", "rejected", "open_questions"],
+      required: ["question_id", "direction", "reasons", "rejected", "open_questions"],
     },
   },
   {
@@ -75,6 +76,10 @@ export const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
       properties: { to: { type: Type.STRING, enum: [...ROLES] } },
       required: ["to"],
     },
+  },
+  {
+    name: "next_question",
+    description: "Move on to the next checked question. Call it yourself, without waiting for the person, when the current question has a branch five whys deep and no shallow branch still open; draft its direction with propose_direction first. If it is refused, dig the branches it names.",
   },
 ];
 
@@ -91,12 +96,14 @@ export const ToolArgs = {
     countermeasure: z.string().optional(),
   }),
   propose_direction: z.object({
+    question_id: z.string(),
     direction: z.string(),
     reasons: z.string(),
     rejected: z.string(),
     open_questions: z.string(),
   }),
   switch_role: z.object({ to: RoleSchema }),
+  next_question: z.object({}).passthrough(),
 };
 
 export type ToolName = keyof typeof ToolArgs;
