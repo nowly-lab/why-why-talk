@@ -1,7 +1,7 @@
 {
   "name": "why-why-talk",
-  "version": "0.2.0",
-  "description": "Deep-dive one planning question by voice with Gemini Live: it asks why and what else, grows a why tree, and sends the final direction back to the agent.",
+  "version": "0.3.0",
+  "description": "Talk freely, split the talk and files into questions, then deep-dive the checked ones by voice with Gemini Live; per-question directions go back to the agent.",
   "license": "MIT",
   "type": "module",
   "bin": {

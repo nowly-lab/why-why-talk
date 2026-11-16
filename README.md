@@ -1,13 +1,13 @@
 # why-why-talk
 
-Deep-dive one planning question **by voice**. An agent runs one command; a local page opens; you talk with **Gemini Live**, which plays the interviewer: it asks "why?" to go deeper and "what else?" to go wider, and grows a **why tree** on screen as you talk (through function calls). It keeps digging one branch until it is five whys deep. Press 役割を交代 (or say 「交代して」) to ask Gemini about something you don't know; it answers with Google Search, and those answers go to the result marked unverified. When you are done, Gemini drafts the direction, you edit it and press 送信, and the command prints the result for the agent and exits — the same shape as a [Plannotator](https://github.com/backnotprop/plannotator) plan review.
+Talk first, then deep-dive **by voice**. An agent runs one command; a local page opens. You start by **talking freely** (Gemini only listens; your speech is transcribed a few seconds after each pause) and dropping files (text, Markdown, PDF, images). Press 問いに分ける and Gemini turns the talk and the files into a list of up to 10 questions; check the ones worth digging (edit, add, delete or reorder them first). Then **Gemini Live** interviews you on each checked question in turn: it asks "why?" to go deeper and "what else?" to go wider, grows a **why tree** per question on screen (through function calls), and once a branch is five whys deep it drafts that question's direction and moves on by itself. With `--topic`, free talk is skipped and the list is made from the topic, `--context` and the attached files at once. Press 役割を交代 (or say 「交代して」) to ask Gemini about something you don't know; it answers with Google Search, and those answers go to the result marked unverified. When you are done, you edit each question's direction and press 送信, and the command prints the result for the agent and exits — the same shape as a [Plannotator](https://github.com/backnotprop/plannotator) plan review.
 
 [日本語は下にあります](#日本語)
 
 ```
 agent ──why-why-talk──▶ local server (127.0.0.1) ──page + short-lived token──▶ browser ◀──voice──▶ Gemini Live
   ▲                                                                              │ tool calls grow the tree
-  └──────────── result on stdout (direction, reasons, rejected, open questions, tree, transcript) ◀── 送信
+  └──── result on stdout (per question: direction, reasons, rejected, open questions, tree; free talk, files, transcript) ◀── 送信
 ```
 
 ## Use
@@ -15,8 +15,12 @@ agent ──why-why-talk──▶ local server (127.0.0.1) ──page + short-li
 Requires Node.js 22.18+, a microphone, and `GEMINI_API_KEY` (Google AI Studio).
 
 ```bash
+npx -y github:nowly-lab/why-why-talk                       # start with free talk
+npx -y github:nowly-lab/why-why-talk --attach notes.pdf    # free talk, with a file already attached
 npx -y github:nowly-lab/why-why-talk --topic "How do we stop payment errors from recurring?" --context notes.md
 ```
+
+`--attach` can be repeated; each file is text, Markdown, PDF or an image of up to 10MB. Files are summarized, and only the summaries are kept.
 
 | Exit | Meaning | stdout |
 | --- | --- | --- |
@@ -29,11 +33,12 @@ The record (`result.md`, `result.json`, `tree.mmd`, `transcript.md`, `session.js
 | Env | Default | |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | — | Stays in the command; the browser only gets single-use tokens |
-| `WHY_WHY_LIVE_MODEL` | `gemini-3.8-live` | |
+| `WHY_WHY_LIVE_MODEL` | `gemini-3.8-live` | The deep dive |
+| `WHY_WHY_TEXT_MODEL` | `gemini-3.8-flash` | Free-talk transcription, file summaries, the question list |
 | `WHY_WHY_VOICE` | `Kore` | Any Gemini voice name |
 | `WHY_WHY_BROWSER` | — | `none` to never open a browser |
 
-Pick the microphone in the header (switchable mid-talk; the level meter warns when no sound arrives). If Gemini goes quiet after you spoke, 「Gemini に呼びかけ直す」 nudges it; if you keep talking and nothing at all comes back for 15 s, the page reconnects by itself. Long talks keep going: each Live connection (about 10 minutes) is renewed with a fresh token and the session-resumption handle, and if that fails the talk restarts seeded with the tree and the end of the transcript. Gemini Live pricing is roughly $0.005/min for audio in and $0.018/min out. On the free tier, Google may use what you send to improve its products.
+Pick the microphone in the header (switchable mid-talk; the level meter warns when no sound arrives). If Gemini goes quiet after you spoke, 「Gemini に呼びかけ直す」 nudges it; if you keep talking and nothing at all comes back for 15 s, the page reconnects by itself. Long talks keep going: each Live connection (about 10 minutes) is renewed with a fresh token and the session-resumption handle, and if that fails the talk restarts seeded with the tree and the end of the transcript. Gemini Live pricing is roughly $0.005/min for audio in and $0.018/min out. On the free tier, Google may use what you send, including free-talk audio and attached files, to improve its products.
 
 ## Develop
 
@@ -43,19 +48,23 @@ npm test           # node:test on the TypeScript sources
 npm run typecheck  # server and web
 npm run build      # dist/ and the page bundle dist/web/
 node scripts/live-smoke.ts   # real Gemini Live check (costs a few cents)
+node scripts/text-smoke.ts   # real text-model check: transcription, file summaries, question list (macOS say)
 ```
 
-Design: [`docs/superpowers/specs/2026-11-13-why-why-talk-design.md`](docs/superpowers/specs/2026-11-13-why-why-talk-design.md). Domain model: [`docs/domain-model/`](docs/domain-model/index.html).
+Design: [`docs/superpowers/specs/2026-11-13-why-why-talk-design.md`](docs/superpowers/specs/2026-11-13-why-why-talk-design.md), [`docs/superpowers/specs/2026-11-16-free-talk-questions-design.md`](docs/superpowers/specs/2026-11-16-free-talk-questions-design.md). Domain model: [`docs/domain-model/`](docs/domain-model/index.html).
 
 ---
 
 ## 日本語
 
-計画の途中で**一点を深掘り**したいときに、エージェントが呼び出す道具です。
+計画の途中で、まず思うままに話してから、出てきた問いを**声で深掘り**するための道具です。エージェントが呼び出します。
 
 - コマンドを実行すると、手元の画面がブラウザで開きます。
-- **Gemini Live** が聞き手になり、「なぜ?」「他には?」と声で質問します。あなたの答えから、**なぜの木**が画面にその場で育ちます。
-- 「整理する」で Gemini が方針の下書きを作ります。直して**送信**すると、方針・理由・見送った案・残った疑問・なぜの木・会話の全文がエージェントに届き、コマンドが終わります。
+- 最初は**自由に話す**段階です。Gemini は黙って聞き、話の切れ目ごとに文字起こしされます。ファイル(テキスト・Markdown・PDF・画像)もドラッグで渡せます。
+- 「問いに分ける」で、話とファイルが最大 10 件の**問いのリスト**になります。深掘りしたい問いにチェックを入れます(直す・足す・消す・並べ替えるもできます)。
+- 「深掘りを始める」で **Gemini Live** が聞き手になり、チェックした問いを順に「なぜ?」「他には?」と声で掘ります。問いごとに**なぜの木**が育ち、5 段に届くと Gemini が方針を下書きして次の問いへ進みます。
+- 問いごとの方針を直して**送信**すると、問いごとの方針・理由・見送った案・残った疑問・木と、自由に話した内容・ファイルの要点・会話の全文がエージェントに届きます。
+- `--topic` で論点を渡すと、自由に話す段階を飛ばし、論点からすぐ問いのリストを作ります。
 - API キーは手元のコマンドの中だけに置き、ブラウザには使い捨ての短期トークンだけを渡します。
 
 ## License
