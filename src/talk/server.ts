@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { z } from "zod";
 import { RoleSchema, WhyError } from "../model.ts";
-import type { TokenInfo } from "./gemini.ts";
+import type { Seed, TokenInfo } from "./gemini.ts";
 import { renderResultMarkdown } from "./result.ts";
 import type { TalkSession } from "./session.ts";
 import { checkAttachment } from "./attachments.ts";
@@ -13,7 +13,7 @@ export type Outcome = { kind: "sent"; markdown: string } | { kind: "cancelled"; 
 export type TalkServer = { url: string; outcome: Promise<Outcome>; cancel(reason: string): void; close(): Promise<void> };
 export type ServerDeps = {
   webRoot: string;
-  mint: (opts: { fallback: boolean }) => Promise<TokenInfo>;
+  mint: (opts: Seed) => Promise<TokenInfo>;
   /** Transcribes free-talk segments, summarizes files and splits questions. */
   text: TextModel;
   /** How long the page may be gone (closed tab, reload) before the talk counts as abandoned. */
@@ -62,7 +62,7 @@ const LogBody = z.object({
     ms: z.number().finite().optional(),
   })).min(1).max(50),
 });
-const TokenBody = z.object({ fallback: z.boolean().default(false) });
+const TokenBody = z.object({ fallback: z.boolean().default(false), roleSwitch: z.boolean().default(false) });
 const AudioBody = z.object({ data: z.string().min(1), mimeType: z.literal("audio/wav"), order: z.number().finite().optional() });
 const FileBody = z.object({ name: z.string().min(1).max(300), mimeType: z.string().max(200).default(""), data: z.string().min(1) });
 const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean() })) });
@@ -143,10 +143,10 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
       const body = await readJson(req, BODY_LIMIT[url.pathname] ?? MAX_BODY);
       switch (url.pathname) {
         case "/api/token": {
-          const { fallback } = TokenBody.parse(body ?? {});
+          const seed = TokenBody.parse(body ?? {});
           if (s.status !== "talking") return json(res, 409, { error: `the session is ${s.status}` });
           if (s.phase !== "deep_dive") return json(res, 409, { error: "the deep dive has not started" });
-          return json(res, 200, await deps.mint({ fallback }));
+          return json(res, 200, await deps.mint(seed));
         }
         case "/api/tool": {
           const { name, args } = ToolBody.parse(body);

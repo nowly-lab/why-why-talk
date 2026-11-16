@@ -14,8 +14,7 @@
       ],
       "nodes": [
         "cmd-start-talk"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "調べた内容",
@@ -124,14 +123,17 @@
     },
     {
       "term": "つなぎ直し",
-      "meaning": "Gemini の接続が切れる前(goAway、または25分)に、新しいトークンと引き継ぎの番号で会話を続けること。",
+      "meaning": "Gemini の接続が切れる前(goAway、または25分)や止まったとき、役割を交代したときに、新しいトークンで会話を続けること。古い接続を閉じてから開く。引き継ぎの番号がないとき・役割を交代したときは、木と会話の全文を指示に入れた新しい会話にする。",
       "code": [
         "nextConnection",
-        "sessionResumption"
+        "sessionResumption",
+        "conversationSoFar",
+        "restart"
       ],
       "nodes": [
         "pol-goaway"
-      ]
+      ],
+      "changed": true
     },
     {
       "term": "方針の下書き",
@@ -143,8 +145,7 @@
       "nodes": [
         "ev-draft",
         "rm-draft"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "結果",
@@ -161,8 +162,7 @@
           "path": "src/talk/result.ts",
           "symbol": "renderResultMarkdown"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "取りやめ",
@@ -211,7 +211,7 @@
     },
     {
       "term": "役割",
-      "meaning": "Gemini が聞き手か、答える係か。セッションが持ち、つなぎ直しても引き継ぐ。 聞き手のときに疑問形で問いかけると、Gemini が自分で答える係に替わって答え、答えたら聞き手に戻る(roleBy=question)。",
+      "meaning": "Gemini が聞き手か、答える係か。セッションが持ち、つなぎ直しても引き継ぐ。ボタンや声の「交代して」「戻して」で替わると、その役割の指示と会話の全文で新しい Gemini の会話を始める。聞き手のときに疑問形で問いかけると、Gemini が自分で答える係に替わって答え、答えたら聞き手に戻る(roleBy=question、つなぎ直さない)。",
       "code": [
         "Role",
         "setRole",
@@ -310,8 +310,7 @@
       ],
       "nodes": [
         "cmd-free-talk"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "区切り",
@@ -321,8 +320,7 @@
       ],
       "nodes": [
         "cmd-free-talk"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "添付ファイル",
@@ -333,8 +331,7 @@
       ],
       "nodes": [
         "cmd-attach"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "ファイルの要点",
@@ -344,8 +341,7 @@
       ],
       "nodes": [
         "ev-file-read"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "文章用のモデル",
@@ -356,8 +352,7 @@
       ],
       "nodes": [
         "ext-flash"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "問い",
@@ -367,8 +362,7 @@
       ],
       "nodes": [
         "agg-question-list"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "問いのリスト",
@@ -380,8 +374,7 @@
       "nodes": [
         "agg-question-list",
         "rm-question-list"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "段階",
@@ -391,8 +384,7 @@
       ],
       "nodes": [
         "agg-session"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "深掘りの進み",
@@ -403,8 +395,7 @@
       ],
       "nodes": [
         "agg-dives"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "次の問いへ",
@@ -415,8 +406,7 @@
       ],
       "nodes": [
         "cmd-next-question"
-      ],
-      "changed": true
+      ]
     }
   ]
 }

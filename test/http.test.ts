@@ -40,7 +40,7 @@ async function setup(opts: { leaseGraceMs?: number; mode?: "dive" | "free" | "to
     leaseGraceMs: opts.leaseGraceMs ?? 60_000,
     mint: async (o) => {
       minted++;
-      return { token: `auth_tokens/t${minted}`, model: "gemini-3.8-live", expiresAt: "x", config: { fallback: o.fallback } as never };
+      return { token: `auth_tokens/t${minted}`, model: "gemini-3.8-live", expiresAt: "x", config: { fallback: o.fallback, roleSwitch: o.roleSwitch } as never };
     },
   });
   const post = (path: string, body: unknown, nonce = s.nonce) =>
@@ -118,7 +118,14 @@ test("token endpoint returns mint result and no key", async () => {
   const { srv, post } = await setup();
   const r = await (await post("/api/token", { fallback: true })).json();
   assert.equal(r.token, "auth_tokens/t1");
-  assert.deepEqual(r.config, { fallback: true });
+  assert.deepEqual(r.config, { fallback: true, roleSwitch: false });
+  await srv.close();
+});
+
+test("token endpoint passes roleSwitch to mint", async () => {
+  const { srv, post } = await setup();
+  const r = await (await post("/api/token", { fallback: true, roleSwitch: true })).json();
+  assert.deepEqual(r.config, { fallback: true, roleSwitch: true });
   await srv.close();
 });
 

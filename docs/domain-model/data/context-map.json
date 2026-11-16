@@ -36,8 +36,7 @@
           "symbol": "main",
           "role": "entry"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "web",
@@ -62,8 +61,7 @@
           "symbol": "boot",
           "role": "ui"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "gemini",
@@ -77,8 +75,7 @@
         "短期トークン(v1beta, uses 1, 30分)",
         "関数 add_whys / add_fact / update_branch / propose_direction(question_id 付き) / switch_role / next_question",
         "googleSearch(答えに groundingMetadata が付く)"
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "gemini-text",
@@ -95,8 +92,7 @@
           "symbol": "geminiTextModel",
           "role": "contract"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "agent",
@@ -107,8 +103,7 @@
       ],
       "contract": [
         "skills/why-why-talk/SKILL.md の手順"
-      ],
-      "changed": true
+      ]
     }
   ],
   "relations": [
@@ -135,8 +130,7 @@
     {
       "from": "web",
       "to": "cli",
-      "label": "録音の区切り・ファイル・問いのリストの編集・関数呼び出し・文字起こし・役割・答えの記録・送信・診断の記録",
-      "changed": true
+      "label": "録音の区切り・ファイル・問いのリストの編集・関数呼び出し・文字起こし・役割・答えの記録・送信・診断の記録"
     },
     {
       "from": "cli",
@@ -146,14 +140,12 @@
     {
       "from": "cli",
       "to": "gemini-text",
-      "label": "録音・ファイル・文字起こしと調べた内容",
-      "changed": true
+      "label": "録音・ファイル・文字起こしと調べた内容"
     },
     {
       "from": "gemini-text",
       "to": "cli",
-      "label": "文字起こし・要点・問いのリスト",
-      "changed": true
+      "label": "文字起こし・要点・問いのリスト"
     }
   ]
 }

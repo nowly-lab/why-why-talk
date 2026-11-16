@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CONTEXT_LIMIT, liveConfig, mintToken, systemInstruction } from "../src/talk/gemini.ts";
+import { CONTEXT_LIMIT, HISTORY_LIMIT, conversationSoFar, liveConfig, mintToken, systemInstruction } from "../src/talk/gemini.ts";
 import { TalkSession } from "../src/talk/session.ts";
 
 const fixedNow = () => "2026-11-13T01:00:00.000Z";
@@ -47,15 +47,42 @@ test("context truncated at the limit with a note", async () => {
   assert.match(text, /以下 500 文字を省略/);
 });
 
-test("fallback includes tree summary and transcript tail", async () => {
+test("fallback includes the whole conversation, not only the tail", async () => {
   const s = await session();
   s.applyTool("add_whys", { parent_id: "q1", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
-  s.appendTranscript("person", "い".repeat(9000));
+  s.appendTranscript("person", "最初の発言");
+  s.appendTranscript("gemini", "い".repeat(12_000));
+  s.appendTranscript("person", "最後の発言");
   const text = systemInstruction(s, { fallback: true });
   assert.match(text, /これまでの会話/);
   assert.match(text, /n1 .*APIキーが期限切れ/);
-  assert.ok(text.includes("い".repeat(7000)));
-  assert.ok(!text.includes("い".repeat(8001)));
+  assert.match(text, /会話の全文:/);
+  assert.ok(text.includes("相手: 最初の発言"));
+  assert.ok(text.includes("い".repeat(12_000)));
+  assert.ok(text.includes("相手: 最後の発言"));
+});
+
+test("role switch seed carries the new role and the whole conversation", async () => {
+  const s = await session();
+  s.appendTranscript("person", "最初の発言");
+  s.setRole("answerer");
+  const text = systemInstruction(s, { fallback: true, roleSwitch: true });
+  assert.match(text, /役割を交代したので/);
+  assert.match(text, /今の役割: 答える係/);
+  assert.ok(text.includes("相手: 最初の発言"));
+  assert.ok(!text.includes("最初に、今の問い"));
+});
+
+test("conversation over HISTORY_LIMIT keeps the newest part with an omission note", async () => {
+  const s = await session();
+  s.appendTranscript("person", "最初の発言");
+  s.appendTranscript("gemini", "う".repeat(HISTORY_LIMIT + 20_000));
+  s.appendTranscript("person", "最後の発言");
+  const text = conversationSoFar(s);
+  assert.ok(text.includes("相手: 最後の発言"));
+  assert.match(text, /^\(前半 \d+ 文字を省略\)/);
+  assert.ok(!text.includes("最初の発言"));
+  assert.ok(text.length <= HISTORY_LIMIT + 30);
 });
 
 test("live config has audio, transcription, compression and tools", async () => {

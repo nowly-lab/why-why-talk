@@ -53,8 +53,7 @@
           "symbol": "attach",
           "role": "contract"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "agg-session",
@@ -84,8 +83,7 @@
           "symbol": "phase",
           "role": "rule"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "ev-page-opened",
@@ -152,8 +150,7 @@
           "symbol": "systemInstruction",
           "role": "rule"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "ev-said",
@@ -193,8 +190,7 @@
           "role": "contract"
         }
       ],
-      "note": "関数の結果に各ノードの段数と、まだ 5 段に届いていない枝の一覧を返す。未調査の枝の下になぜを足すと、その枝を digging にするよう結果で促す",
-      "changed": true
+      "note": "関数の結果に各ノードの段数と、まだ 5 段に届いていない枝の一覧を返す。未調査の枝の下になぜを足すと、その枝を digging にするよう結果で促す"
     },
     {
       "id": "agg-tree",
@@ -230,8 +226,7 @@
           "symbol": "addRoot",
           "role": "rule"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "ev-tree-grown",
@@ -256,8 +251,7 @@
           "role": "ui"
         }
       ],
-      "note": "問いごとの木と段数(n/5段)、問いの一覧(今掘っている・終わった・途中・未着手)",
-      "changed": true
+      "note": "問いごとの木と段数(n/5段)、問いの一覧(今掘っている・終わった・途中・未着手)"
     },
     {
       "id": "person-swap",
@@ -270,7 +264,7 @@
       "type": "command",
       "domain": "talk",
       "text": "役割を交代する",
-      "note": "ボタン、または声で「交代して」「戻して」。疑問形の問いかけでは Gemini が自分で交代して答え、答えたら戻る(戻し忘れたら、答えの終わりで画面が戻すか、木の関数を呼んだ時点で戻ったとみなす)",
+      "note": "ボタン、または声で「交代して」「戻して」。疑問形の問いかけでは Gemini が自分で交代して答え、答えたら戻る(戻し忘れたら、答えの終わりで画面が戻すか、木の関数を呼んだ時点で戻ったとみなす)。ボタンはすぐ、声の交代はその返事が終わったところ(10秒で終わらなければそこ)でつなぎ直す",
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -300,7 +294,36 @@
       "type": "event",
       "domain": "talk",
       "text": "役割が入れ替わった",
-      "note": "聞き手 ↔ 答える係。つなぎ直しても今の役割を指示に入れて引き継ぐ"
+      "note": "聞き手 ↔ 答える係。ボタンや声の「交代して」「戻して」で替わったら、新しい役割の指示とそれまでの会話の全文を持たせて新しい Gemini の会話でつなぎ直す。疑問形の問いかけで一瞬答えるときは今の接続のまま",
+      "evidence": [
+        {
+          "path": "web/live.ts",
+          "symbol": "restart",
+          "role": "rule"
+        },
+        {
+          "path": "web/answers.ts",
+          "symbol": "restartsOnSwitch",
+          "role": "rule"
+        },
+        {
+          "path": "src/talk/gemini.ts",
+          "symbol": "conversationSoFar",
+          "role": "rule"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "hs-history-size",
+      "type": "hotspot",
+      "domain": "talk",
+      "text": "会話の全文がとても長くなったとき(10万字超)、どこまで Gemini に渡せるか。今は古い側を省いて省略を書き添える",
+      "attach": {
+        "to": "ev-role-swapped",
+        "pos": "below"
+      },
+      "changed": true
     },
     {
       "id": "person-ask",
@@ -314,7 +337,6 @@
       "domain": "talk",
       "text": "Gemini に聞く",
       "note": "自分が知らないことを聞く。交代してからでも、聞き手のときに疑問形で Gemini に問いかけてもよい(Gemini が自分で答える係に替わり、答えたら聞き手に戻って枝の続きを聞く)。Gemini は Google 検索で確かめて答え、木には足さない",
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/gemini.ts",
@@ -387,14 +409,20 @@
       "domain": "talk",
       "text": "接続が切れそうになったら(goAway・25分)",
       "execution": "sync",
-      "note": "新しいトークンを取り、引き継ぎの番号でつなぎ直す。番号が使えなければ木の要約と会話の最後を渡して続ける",
+      "note": "新しいトークンを取り、引き継ぎの番号でつなぎ直す。古い接続を先に閉じてから開く(開いたままだと 1008 で断られる)。番号が使えなければ木と会話の全文を渡して続ける",
       "evidence": [
         {
           "path": "web/reconnect.ts",
           "symbol": "nextConnection",
           "role": "rule"
+        },
+        {
+          "path": "web/live.ts",
+          "symbol": "retire",
+          "role": "rule"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "pol-link-stalled",
@@ -446,8 +474,7 @@
       "id": "cmd-organise",
       "type": "command",
       "domain": "handoff",
-      "text": "整理する(問いごと)",
-      "changed": true
+      "text": "整理する(問いごと)"
     },
     {
       "id": "ev-draft",
@@ -461,15 +488,13 @@
           "symbol": "setDraft",
           "role": "rule"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "rm-draft",
       "type": "readModel",
       "domain": "handoff",
-      "text": "問いごとの方針の欄(方針・理由・見送った案・残った疑問)",
-      "changed": true
+      "text": "問いごとの方針の欄(方針・理由・見送った案・残った疑問)"
     },
     {
       "id": "person-send",
@@ -489,8 +514,7 @@
           "role": "entry"
         }
       ],
-      "note": "深掘りしていない問いは「未着手」、途中で飛ばした問いは「途中」として送る",
-      "changed": true
+      "note": "深掘りしていない問いは「未着手」、途中で飛ばした問いは「途中」として送る"
     },
     {
       "id": "agg-session-send",
@@ -521,8 +545,7 @@
           "symbol": "renderResultMarkdown",
           "role": "contract"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "ext-agent-session",
@@ -573,8 +596,7 @@
       "id": "person-free",
       "type": "actor",
       "domain": "gather",
-      "text": "人",
-      "changed": true
+      "text": "人"
     },
     {
       "id": "cmd-free-talk",
@@ -582,7 +604,6 @@
       "domain": "gather",
       "text": "自由に話す",
       "note": "Gemini は黙って聞く(Live にはつながない)。録音を話の切れ目(1〜2 秒の無音、長くても 30 秒)ごとに送り、文字起こしする。録音はブラウザの中だけに置く",
-      "changed": true,
       "evidence": [
         {
           "path": "web/recorder.ts",
@@ -606,7 +627,6 @@
         "pos": "below"
       },
       "note": "文字起こし・ファイルの要点・問いに分ける、に使う。WHY_WHY_TEXT_MODEL で変えられる。2026-11-16 の試しで 15 秒の音声を 5.5 秒で抜けなく文字起こしした",
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/text-model.ts",
@@ -624,7 +644,6 @@
         "文字起こしと要点は保存と出力の前に秘密を伏せる",
         "文字起こしに失敗した区切りは黙って捨てない(画面に再試行を出す)"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -637,8 +656,7 @@
       "id": "ev-free-said",
       "type": "event",
       "domain": "gather",
-      "text": "話が文字になった",
-      "changed": true
+      "text": "話が文字になった"
     },
     {
       "id": "hs-segment",
@@ -648,15 +666,13 @@
       "attach": {
         "to": "ev-free-said",
         "pos": "above"
-      },
-      "changed": true
+      }
     },
     {
       "id": "person-attach",
       "type": "actor",
       "domain": "gather",
-      "text": "人 / エージェント",
-      "changed": true
+      "text": "人 / エージェント"
     },
     {
       "id": "cmd-attach",
@@ -664,7 +680,6 @@
       "domain": "gather",
       "text": "ファイルを渡す",
       "note": "画面にドラッグ、または --attach。テキスト・Markdown・PDF・画像だけ、1 ファイル 10MB まで",
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/attachments.ts",
@@ -682,22 +697,19 @@
       "id": "ev-file-read",
       "type": "event",
       "domain": "gather",
-      "text": "ファイルの要点を読んだ",
-      "changed": true
+      "text": "ファイルの要点を読んだ"
     },
     {
       "id": "rm-free-view",
       "type": "readModel",
       "domain": "gather",
-      "text": "画面の文字起こしとファイルの要点",
-      "changed": true
+      "text": "画面の文字起こしとファイルの要点"
     },
     {
       "id": "person-split",
       "type": "actor",
       "domain": "gather",
-      "text": "人",
-      "changed": true
+      "text": "人"
     },
     {
       "id": "cmd-split",
@@ -705,7 +717,6 @@
       "domain": "gather",
       "text": "問いに分ける",
       "note": "文字起こし・ファイルの要点・論点・調べた内容から、最大 10 件の問いを作る",
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/text-model.ts",
@@ -724,7 +735,6 @@
         "最初は全部未チェック",
         "チェックが一つもなければ深掘りを始められない"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -737,8 +747,7 @@
       "id": "ev-questions-made",
       "type": "event",
       "domain": "gather",
-      "text": "問いのリストができた",
-      "changed": true
+      "text": "問いのリストができた"
     },
     {
       "id": "pol-topic-given",
@@ -746,15 +755,13 @@
       "domain": "gather",
       "text": "論点が渡されていたら",
       "execution": "sync",
-      "note": "自由に話す段階を飛ばし、画面を開いたらすぐ問いに分ける",
-      "changed": true
+      "note": "自由に話す段階を飛ばし、画面を開いたらすぐ問いに分ける"
     },
     {
       "id": "rm-question-list",
       "type": "readModel",
       "domain": "gather",
       "text": "問いのリスト(チェック欄・直す・足す・消す・並べ替え)",
-      "changed": true,
       "evidence": [
         {
           "path": "web/questions.ts",
@@ -767,15 +774,13 @@
       "id": "person-check",
       "type": "actor",
       "domain": "gather",
-      "text": "人",
-      "changed": true
+      "text": "人"
     },
     {
       "id": "cmd-start-dive",
       "type": "command",
       "domain": "gather",
       "text": "チェックして深掘りを始める",
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -791,15 +796,13 @@
       "text": "問いのリスト",
       "invariants": [
         "チェックした問いだけが、リストの順に木の根になる"
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "ev-dive-started",
       "type": "event",
       "domain": "gather",
-      "text": "深掘りが始まった",
-      "changed": true
+      "text": "深掘りが始まった"
     },
     {
       "id": "pol-question-done",
@@ -808,7 +811,6 @@
       "text": "今の問いに 5 段に届いた枝があり、掘りかけの浅い枝が残っていなければ",
       "execution": "external",
       "note": "Gemini がその問いの方針を下書きし、確認を待たずに next_question を呼ぶ。コマンドが条件を確かめ、足りなければ断る",
-      "changed": true,
       "evidence": [
         {
           "path": "src/analysis.ts",
@@ -823,7 +825,6 @@
       "domain": "talk",
       "text": "次の問いへ進む",
       "note": "Gemini の next_question、または人の「次の問いへ」ボタン(このときは確かめずに進み、その問いは「途中」)",
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -847,7 +848,6 @@
         "Gemini が進めるのは条件を満たしたときだけ。人のボタンは条件なしで「途中」にする",
         "最後の問いのあとは進まない"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -860,8 +860,7 @@
       "id": "ev-next-question",
       "type": "event",
       "domain": "talk",
-      "text": "次の問いに移った",
-      "changed": true
+      "text": "次の問いに移った"
     },
     {
       "id": "hs-length",
@@ -871,8 +870,7 @@
       "attach": {
         "to": "cmd-next-question",
         "pos": "above"
-      },
-      "changed": true
+      }
     }
   ],
   "edges": [
