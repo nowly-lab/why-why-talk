@@ -98,6 +98,33 @@ export function returnsAfterAnswer(state: { role: "interviewer" | "answerer"; by
   return state.role === "answerer" && state.byQuestion && entry !== null;
 }
 
+type Role = "interviewer" | "answerer";
+
+/**
+ * A role change the person asked for (button, or 交代して / 戻して) starts a new Live session that carries the new
+ * role's instruction and the whole conversation. The quick answer to a question put to Gemini (by=question) and the
+ * fallback back to interviewing stay on the current connection.
+ */
+export function restartsOnSwitch(
+  call: { name?: string; args?: Record<string, unknown> },
+  response: Record<string, unknown>,
+  before: { role: Role; byQuestion: boolean },
+): boolean {
+  if (call.name !== "switch_role" || response.error !== undefined || call.args?.by === "question") return false;
+  if (typeof response.role !== "string" || response.role === before.role) return false;
+  // Coming back from a question-triggered answer, even when Gemini leaves out by=question.
+  return !(response.role === "interviewer" && before.byQuestion);
+}
+
+/** After a voice switch, the new session starts when Gemini's reply ends, or after this long if it never does. */
+export const ROLE_RESTART_WAIT_MS = 10_000;
+
+/** The first words a new session gets after a role switch. */
+export const ROLE_KICK: Record<Role, string> = {
+  answerer: "役割を交代しました。ここからあなたは答える係です。私の質問に、Google 検索で確かめてから短く答えてください。会話の最後にまだ答えていない私の質問があればそれに答え、なければ『何について聞きたいですか?』とだけ聞いてください。",
+  interviewer: "役割を交代しました。聞き手に戻ってください。直前に掘っていた枝の続きから、なぜを聞いてください。",
+};
+
 /** Answers waiting to be saved. An entry stays until the server has it, so a failed write is retried. */
 export function createPendingAnswers(record: (e: AnswerEntry) => Promise<unknown>) {
   const queue: AnswerEntry[] = [];

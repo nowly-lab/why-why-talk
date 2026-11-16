@@ -103,3 +103,157 @@ test("reconnect() opens a fresh connection with the resumption handle and report
   assert.deepEqual((configs[1] as { sessionResumption: unknown }).sessionResumption, { handle: "h9" });
   live.close();
 });
+
+// --- role switch restarts (plan v1 Task 2) ---
+type Conn = { cb: Parameters<LiveConnect>[2]; config: { sessionResumption?: { handle?: string } }; texts: string[]; closed: boolean };
+function fakeLink(opts: { failFirst?: number } = {}) {
+  const conns: Conn[] = [];
+  const tokenArgs: Array<[boolean, boolean]> = [];
+  const closedBeforeConnect: boolean[] = [];
+  let failures = opts.failFirst ?? 0;
+  const connect: LiveConnect = async (_t, config, callbacks) => {
+    closedBeforeConnect.push(conns.every((c) => c.closed));
+    if (conns.length > 0 && failures > 0) {
+      failures--;
+      throw new Error("network down");
+    }
+    const c: Conn = { cb: callbacks, config: config as Conn["config"], texts: [], closed: false };
+    conns.push(c);
+    return {
+      sendClientContent: (p) => void c.texts.push(p.turns[0]!.parts[0]!.text),
+      sendRealtimeInput() {},
+      sendToolResponse() {},
+      close() {
+        c.closed = true;
+      },
+    };
+  };
+  const statuses: string[] = [];
+  const live = connectLive(async (fallback, roleSwitch) => {
+    tokenArgs.push([fallback, roleSwitch]);
+    return { token: "t", model: "m", expiresAt: "", config: {} };
+  }, { onAudio() {}, onInterrupted() {}, onTranscript() {}, onToolCall: async () => [], onStatus: (s) => void statuses.push(s) }, { hasHistory: false, connect });
+  return { live, conns, tokenArgs, closedBeforeConnect, statuses };
+}
+const tick = () => new Promise((r) => setImmediate(r));
+
+test("a reconnect closes the old connection before opening the next", async () => {
+  const { live, conns, closedBeforeConnect } = fakeLink();
+  await live.start();
+  conns[0]!.cb.onmessage({ sessionResumptionUpdate: { resumable: true, newHandle: "h1" } } as never);
+  await live.reconnect();
+  assert.deepEqual(closedBeforeConnect, [true, true]);
+  assert.ok(conns[0]!.closed);
+  // The retired connection's close event arrives later: it must not start another reconnect.
+  conns[0]!.cb.onclose?.({ reason: "bye" } as CloseEvent);
+  await tick();
+  assert.equal(conns.length, 2);
+  live.close();
+});
+
+test("restart opens a new seeded session and sends only the kick", async () => {
+  const { live, conns, tokenArgs } = fakeLink();
+  await live.start();
+  conns[0]!.cb.onmessage({ sessionResumptionUpdate: { resumable: true, newHandle: "h1" } } as never);
+  await live.restart("交代しました");
+  assert.equal(conns.length, 2);
+  assert.ok(conns[0]!.closed);
+  assert.equal(conns[1]!.config.sessionResumption?.handle, undefined);
+  assert.deepEqual(tokenArgs, [[false, false], [true, true]]);
+  assert.deepEqual(conns[1]!.texts, ["交代しました"]);
+  live.close();
+});
+
+test("after restart a reconnect resumes the new session's handle", async () => {
+  const { live, conns } = fakeLink();
+  await live.start();
+  conns[0]!.cb.onmessage({ sessionResumptionUpdate: { resumable: true, newHandle: "h1" } } as never);
+  await live.restart("交代しました");
+  conns[1]!.cb.onmessage({ sessionResumptionUpdate: { resumable: true, newHandle: "h2" } } as never);
+  await live.reconnect();
+  assert.equal(conns[2]!.config.sessionResumption?.handle, "h2");
+  live.close();
+});
+
+test("restarts asked while another open runs collapse to one more open with the last kick", async () => {
+  const { live, conns } = fakeLink();
+  await live.start();
+  const a = live.restart("A");
+  const b = live.restart("B");
+  const c = live.restart("C");
+  await Promise.all([a, b, c]);
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(conns.length, 3);
+  assert.deepEqual(conns[1]!.texts, ["A"]);
+  assert.ok(conns[1]!.closed);
+  assert.deepEqual(conns[2]!.texts, ["C"]);
+  live.close();
+});
+
+test("a failed restart retries with the role-switch seed", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+  const { live, conns, tokenArgs } = fakeLink({ failFirst: 1 });
+  await live.start();
+  await live.restart("交代しました");
+  assert.equal(conns.length, 1);
+  t.mock.timers.tick(1_000);
+  for (let i = 0; i < 5; i++) await tick();
+  assert.equal(conns.length, 2);
+  assert.deepEqual(tokenArgs.at(-1), [true, true]);
+  assert.deepEqual(conns[1]!.texts, ["交代しました"]);
+  live.close();
+});
+
+// --- review fixes ---
+test("text sent while a restart is connecting arrives after the kick", async () => {
+  const { live, conns } = fakeLink();
+  await live.start();
+  const r = live.restart("交代しました");
+  live.sendText("画面から: 次の問いへ進みます");
+  await r;
+  assert.deepEqual(conns[1]!.texts, ["交代しました", "画面から: 次の問いへ進みます"]);
+  live.close();
+});
+
+test("retry() while an open runs does not open a second connection", async () => {
+  const { live, conns } = fakeLink();
+  await live.start();
+  const r = live.restart("A");
+  live.retry();
+  await r;
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(conns.length, 2);
+  live.close();
+});
+
+test("the old connection closing by itself during a restart does not schedule a retry that replaces the new session", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+  const { live, conns } = fakeLink();
+  await live.start();
+  const r = live.restart("A");
+  conns[0]!.cb.onclose?.({ reason: "server closed" } as CloseEvent);
+  await r;
+  for (let i = 0; i < 60; i++) {
+    t.mock.timers.tick(1_000);
+    await tick();
+  }
+  assert.equal(conns.length, 2);
+  assert.equal(conns[1]!.closed, false);
+  live.close();
+});
+
+test("held text is dropped when the link gives up, not sent minutes later", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+  const { live, conns, statuses } = fakeLink({ failFirst: 100 });
+  await live.start();
+  const r = live.restart("交代しました");
+  live.sendText("画面から: 次の問いへ進みます");
+  await r;
+  for (let i = 0; i < 400 && !statuses.includes("failed"); i++) {
+    t.mock.timers.tick(1_000);
+    await tick();
+  }
+  assert.ok(statuses.includes("failed"));
+  assert.equal(conns.length, 1);
+  assert.equal(live.heldCount(), 0);
+});

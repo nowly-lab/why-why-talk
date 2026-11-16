@@ -79,7 +79,7 @@ export function createApi(nonce: string, opts: { toolTimeoutMs?: number } = {}) 
     return json;
   };
   return {
-    token: (fallback: boolean) => post<TokenInfo>("/api/token", { fallback }),
+    token: (fallback: boolean, roleSwitch = false) => post<TokenInfo>("/api/token", { fallback, roleSwitch }),
     tool: (name: string, args: unknown) => post<ToolResult>("/api/tool", { name, args }, toolTimeoutMs),
     transcript: (speaker: Speaker, text: string) => post<{ ok: true }>("/api/transcript", { speaker, text }),
     draft: (questionId: string, d: Direction) => post<{ ok: true }>("/api/draft", { questionId, ...d }),

@@ -9,11 +9,13 @@ import { FUNCTION_DECLARATIONS } from "./tools.ts";
 export const DEFAULT_MODEL = "gemini-3.8-live";
 export const DEFAULT_VOICE = "Kore";
 export const CONTEXT_LIMIT = 60_000;
-export const FALLBACK_TAIL = 8_000;
+export const HISTORY_LIMIT = 100_000;
 export const FREE_TALK_LIMIT = 30_000;
 const START_WITHIN_MS = 60_000;
 const VALID_FOR_MS = 30 * 60_000;
 
+/** How a new Live session starts: fresh, seeded with the talk so far (fallback), or seeded after a role switch. */
+export type Seed = { fallback: boolean; roleSwitch?: boolean };
 export type TokenInfo = { token: string; model: string; expiresAt: string; config: LiveConnectConfig };
 export type MintDeps = {
   apiKey: string;
@@ -24,7 +26,8 @@ export type MintDeps = {
 };
 
 /** The interviewer brief. Built per connection from the session as it is now. */
-export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): string {
+export function systemInstruction(s: TalkSession, opts: Seed): string {
+  const seeded = opts.fallback || opts.roleSwitch === true;
   const context = s.context.length > CONTEXT_LIMIT
     ? `${s.context.slice(0, CONTEXT_LIMIT)}\n(以下 ${s.context.length - CONTEXT_LIMIT} 文字を省略)`
     : s.context;
@@ -60,10 +63,10 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "",
     "役割の交代:",
     "- 相手が「交代して」と言ったら switch_role(to=\"answerer\")、「戻して」と言ったら switch_role(to=\"interviewer\") を呼ぶ。",
-    "- 画面から「役割を交代します」と届いたら、その役割で続ける(関数は呼ばない)。",
+    "- 画面から「役割を交代しました」と届いたら、その役割で続ける(関数は呼ばない)。",
     ...roleBrief(s.role, s.roleBy),
     "",
-    ...(opts.fallback ? [] : [`最初に、今の問い(${s.current()?.questionId ?? "q1"})を読み上げてから、最初の「なぜ?」を聞く。`, ""]),
+    ...(seeded ? [] : [`最初に、今の問い(${s.current()?.questionId ?? "q1"})を読み上げてから、最初の「なぜ?」を聞く。`, ""]),
     "RESPOND IN JAPANESE. YOU MUST RESPOND UNMISTAKABLY IN JAPANESE.",
     "",
     ...(s.topic ? [`論点: ${s.topic}`, ""] : []),
@@ -81,24 +84,32 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "エージェントが調べた内容:",
     context.trim() || "(なし)",
   ];
-  if (opts.fallback) {
+  if (seeded) {
     const tree = treeSummary(s.analysis)
       .sort((a, b) => rootOf(s.analysis, a.id).localeCompare(rootOf(s.analysis, b.id), "en", { numeric: true }))
       .map((n) => `${n.id} (親 ${n.parentId ?? "-"}, ${n.depth}段, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}`)
       .join("\n");
-    const all = s.transcript.map((t) => `${t.speaker === "person" ? "相手" : "あなた"}: ${t.text}`).join("\n");
-    const tail = redactSecrets(all.length > FALLBACK_TAIL ? all.slice(-FALLBACK_TAIL) : all);
+    const current = s.current()?.questionId ?? "なし";
     parts.push(
       "",
-      `これまでの会話(接続が切れたので続きから再開する。最初の読み上げは不要。今の問い(${s.current()?.questionId ?? "なし"})から続ける):`,
+      opts.roleSwitch
+        ? `これまでの会話(役割を交代したので、新しい会話として続ける。最初の読み上げは不要。今の役割で、今の問い(${current})から続ける):`
+        : `これまでの会話(接続が切れたので続きから再開する。最初の読み上げは不要。今の問い(${current})から続ける):`,
       "今の木:",
       tree,
       "",
-      "会話の最後の部分:",
-      tail || "(なし)",
+      "会話の全文:",
+      conversationSoFar(s) || "(なし)",
     );
   }
   return parts.join("\n");
+}
+
+/** The whole deep-dive conversation, redacted. Past HISTORY_LIMIT the oldest part is dropped with a note. */
+export function conversationSoFar(s: TalkSession): string {
+  const all = redactSecrets(s.transcript.map((t) => `${t.speaker === "person" ? "相手" : "あなた"}: ${t.text}`).join("\n"));
+  if (all.length <= HISTORY_LIMIT) return all;
+  return `(前半 ${all.length - HISTORY_LIMIT} 文字を省略)\n${all.slice(-HISTORY_LIMIT)}`;
 }
 
 function freeTalk(s: TalkSession): string {
@@ -126,10 +137,10 @@ function roleBrief(role: TalkSession["role"], by: TalkSession["roleBy"]): string
   ];
 }
 
-export function liveConfig(s: TalkSession, opts: { fallback: boolean; voice: string }): LiveConnectConfig {
+export function liveConfig(s: TalkSession, opts: Seed & { voice: string }): LiveConnectConfig {
   return {
     responseModalities: [Modality.AUDIO],
-    systemInstruction: systemInstruction(s, { fallback: opts.fallback }),
+    systemInstruction: systemInstruction(s, { fallback: opts.fallback, roleSwitch: opts.roleSwitch }),
     // Search is on in both roles (the token locks the config); the interviewer brief forbids it.
     tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }, { googleSearch: {} }],
     // Japanese only: auto-detection turned quiet Japanese into Spanish/English fragments (voice trial 2026-11-14).
@@ -154,9 +165,9 @@ export function liveConfig(s: TalkSession, opts: { fallback: boolean; voice: str
  * A single-use token for one Live connection. The fields we set are locked (lockAdditionalFields: []);
  * the browser adds only its session-resumption handle. The API key never leaves this process.
  */
-export async function mintToken(deps: MintDeps, s: TalkSession, opts: { fallback: boolean }): Promise<TokenInfo> {
+export async function mintToken(deps: MintDeps, s: TalkSession, opts: Seed): Promise<TokenInfo> {
   const now = deps.now ? deps.now() : Date.now();
-  const config = liveConfig(s, { fallback: opts.fallback, voice: deps.voice });
+  const config = liveConfig(s, { ...opts, voice: deps.voice });
   const expiresAt = new Date(now + VALID_FOR_MS).toISOString();
   const request: CreateAuthTokenConfig = {
     uses: 1,

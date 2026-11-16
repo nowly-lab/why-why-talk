@@ -36,7 +36,7 @@ const sdkConnect: LiveConnect = (token, config, callbacks) =>
  * Only one (re)connect runs at a time; each connection answers its own tool calls; failures back off.
  */
 export function connectLive(
-  getToken: (fallback: boolean) => Promise<TokenInfo>,
+  getToken: (fallback: boolean, roleSwitch: boolean) => Promise<TokenInfo>,
   h: LiveHandlers,
   opts: { hasHistory: boolean; connect?: LiveConnect },
 ) {
@@ -45,12 +45,19 @@ export function connectLive(
   let current: LiveSession | null = null;
   let closedByUs = false;
   let busy = false;
+  let opening: Promise<void> = Promise.resolve();
+  // The latest role-switch kick asked for while another open was running; it runs once that open settles.
+  let pendingRestart: string | null = null;
+  // Text the page sends while no connection is in service (during an open); delivered once the next one is up.
+  let heldTexts: string[] = [];
   const budget = createRetryBudget();
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function open(conn: Connection): Promise<void> {
     h.onStatus(state.connectedAt === null ? "connecting" : "reconnecting");
-    const token = await getToken(conn.fallback);
+    const token = await getToken(conn.fallback, conn.roleSwitch === true);
+    // Live refuses a second client on a resumed session (1008), so the old connection goes before the new one opens.
+    retire();
     let mine: LiveSession | null = null;
     let openedAt = 0;
     let alive = true;
@@ -62,7 +69,8 @@ export function connectLive(
         },
         onclose: (e: CloseEvent) => {
           alive = false;
-          if (mine !== current || closedByUs) return;
+          // While another open runs, that open decides what comes next; a late close must not schedule a rival.
+          if (mine !== current || closedByUs || busy) return;
           const quick = Date.now() - openedAt < QUICK_CLOSE_MS;
           if (quick && conn.handle !== null) void event({ kind: "handleRejected" }, e.reason);
           else if (quick) scheduleRetry(conn, e.reason || "closed right after connecting");
@@ -70,21 +78,24 @@ export function connectLive(
         },
     });
     openedAt = Date.now();
-    const previous = current;
     current = mine;
     state.connectedAt = openedAt;
-    previous?.close();
     budget.connected();
     // Only a connection that is still open after QUICK_CLOSE_MS earns back the retry budget.
     setTimeout(() => {
       if (current === mine && alive) budget.stable();
     }, QUICK_CLOSE_MS);
     h.onStatus("connected");
-    if (conn.fallback) {
+    if (conn.kick !== undefined) {
+      mine.sendClientContent({ turns: [{ role: "user", parts: [{ text: conn.kick }] }], turnComplete: true });
+    } else if (conn.fallback) {
       mine.sendClientContent({ turns: [{ role: "user", parts: [{ text: "接続が切れました。直前の話の続きから、短く確かめて再開してください。" }] }], turnComplete: true });
     } else if (conn.handle === null) {
       mine.sendClientContent({ turns: [{ role: "user", parts: [{ text: "始めてください。" }] }], turnComplete: true });
     }
+    const held = heldTexts;
+    heldTexts = [];
+    for (const text of held) mine.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
   }
 
   // Messages from an older connection that is still draining are handled too (a tool call there must still land).
@@ -125,21 +136,52 @@ export function connectLive(
     await attemptOpen(conn);
   }
 
-  async function attemptOpen(conn: Connection): Promise<void> {
+  /** Takes the current connection out of service and closes it; its close event no longer reconnects. */
+  function retire(): void {
+    const old = current;
+    current = null;
+    old?.close();
+  }
+
+  function attemptOpen(conn: Connection): Promise<void> {
+    opening = openOnce(conn);
+    return opening;
+  }
+
+  async function openOnce(conn: Connection): Promise<void> {
     busy = true;
     try {
       await open(conn);
     } catch (err) {
       busy = false;
       scheduleRetry(conn, (err as Error).message);
+      await runPendingRestart();
       return;
     }
     busy = false;
+    await runPendingRestart();
+  }
+
+  async function runPendingRestart(): Promise<void> {
+    if (pendingRestart === null || closedByUs) return;
+    const kick = pendingRestart;
+    pendingRestart = null;
+    await startOver(kick);
+  }
+
+  /** A new Live session seeded for the role now on the server; the old session's handle is dropped. */
+  async function startOver(kick: string): Promise<void> {
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = null;
+    state.handle = null;
+    await attemptOpen({ handle: null, fallback: true, roleSwitch: true, kick });
   }
 
   function scheduleRetry(conn: Connection, why: string): void {
     const delay = budget.failed();
     if (delay === null) {
+      // Screen texts held for this open are stale by the time the person presses つなぎ直す.
+      heldTexts = [];
       h.onStatus("failed", why);
       return;
     }
@@ -147,7 +189,9 @@ export function connectLive(
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = setTimeout(() => {
       retryTimer = null;
-      void attemptOpen(state.handle ? { handle: state.handle, fallback: false } : { handle: null, fallback: conn.fallback || state.connectedAt !== null });
+      void attemptOpen(state.handle
+        ? { handle: state.handle, fallback: false }
+        : conn.roleSwitch ? conn : { handle: null, fallback: conn.fallback || state.connectedAt !== null });
     }, delay);
   }
 
@@ -157,16 +201,35 @@ export function connectLive(
     start: () => event({ kind: "start", hasHistory: opts.hasHistory }),
     /** The link looks dead without having closed: resume on a fresh connection now. */
     reconnect: () => event({ kind: "stalled" }, "応答が止まったのでつなぎ直します"),
+    /**
+     * The role changed (button, or 交代して / 戻して): start a new Live session whose instruction carries the new
+     * role and the whole conversation, and send it `kick` first. While another open runs, the last kick waits for it.
+     */
+    async restart(kick: string): Promise<void> {
+      if (closedByUs) return;
+      if (busy) {
+        pendingRestart = kick;
+        await opening;
+        return;
+      }
+      budget.reset();
+      await startOver(kick);
+    },
     /** After "failed": try again from the start of the backoff. */
     retry() {
+      if (busy || closedByUs) return;
       budget.reset();
       void attemptOpen(state.handle ? { handle: state.handle, fallback: false } : { handle: null, fallback: true });
     },
     sendAudio(base64: string) {
       current?.sendRealtimeInput({ audio: { data: base64, mimeType: "audio/pcm;rate=16000" } });
     },
+    /** Texts held for the next connection (for tests). */
+    heldCount: () => heldTexts.length,
     sendText(text: string) {
-      current?.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
+      // During an open the connection in service is about to be retired: hold the text for the next one.
+      if (busy) heldTexts.push(text);
+      else current?.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
     },
     close() {
       closedByUs = true;

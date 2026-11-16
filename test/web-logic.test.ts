@@ -462,3 +462,26 @@ test("leaving the answerer records the answer once, by any path (review R3)", as
   await pending.flush();
   assert.deepEqual(saved, ["無料枠の上限は?|1日10万件です。|workers free limit"]);
 });
+
+// --- role switch restarts (role-switch plan v1 Task 3) ---
+test("restartsOnSwitch: only a role change asked for by the person starts a new session", async () => {
+  const { restartsOnSwitch } = await import("../web/answers.ts");
+  const asked = { role: "interviewer", byQuestion: false } as const;
+  const answering = { role: "answerer", byQuestion: false } as const;
+  assert.equal(restartsOnSwitch({ name: "switch_role", args: { to: "answerer" } }, { role: "answerer" }, asked), true);
+  assert.equal(restartsOnSwitch({ name: "switch_role", args: { to: "interviewer", by: "request" } }, { role: "interviewer" }, answering), true);
+  assert.equal(restartsOnSwitch({ name: "switch_role", args: { to: "answerer", by: "question" } }, { role: "answerer" }, asked), false);
+  assert.equal(restartsOnSwitch({ name: "switch_role", args: { to: "answerer" } }, { error: "bad", role: "answerer" }, asked), false);
+  assert.equal(restartsOnSwitch({ name: "switch_role", args: { to: "answerer" } }, { role: "answerer" }, answering), false);
+  // A tree tool from an answerer a question swapped in means it is back to interviewing: no new session.
+  assert.equal(restartsOnSwitch({ name: "add_whys", args: {} }, { role: "interviewer" }, answering), false);
+  // Coming back from a question-triggered answer stays on the connection even when Gemini leaves out by.
+  assert.equal(restartsOnSwitch({ name: "switch_role", args: { to: "interviewer" } }, { role: "interviewer" }, { role: "answerer", byQuestion: true }), false);
+});
+
+test("ROLE_KICK tells the new session its role", async () => {
+  const { ROLE_KICK, ROLE_RESTART_WAIT_MS } = await import("../web/answers.ts");
+  assert.match(ROLE_KICK.answerer, /答える係/);
+  assert.match(ROLE_KICK.interviewer, /聞き手に戻って/);
+  assert.equal(ROLE_RESTART_WAIT_MS, 10_000);
+});
