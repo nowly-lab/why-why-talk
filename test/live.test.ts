@@ -203,3 +203,41 @@ test("a failed restart retries with the role-switch seed", async (t) => {
   assert.deepEqual(conns[1]!.texts, ["交代しました"]);
   live.close();
 });
+
+// --- review fixes ---
+test("text sent while a restart is connecting arrives after the kick", async () => {
+  const { live, conns } = fakeLink();
+  await live.start();
+  const r = live.restart("交代しました");
+  live.sendText("画面から: 次の問いへ進みます");
+  await r;
+  assert.deepEqual(conns[1]!.texts, ["交代しました", "画面から: 次の問いへ進みます"]);
+  live.close();
+});
+
+test("retry() while an open runs does not open a second connection", async () => {
+  const { live, conns } = fakeLink();
+  await live.start();
+  const r = live.restart("A");
+  live.retry();
+  await r;
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(conns.length, 2);
+  live.close();
+});
+
+test("the old connection closing by itself during a restart does not schedule a retry that replaces the new session", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+  const { live, conns } = fakeLink();
+  await live.start();
+  const r = live.restart("A");
+  conns[0]!.cb.onclose?.({ reason: "server closed" } as CloseEvent);
+  await r;
+  for (let i = 0; i < 60; i++) {
+    t.mock.timers.tick(1_000);
+    await tick();
+  }
+  assert.equal(conns.length, 2);
+  assert.equal(conns[1]!.closed, false);
+  live.close();
+});

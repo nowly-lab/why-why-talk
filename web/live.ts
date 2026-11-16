@@ -48,6 +48,8 @@ export function connectLive(
   let opening: Promise<void> = Promise.resolve();
   // The latest role-switch kick asked for while another open was running; it runs once that open settles.
   let pendingRestart: string | null = null;
+  // Text the page sends while no connection is in service (during an open); delivered once the next one is up.
+  let heldTexts: string[] = [];
   const budget = createRetryBudget();
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -67,7 +69,8 @@ export function connectLive(
         },
         onclose: (e: CloseEvent) => {
           alive = false;
-          if (mine !== current || closedByUs) return;
+          // While another open runs, that open decides what comes next; a late close must not schedule a rival.
+          if (mine !== current || closedByUs || busy) return;
           const quick = Date.now() - openedAt < QUICK_CLOSE_MS;
           if (quick && conn.handle !== null) void event({ kind: "handleRejected" }, e.reason);
           else if (quick) scheduleRetry(conn, e.reason || "closed right after connecting");
@@ -90,6 +93,9 @@ export function connectLive(
     } else if (conn.handle === null) {
       mine.sendClientContent({ turns: [{ role: "user", parts: [{ text: "始めてください。" }] }], turnComplete: true });
     }
+    const held = heldTexts;
+    heldTexts = [];
+    for (const text of held) mine.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
   }
 
   // Messages from an older connection that is still draining are handled too (a tool call there must still land).
@@ -209,6 +215,7 @@ export function connectLive(
     },
     /** After "failed": try again from the start of the backoff. */
     retry() {
+      if (busy || closedByUs) return;
       budget.reset();
       void attemptOpen(state.handle ? { handle: state.handle, fallback: false } : { handle: null, fallback: true });
     },
@@ -216,7 +223,9 @@ export function connectLive(
       current?.sendRealtimeInput({ audio: { data: base64, mimeType: "audio/pcm;rate=16000" } });
     },
     sendText(text: string) {
-      current?.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
+      // During an open the connection in service is about to be retired: hold the text for the next one.
+      if (busy) heldTexts.push(text);
+      else current?.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
     },
     close() {
       closedByUs = true;

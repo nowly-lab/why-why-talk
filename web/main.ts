@@ -427,6 +427,16 @@ export async function boot(): Promise<void> {
     if (roleRestartTimer) clearTimeout(roleRestartTimer);
     roleRestartTimer = null;
     if (finishing) return;
+    if (how === "voice") {
+      // Let Gemini finish saying its reply and any tree tool land before the new session takes over.
+      const until = Date.now() + ROLE_RESTART_WAIT_MS;
+      while ((player.busy() || toolsPending > 0) && Date.now() < until && !finishing) await new Promise((r) => setTimeout(r, 200));
+    } else {
+      player.interrupt();
+    }
+    // The new token is built from the server's transcript: every queued transcript and answer write goes first.
+    await sendInOrder(async () => undefined).catch(() => undefined);
+    if (finishing) return;
     diag.log("role.restart", `${how} role=${role}`);
     player.interrupt();
     await live.restart(ROLE_KICK[role]);
@@ -494,6 +504,11 @@ export async function boot(): Promise<void> {
     onStatus: (s, detail) => {
       diag.log(`status.${s}`, detail);
       if (s === "connected") link.server(Date.now(), false);
+      if (s === "connected" && retryMode) {
+        // Connected again by another path (a role switch): the mic button is no longer つなぎ直す.
+        retryMode = false;
+        micBtn.textContent = muted ? "ミュート解除" : "ミュート";
+      }
       if (s === "connected") setStatus(muted ? "ミュート中" : "話しています", "live");
       else if (s === "connecting") setStatus("Gemini につないでいます…", "idle");
       else if (s === "reconnecting") setStatus("つなぎ直しています…", "warn");
@@ -555,9 +570,10 @@ export async function boot(): Promise<void> {
         response = { error: (e as Error).message };
       }
       diag.log(response.error ? "tool.error" : "tool", `${call.name ?? "?"}${response.error ? `: ${String(response.error)}` : ""}`, performance.now() - started);
+      const before = { role, byQuestion };
       if (call.name === "switch_role" && !response.error) byQuestion = call.args?.by === "question" && response.role === "answerer";
       // 交代して / 戻して: once this reply ends (or after ROLE_RESTART_WAIT_MS), the new role gets a new session.
-      if (restartsOnSwitch(call, response, role) && !finishing) {
+      if (restartsOnSwitch(call, response, before) && !finishing) {
         if (roleRestartTimer) clearTimeout(roleRestartTimer);
         roleRestartTimer = setTimeout(() => restartForRole("voice"), ROLE_RESTART_WAIT_MS);
       }

@@ -105,9 +105,15 @@ type Role = "interviewer" | "answerer";
  * role's instruction and the whole conversation. The quick answer to a question put to Gemini (by=question) and the
  * fallback back to interviewing stay on the current connection.
  */
-export function restartsOnSwitch(call: { name?: string; args?: Record<string, unknown> }, response: Record<string, unknown>, before: Role): boolean {
-  return call.name === "switch_role" && response.error === undefined && call.args?.by !== "question"
-    && typeof response.role === "string" && response.role !== before;
+export function restartsOnSwitch(
+  call: { name?: string; args?: Record<string, unknown> },
+  response: Record<string, unknown>,
+  before: { role: Role; byQuestion: boolean },
+): boolean {
+  if (call.name !== "switch_role" || response.error !== undefined || call.args?.by === "question") return false;
+  if (typeof response.role !== "string" || response.role === before.role) return false;
+  // Coming back from a question-triggered answer, even when Gemini leaves out by=question.
+  return !(response.role === "interviewer" && before.byQuestion);
 }
 
 /** After a voice switch, the new session starts when Gemini's reply ends, or after this long if it never does. */
