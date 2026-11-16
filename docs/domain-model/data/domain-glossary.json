@@ -211,11 +211,12 @@
     },
     {
       "term": "役割",
-      "meaning": "Gemini が聞き手か、答える係か。セッションが持ち、つなぎ直しても引き継ぐ。",
+      "meaning": "Gemini が聞き手か、答える係か。セッションが持ち、つなぎ直しても引き継ぐ。 聞き手のときに疑問形で問いかけると、Gemini が自分で答える係に替わって答え、答えたら聞き手に戻る(roleBy=question)。",
       "code": [
         "Role",
         "setRole",
-        "switch_role"
+        "switch_role",
+        "roleBy"
       ],
       "nodes": [
         "cmd-swap-role",
@@ -226,7 +227,8 @@
           "path": "src/talk/session.ts",
           "symbol": "setRole"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "term": "Gemini に聞いたこと",

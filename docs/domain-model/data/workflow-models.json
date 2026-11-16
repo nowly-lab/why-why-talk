@@ -650,7 +650,7 @@
       "id": "role-life",
       "name": "Gemini の役割",
       "domain": "talk",
-      "summary": "始めは聞き手。ボタンか声で交代し、戻すまで答える係。",
+      "summary": "始めは聞き手。ボタンか声で交代し、戻すまで答える係。疑問形で問いかけられたら自分で交代して答え、答えたら戻る。",
       "states": [
         {
           "id": "interviewer",
@@ -680,16 +680,37 @@
           "on": "cmd-ask",
           "to": "answerer",
           "effect": "答えを記録する"
+        },
+        {
+          "from": "interviewer",
+          "on": "cmd-ask",
+          "to": "answerer",
+          "guard": "相手が Gemini に向けて疑問形で聞いた(独り言やなぜへの答えの中の疑問は除く)",
+          "effect": "switch_role(by=question)。答えを記録する",
+          "changed": true,
+          "evidence": [
+            {
+              "path": "src/talk/gemini.ts",
+              "symbol": "roleBrief"
+            }
+          ]
+        },
+        {
+          "from": "answerer",
+          "on": "cmd-grow-tree",
+          "to": "interviewer",
+          "guard": "質問で交代していた(by=question)",
+          "effect": "答えたあと深掘りに戻ったとみなす",
+          "changed": true,
+          "evidence": [
+            {
+              "path": "src/talk/session.ts",
+              "symbol": "roleBy"
+            }
+          ]
         }
       ],
-      "rejections": [
-        {
-          "state": "interviewer",
-          "on": "cmd-ask",
-          "kind": "ignored",
-          "reason": "聞き手のときの質問は普通の会話として扱い、記録しない"
-        }
-      ]
+      "rejections": []
     }
   ]
 }

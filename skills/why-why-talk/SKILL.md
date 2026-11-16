@@ -67,6 +67,6 @@ Treat exit 0 with an empty or malformed body (no `# 深掘りの結果:` heading
 - Treat 残った疑問 as open items: answer the ones the code can answer; ask the rest in the Plannotator Inbox.
 - Branches marked hypothesis are not facts; verify them before building on them.
 - A leaf stopped before five whys carries the person's reason and is listed under 深さ不足の枝. Dig those further in the plan, or check that the reason holds.
-- Gemini に聞いたこと holds what the person asked Gemini after swapping roles (button or 「交代して」). Those answers came from Google Search and are unverified: check them before using them.
+- Gemini に聞いたこと holds what the person asked Gemini: after swapping roles (button or 「交代して」), or by simply putting a question to Gemini while it interviews (it answers, then goes back to digging). Those answers came from Google Search and are unverified: check them before using them.
 - On 取りやめ, do not guess the outcome. The partial record in `<dir>` (free talk, questions, transcript, trees) may still help; ask the person how to proceed.
 - If the person says Gemini stopped responding or misheard them, read `<dir>/events.jsonl` (connection changes, tool calls with timings, mic switches and silence, `gemini.silent`, `link.stalled`) before guessing a cause. The page lets the person pick the microphone and shows its level.

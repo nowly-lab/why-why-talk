@@ -149,11 +149,24 @@ test("liveConfig includes googleSearch", async () => {
   assert.equal((tools[0] as { functionDeclarations: unknown[] }).functionDeclarations.length, 6);
 });
 
-test("interviewer brief says not to search", async () => {
+test("interviewer brief answers a question put to Gemini and then comes back", async () => {
   const text = systemInstruction(await session(), { fallback: false });
   assert.match(text, /今の役割: 聞き手/);
-  assert.match(text, /Google 検索は使わない/);
-  assert.match(text, /switch_role/);
+  assert.ok(text.includes("相手があなたに向けて疑問形で聞いたとき"));
+  assert.ok(text.includes('switch_role(to="answerer", by="question")'));
+  assert.ok(text.includes('switch_role(to="interviewer", by="question")'));
+  assert.ok(text.includes("独り言"), "a question the person asks themselves is not answered");
+  assert.match(text, /それ以外では Google 検索は使わない/);
+});
+
+test("an answerer swapped in by a question goes back after answering; one asked for stays", async () => {
+  const s = await session();
+  s.setRole("answerer", "question");
+  assert.ok(systemInstruction(s, { fallback: true }).includes('答えたら switch_role(to="interviewer", by="question")'));
+  s.setRole("answerer", "request");
+  const asked = systemInstruction(s, { fallback: true });
+  assert.ok(asked.includes("戻すときは『戻して』と言ってください"));
+  assert.ok(!asked.includes('答えたら switch_role(to="interviewer", by="question")'));
 });
 
 test("token minted after role swap carries answerer brief", async () => {

@@ -61,7 +61,7 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "役割の交代:",
     "- 相手が「交代して」と言ったら switch_role(to=\"answerer\")、「戻して」と言ったら switch_role(to=\"interviewer\") を呼ぶ。",
     "- 画面から「役割を交代します」と届いたら、その役割で続ける(関数は呼ばない)。",
-    ...roleBrief(s.role),
+    ...roleBrief(s.role, s.roleBy),
     "",
     ...(opts.fallback ? [] : [`最初に、今の問い(${s.current()?.questionId ?? "q1"})を読み上げてから、最初の「なぜ?」を聞く。`, ""]),
     "RESPOND IN JAPANESE. YOU MUST RESPOND UNMISTAKABLY IN JAPANESE.",
@@ -106,13 +106,23 @@ function freeTalk(s: TalkSession): string {
   return all.length > FREE_TALK_LIMIT ? `(前略)${all.slice(-FREE_TALK_LIMIT)}` : all;
 }
 
-function roleBrief(role: TalkSession["role"]): string[] {
-  if (role === "interviewer") return ["今の役割: 聞き手", "- Google 検索は使わない。"];
+function roleBrief(role: TalkSession["role"], by: TalkSession["roleBy"]): string[] {
+  if (role === "interviewer") {
+    return [
+      "今の役割: 聞き手",
+      // The person asked for this (2026-11-16): a question put to Gemini is answered without saying 「交代して」.
+      "- 相手があなたに向けて疑問形で聞いたとき(「〜って何?」「〜はどうなっている?」など、あなたに答えを求める問い)は、switch_role(to=\"answerer\", by=\"question\") を呼び、Google 検索で確かめて短く答える。答えたら switch_role(to=\"interviewer\", by=\"question\") を呼び、直前に掘っていた枝の続きから「なぜ?」を聞く。",
+      "- 相手が自分に向けて考えている問い(「なんでだろう…」などの独り言)や、なぜへの答えの中に出てきた疑問には答えず、そのまま深掘りを続ける。",
+      "- それ以外では Google 検索は使わない。",
+    ];
+  }
   return [
     "今の役割: 答える係",
     "- 相手の質問に、Google 検索で確かめてから日本語で短く答える。確かでないことは「確かではありません」と言う。",
     "- 木の関数(add_whys / add_fact / update_branch)は呼ばない。",
-    "- 答えたら「他に聞きたいことはありますか? 戻すときは『戻して』と言ってください」と聞く。",
+    by === "question"
+      ? "- 相手の質問に答えて交代した。答えたら switch_role(to=\"interviewer\", by=\"question\") を呼び、直前に掘っていた枝の続きから「なぜ?」を聞く。"
+      : "- 答えたら「他に聞きたいことはありますか? 戻すときは『戻して』と言ってください」と聞く。",
   ];
 }
 

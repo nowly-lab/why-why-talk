@@ -21,6 +21,7 @@ export type SessionView = {
   tree: TreeNode[];
   transcript: Array<{ at: string; speaker: Speaker; text: string }>;
   role: Role;
+  roleBy: "request" | "question" | null;
   asked: AskedView[];
 };
 export type DivesView = { dives: Dive[]; current: CurrentQuestion };

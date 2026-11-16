@@ -116,6 +116,26 @@ console.log("grounding queries:", c.queries.join(" / ") || "(none)");
 console.log("answer:", c.transcript.slice(-200));
 c.session.close();
 
+// A question put to Gemini while it interviews: it swaps by itself, answers with search and comes back.
+s.setRole("interviewer");
+const q = await connect(null, "asked");
+q.toolCalls.length = 0;
+const callArgs: string[] = [];
+const origApply = s.applyTool.bind(s);
+s.applyTool = ((name: string, args: unknown) => { if (name === "switch_role") callArgs.push(JSON.stringify(args)); return origApply(name, args); }) as typeof s.applyTool;
+await say(q, "ところで、Cloudflare Workers の無料プランだと1日に何リクエストまで使えるんですか?", 90_000);
+// A tool call ends the turn early; the spoken answer comes after it.
+await new Promise((r) => setTimeout(r, 20_000));
+for (let i = 0; i < 20 && s.role !== "interviewer"; i++) await new Promise((r) => setTimeout(r, 500));
+s.applyTool = origApply;
+const backByGemini = s.role === "interviewer";
+// The page switches back at the end of an answered turn when Gemini forgot (web/answers.ts returnsAfterAnswer).
+if (!backByGemini && s.roleBy === "question") s.setRole("interviewer");
+console.log("asked: switch_role calls:", callArgs.join(" ") || "(none)", "| queries:", q.queries.join(" / ") || "(none)");
+console.log("asked: swapped by the question:", callArgs.some((c) => /answerer/.test(c) && /question/.test(c)), "| came back:", backByGemini ? "by Gemini" : "by the page rule");
+console.log("asked: said:", q.transcript.slice(-200));
+q.session.close();
+
 // The question list: refused while shallow, then Gemini moves on by itself.
 const d = await connect(null, "questions");
 await say(d, "戻して。q1 はもう十分なので、次の問いに進んでください。");

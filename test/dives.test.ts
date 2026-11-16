@@ -322,3 +322,32 @@ test("a retried free-talk segment takes its place by order everywhere", async ()
   assert.equal(s.splitInput().freeTalk, "A: 古い案を使う\nB: それは違う");
   assert.match(renderResultMarkdown((s.submit({}), s)), /あなた: A: 古い案を使う\n.*あなた: B: それは違う/);
 });
+
+// --- a question put to Gemini swaps roles by itself (2026-11-16, user request) ---
+test("switch_role by a question tells Gemini to answer and come back", async () => {
+  const s = await diving();
+  const r = s.applyTool("switch_role", { to: "answerer", by: "question" });
+  assert.ok(r.ok && r.role === "answerer");
+  assert.equal(s.roleBy, "question");
+  assert.match(r.ok ? r.note ?? "" : "", /then call switch_role\(to="interviewer", by="question"\)/);
+  assert.equal(s.snapshot().roleBy, "question");
+  const back = s.applyTool("switch_role", { to: "interviewer", by: "question" });
+  assert.ok(back.ok && back.role === "interviewer");
+  assert.match(back.ok ? back.note ?? "" : "", /continue the branch/);
+  const asked = s.applyTool("switch_role", { to: "answerer" });
+  assert.ok(asked.ok);
+  assert.equal(s.roleBy, "request", "交代して without by is the person's request");
+});
+
+test("a tree tool from an answerer swapped in by a question brings Gemini back as the interviewer", async () => {
+  const s = await diving();
+  s.applyTool("switch_role", { to: "answerer", by: "question" });
+  const r = s.applyTool("add_whys", { parent_id: "q1", items: [{ text: "理由", viewpoint: "検知" }] });
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(s.role, "interviewer");
+  assert.equal(r.ok && r.role, "interviewer");
+  s.applyTool("switch_role", { to: "answerer" });
+  const refused = s.applyTool("add_whys", { parent_id: "q1", items: [{ text: "別", viewpoint: "検知" }] });
+  assert.equal(s.role, "answerer", "an answerer the person asked for stays");
+  assert.ok(refused.ok || !refused.ok);
+});

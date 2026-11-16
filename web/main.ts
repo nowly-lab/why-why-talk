@@ -1,4 +1,4 @@
-import { createAnswerCollector, createPendingAnswers, readGrounding, submitAfterAnswers } from "./answers.ts";
+import { createAnswerCollector, createPendingAnswers, readGrounding, returnsAfterAnswer, submitAfterAnswers } from "./answers.ts";
 import { createApi, loadSession, toGeminiResponse, type Direction, type FileView, type Phase, type Role } from "./api.ts";
 import { acceptDrop } from "./files.ts";
 import { createFreeTalk } from "./free-talk.ts";
@@ -58,6 +58,8 @@ export async function boot(): Promise<void> {
   const roleBadge = $("role");
   const askedEl = $("asked");
   let role: Role = view.role;
+  // Gemini became the answerer because the person put a question to it (not 交代して): it comes back after answering.
+  let byQuestion = view.roleBy === "question";
   const applyRole = (next: Role) => {
     role = next;
     roleBadge.dataset.role = next;
@@ -453,6 +455,11 @@ export async function boot(): Promise<void> {
         return;
       }
       const entry = answers.turnComplete();
+      if (returnsAfterAnswer({ role, byQuestion }, entry)) {
+        byQuestion = false;
+        applyRole("interviewer");
+        void api.role("interviewer").catch(() => undefined);
+      }
       if (entry) {
         pendingAnswers.add(entry);
         void sendInOrder(() => pendingAnswers.flush())
@@ -534,9 +541,18 @@ export async function boot(): Promise<void> {
         response = { error: (e as Error).message };
       }
       diag.log(response.error ? "tool.error" : "tool", `${call.name ?? "?"}${response.error ? `: ${String(response.error)}` : ""}`, performance.now() - started);
+      if (call.name === "switch_role" && !response.error) byQuestion = call.args?.by === "question" && response.role === "answerer";
       if (typeof response.role === "string" && response.role !== role) {
+        // Gemini answered a question and switches back within the same turn: record the answer before leaving.
+        if (response.role === "interviewer" && !finishing) {
+          const entry = answers.turnComplete();
+          if (entry) {
+            pendingAnswers.add(entry);
+            void sendInOrder(() => pendingAnswers.flush()).catch(() => undefined);
+          }
+        }
         applyRole(response.role as Role);
-        // Switched by voice: keep the question said in this turn; going back forgets the answerer's turn.
+        // Switched by voice: keep the question said in this turn; going back starts fresh.
         if (role === "interviewer") answers.reset();
       }
       out.push({ id: call.id, name: call.name, response });
@@ -640,6 +656,7 @@ export async function boot(): Promise<void> {
     roleBtn.disabled = true;
     try {
       await api.role(next);
+      byQuestion = false;
       applyRole(next);
       answers.reset();
       live.sendText(next === "answerer"

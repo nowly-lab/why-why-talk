@@ -82,6 +82,11 @@ export function createAnswerCollector() {
 
 type Collector = ReturnType<typeof createAnswerCollector>;
 
+/** After answering a question put to it, Gemini goes back to interviewing; the page switches back if Gemini forgot. */
+export function returnsAfterAnswer(state: { role: "interviewer" | "answerer"; byQuestion: boolean }, entry: AnswerEntry | null): boolean {
+  return state.role === "answerer" && state.byQuestion && entry !== null;
+}
+
 /** Answers waiting to be saved. An entry stays until the server has it, so a failed write is retried. */
 export function createPendingAnswers(record: (e: AnswerEntry) => Promise<unknown>) {
   const queue: AnswerEntry[] = [];

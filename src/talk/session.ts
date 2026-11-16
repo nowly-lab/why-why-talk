@@ -51,6 +51,8 @@ export class TalkSession {
   dives: Dive[] = [];
   /** Who Gemini is right now: the interviewer, or (after 交代) the one answering the person's questions. */
   role: Role = "interviewer";
+  /** How Gemini became the answerer: the person asked for it (交代して, the button) or a question put to Gemini. */
+  roleBy: "request" | "question" | null = null;
   /** What the person asked Gemini while it was the answerer. Not part of the tree; unverified. */
   asked: AskedEntry[] = [];
   cancelReason: string | null = null;
@@ -89,6 +91,7 @@ export class TalkSession {
       tree: this.analysis.nodes,
       transcript: this.transcript,
       role: this.role,
+      roleBy: this.roleBy,
       asked: this.asked,
       startedAt: this.startedAt,
     };
@@ -224,6 +227,12 @@ export class TalkSession {
       let added: string[] = [];
       let note: string | undefined;
       let role: Role | undefined;
+      // Live trial 2026-11-16: after answering a question Gemini went back to asking why without switch_role.
+      // A tree tool from an answerer that a question swapped in means it is interviewing again.
+      if (this.role === "answerer" && this.roleBy === "question" && (name === "add_whys" || name === "add_fact" || name === "update_branch")) {
+        this.setRole("interviewer");
+        role = this.role;
+      }
       switch (name) {
         case "add_whys": {
           const a = ToolArgs.add_whys.parse(args);
@@ -271,8 +280,13 @@ export class TalkSession {
         }
         case "switch_role": {
           const a = ToolArgs.switch_role.parse(args);
-          this.setRole(a.to);
+          this.setRole(a.to, a.by ?? "request");
           role = this.role;
+          if (a.by === "question") {
+            note = a.to === "answerer"
+              ? 'answer briefly after checking with Google Search, then call switch_role(to="interviewer", by="question")'
+              : "continue the branch you were digging with the next why";
+          }
           break;
         }
       }
@@ -284,9 +298,10 @@ export class TalkSession {
   }
 
   /** Switching to the current role does nothing. */
-  setRole(role: Role): void {
+  setRole(role: Role, by: "request" | "question" = "request"): void {
     this.assertTalking();
     this.role = role;
+    this.roleBy = role === "answerer" ? by : null;
   }
 
   recordAnswer(e: Omit<AskedEntry, "at">): void {

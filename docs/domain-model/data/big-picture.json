@@ -270,7 +270,7 @@
       "type": "command",
       "domain": "talk",
       "text": "役割を交代する",
-      "note": "ボタン、または声で「交代して」「戻して」。つなぎ直さず、会話の中で指示を送る",
+      "note": "ボタン、または声で「交代して」「戻して」。疑問形の問いかけでは Gemini が自分で交代して答え、答えたら戻る(戻し忘れたら、答えの終わりで画面が戻すか、木の関数を呼んだ時点で戻ったとみなす)",
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -286,8 +286,14 @@
           "path": "web/main.ts",
           "symbol": "roleBtn",
           "role": "ui"
+        },
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "roleBy",
+          "role": "rule"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "ev-role-swapped",
@@ -307,7 +313,20 @@
       "type": "command",
       "domain": "talk",
       "text": "Gemini に聞く",
-      "note": "自分が知らないことを聞く。Gemini は Google 検索で確かめて答え、木には足さない"
+      "note": "自分が知らないことを聞く。交代してからでも、聞き手のときに疑問形で Gemini に問いかけてもよい(Gemini が自分で答える係に替わり、答えたら聞き手に戻って枝の続きを聞く)。Gemini は Google 検索で確かめて答え、木には足さない",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/gemini.ts",
+          "symbol": "roleBrief",
+          "role": "rule"
+        },
+        {
+          "path": "web/answers.ts",
+          "symbol": "returnsAfterAnswer",
+          "role": "ui"
+        }
+      ]
     },
     {
       "id": "ext-search",

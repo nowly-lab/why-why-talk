@@ -428,3 +428,23 @@ test("createLatestSaver.drain waits for a save started during the wait", async (
   await d;
   assert.deepEqual(applied, ["AB"]);
 });
+
+test("an answer is kept when Gemini switches back in the same turn", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.gemini("なぜ遅れたのですか?");
+  c.otherTurn();
+  c.person("ところで無料枠の上限って何件?");
+  c.gemini("1日10万件です。");
+  const entry = c.turnComplete();
+  assert.deepEqual(entry && [entry.question, entry.answer], ["ところで無料枠の上限って何件?", "1日10万件です。"]);
+});
+
+test("returnsAfterAnswer only for a swap made by a question, once an answer is recorded", async () => {
+  const { returnsAfterAnswer } = await import("../web/answers.ts");
+  const entry = { question: "q", answer: "a", queries: [], sources: [] };
+  assert.equal(returnsAfterAnswer({ role: "answerer", byQuestion: true }, entry), true);
+  assert.equal(returnsAfterAnswer({ role: "answerer", byQuestion: true }, null), false);
+  assert.equal(returnsAfterAnswer({ role: "answerer", byQuestion: false }, entry), false);
+  assert.equal(returnsAfterAnswer({ role: "interviewer", byQuestion: true }, entry), false);
+});
