@@ -423,10 +423,13 @@ export async function boot(): Promise<void> {
   let toolsPending = 0;
   // A voice switch (交代して / 戻して) waits for Gemini's reply to end, then starts a new session for the new role.
   let roleRestartTimer: ReturnType<typeof setTimeout> | null = null;
+  // Each switch bumps this; a voice restart still waiting for Gemini to finish gives way to a newer switch.
+  let roleSwitchGen = 0;
   const restartForRole = async (how: "button" | "voice"): Promise<void> => {
     if (roleRestartTimer) clearTimeout(roleRestartTimer);
     roleRestartTimer = null;
     if (finishing) return;
+    const gen = ++roleSwitchGen;
     if (how === "voice") {
       // Let Gemini finish saying its reply and any tree tool land before the new session takes over.
       const until = Date.now() + ROLE_RESTART_WAIT_MS;
@@ -436,7 +439,7 @@ export async function boot(): Promise<void> {
     }
     // The new token is built from the server's transcript: every queued transcript and answer write goes first.
     await sendInOrder(async () => undefined).catch(() => undefined);
-    if (finishing) return;
+    if (finishing || gen !== roleSwitchGen) return;
     diag.log("role.restart", `${how} role=${role}`);
     player.interrupt();
     await live.restart(ROLE_KICK[role]);

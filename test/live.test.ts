@@ -241,3 +241,19 @@ test("the old connection closing by itself during a restart does not schedule a 
   assert.equal(conns[1]!.closed, false);
   live.close();
 });
+
+test("held text is dropped when the link gives up, not sent minutes later", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+  const { live, conns, statuses } = fakeLink({ failFirst: 100 });
+  await live.start();
+  const r = live.restart("交代しました");
+  live.sendText("画面から: 次の問いへ進みます");
+  await r;
+  for (let i = 0; i < 400 && !statuses.includes("failed"); i++) {
+    t.mock.timers.tick(1_000);
+    await tick();
+  }
+  assert.ok(statuses.includes("failed"));
+  assert.equal(conns.length, 1);
+  assert.equal(live.heldCount(), 0);
+});

@@ -180,6 +180,8 @@ export function connectLive(
   function scheduleRetry(conn: Connection, why: string): void {
     const delay = budget.failed();
     if (delay === null) {
+      // Screen texts held for this open are stale by the time the person presses つなぎ直す.
+      heldTexts = [];
       h.onStatus("failed", why);
       return;
     }
@@ -222,6 +224,8 @@ export function connectLive(
     sendAudio(base64: string) {
       current?.sendRealtimeInput({ audio: { data: base64, mimeType: "audio/pcm;rate=16000" } });
     },
+    /** Texts held for the next connection (for tests). */
+    heldCount: () => heldTexts.length,
     sendText(text: string) {
       // During an open the connection in service is about to be retired: hold the text for the next one.
       if (busy) heldTexts.push(text);
