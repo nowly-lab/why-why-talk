@@ -2,16 +2,21 @@
   "schema": "big-picture/v1",
   "title": "全体像",
   "product": "why-why-talk",
-  "summary": "計画の途中で一点を深掘りするとき、人が Gemini Live と声で壁打ちし、なぜの木と方針をエージェントに送る流れ。",
+  "summary": "計画の途中で、人がまず自由に話し(添付ファイルも渡し)、それを問いのリストに分けて選び、選んだ問いを順に Gemini Live と声でなぜなぜ深掘りして、問いごとの方針をエージェントに送る流れ。",
   "checked": {
-    "revision": "32134da",
-    "date": "2026-11-14"
+    "revision": "86c1c69",
+    "date": "2026-11-16"
   },
   "domains": [
     {
       "id": "invocation",
       "name": "呼び出し",
       "note": "エージェントがコマンドで深掘りを始め、結果を待つ"
+    },
+    {
+      "id": "gather",
+      "name": "問いを集める",
+      "note": "自由に話した内容と添付ファイルから問いのリストを作り、人が選ぶ"
     },
     {
       "id": "talk",
@@ -36,14 +41,20 @@
       "type": "command",
       "domain": "invocation",
       "text": "深掘りを始める",
-      "note": "why-why-talk --topic <論点> --context <調べた内容>",
+      "note": "why-why-talk [--topic <論点>] [--context <調べた内容>] [--attach <ファイル>]...。論点は任意",
       "evidence": [
         {
           "path": "src/cli.ts",
           "symbol": "main",
           "role": "entry"
+        },
+        {
+          "path": "src/cli.ts",
+          "symbol": "attach",
+          "role": "contract"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "agg-session",
@@ -54,7 +65,8 @@
         "Gemini の API キーはコマンドの中だけに置き、画面には短期トークンだけを渡す",
         "合言葉の違う画面(古いタブ)からの書き込みは断る",
         "結果は一度だけ決まる(送信か取りやめ)",
-        "変わるたびに記録をフォルダに保存し、保存と出力の前に秘密を伏せる"
+        "変わるたびに記録をフォルダに保存し、保存と出力の前に秘密を伏せる",
+        "段階は 自由に話す → 問いを選ぶ → 深掘り の順に進む(問いを選ぶ段階からは自由に話す段階へ戻れる)"
       ],
       "evidence": [
         {
@@ -66,8 +78,14 @@
           "path": "src/talk/server.ts",
           "symbol": "startTalkServer",
           "role": "contract"
+        },
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "phase",
+          "role": "rule"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "ev-page-opened",
@@ -103,8 +121,7 @@
           "role": "ui"
         }
       ],
-      "note": "マイクは画面で選べ、会話中でもつなぎ直さずに切り替えられる。人の文字起こしは日本語(ja-JP)に固定",
-      "changed": true
+      "note": "マイクは画面で選べ、会話中でもつなぎ直さずに切り替えられる。人の文字起こしは日本語(ja-JP)に固定"
     },
     {
       "id": "ext-gemini",
@@ -128,15 +145,15 @@
       "type": "command",
       "domain": "talk",
       "text": "質問に答える",
-      "note": "Gemini は一つの枝を 5 段まで「なぜ?」で掘ってから「他には?」で広げる。相手の言葉を引いて「なぜ〇〇が大事なのですか?」と聞き、褒めたり励ましたりしない",
-      "changed": true,
+      "note": "今の問いの一つの枝を 5 段まで「なぜ?」で掘ってから「他には?」で広げる。相手の言葉を引いて聞き、褒めたり励ましたりしない",
       "evidence": [
         {
           "path": "src/talk/gemini.ts",
           "symbol": "systemInstruction",
           "role": "rule"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "ev-said",
@@ -185,7 +202,7 @@
       "domain": "talk",
       "text": "なぜの木",
       "invariants": [
-        "親のないノードは作らない",
+        "根はチェックした問いごとに一つ(q1, q2, … リストの順)。根以外に親のないノードは作らない",
         "同じ親に同じ文のなぜを二重に足さない",
         "枝は消さない(却下・仮説も理由つきで残す)",
         "葉には対策、却下と仮説には理由が必要",
@@ -207,6 +224,11 @@
           "path": "src/analysis.ts",
           "symbol": "TARGET_DEPTH",
           "role": "rule"
+        },
+        {
+          "path": "src/analysis.ts",
+          "symbol": "addRoot",
+          "role": "rule"
         }
       ],
       "changed": true
@@ -227,25 +249,28 @@
           "path": "web/ui.ts",
           "symbol": "renderTree",
           "role": "ui"
+        },
+        {
+          "path": "web/questions.ts",
+          "symbol": "renderDives",
+          "role": "ui"
         }
       ],
-      "note": "各ノードに「何段目か(n/5段)」を出す",
+      "note": "問いごとの木と段数(n/5段)、問いの一覧(今掘っている・終わった・途中・未着手)",
       "changed": true
     },
     {
       "id": "person-swap",
       "type": "actor",
       "domain": "talk",
-      "text": "人",
-      "changed": true
+      "text": "人"
     },
     {
       "id": "cmd-swap-role",
       "type": "command",
       "domain": "talk",
       "text": "役割を交代する",
-      "note": "ボタン、または声で「交代して」「戻して」。つなぎ直さず、会話の中で指示を送る",
-      "changed": true,
+      "note": "ボタン、または声で「交代して」「戻して」。疑問形の問いかけでは Gemini が自分で交代して答え、答えたら戻る(戻し忘れたら、答えの終わりで画面が戻すか、木の関数を呼んだ時点で戻ったとみなす)",
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -261,31 +286,47 @@
           "path": "web/main.ts",
           "symbol": "roleBtn",
           "role": "ui"
+        },
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "roleBy",
+          "role": "rule"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "ev-role-swapped",
       "type": "event",
       "domain": "talk",
       "text": "役割が入れ替わった",
-      "note": "聞き手 ↔ 答える係。つなぎ直しても今の役割を指示に入れて引き継ぐ",
-      "changed": true
+      "note": "聞き手 ↔ 答える係。つなぎ直しても今の役割を指示に入れて引き継ぐ"
     },
     {
       "id": "person-ask",
       "type": "actor",
       "domain": "talk",
-      "text": "人",
-      "changed": true
+      "text": "人"
     },
     {
       "id": "cmd-ask",
       "type": "command",
       "domain": "talk",
       "text": "Gemini に聞く",
-      "note": "自分が知らないことを聞く。Gemini は Google 検索で確かめて答え、木には足さない",
-      "changed": true
+      "note": "自分が知らないことを聞く。交代してからでも、聞き手のときに疑問形で Gemini に問いかけてもよい(Gemini が自分で答える係に替わり、答えたら聞き手に戻って枝の続きを聞く)。Gemini は Google 検索で確かめて答え、木には足さない",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/gemini.ts",
+          "symbol": "roleBrief",
+          "role": "rule"
+        },
+        {
+          "path": "web/answers.ts",
+          "symbol": "returnsAfterAnswer",
+          "role": "ui"
+        }
+      ]
     },
     {
       "id": "ext-search",
@@ -296,8 +337,7 @@
         "to": "cmd-ask",
         "pos": "below"
       },
-      "note": "2026-11-14 の確認: 関数と同時に使える。出典ページは返らず、検索した言葉だけ返ることがある",
-      "changed": true
+      "note": "2026-11-14 の確認: 関数と同時に使える。出典ページは返らず、検索した言葉だけ返ることがある"
     },
     {
       "id": "ev-answered",
@@ -305,7 +345,6 @@
       "domain": "talk",
       "text": "Gemini が答えた",
       "note": "質問・答え・検索した言葉・出典を「Gemini に聞いたこと」に記録する(未確認として扱う)",
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -324,7 +363,6 @@
       "type": "readModel",
       "domain": "talk",
       "text": "画面の答えと出典",
-      "changed": true,
       "evidence": [
         {
           "path": "web/ui.ts",
@@ -341,8 +379,7 @@
       "attach": {
         "to": "ev-answered",
         "pos": "above"
-      },
-      "changed": true
+      }
     },
     {
       "id": "pol-goaway",
@@ -366,7 +403,6 @@
       "text": "話し続けているのに15秒何も返ってこなかったら",
       "execution": "sync",
       "note": "切れずに止まった接続とみなし、引き継ぎの番号ですぐつなぎ直す。人の声がないときは Live は何も送らないので、黙っているだけでは動かない",
-      "changed": true,
       "evidence": [
         {
           "path": "web/diag.ts",
@@ -388,8 +424,7 @@
       "attach": {
         "to": "pol-link-stalled",
         "pos": "above"
-      },
-      "changed": true
+      }
     },
     {
       "id": "hs-voice",
@@ -411,13 +446,14 @@
       "id": "cmd-organise",
       "type": "command",
       "domain": "handoff",
-      "text": "整理する"
+      "text": "整理する(問いごと)",
+      "changed": true
     },
     {
       "id": "ev-draft",
       "type": "event",
       "domain": "handoff",
-      "text": "方針の下書きができた",
+      "text": "問いの方針の下書きができた",
       "note": "Gemini が propose_direction を呼ぶ",
       "evidence": [
         {
@@ -425,13 +461,15 @@
           "symbol": "setDraft",
           "role": "rule"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "rm-draft",
       "type": "readModel",
       "domain": "handoff",
-      "text": "方針の欄(方針・理由・見送った案・残った疑問)"
+      "text": "問いごとの方針の欄(方針・理由・見送った案・残った疑問)",
+      "changed": true
     },
     {
       "id": "person-send",
@@ -450,7 +488,9 @@
           "symbol": "submit",
           "role": "entry"
         }
-      ]
+      ],
+      "note": "深掘りしていない問いは「未着手」、途中で飛ばした問いは「途中」として送る",
+      "changed": true
     },
     {
       "id": "agg-session-send",
@@ -474,7 +514,7 @@
       "type": "event",
       "domain": "handoff",
       "text": "方針を送った",
-      "note": "コマンドが結果を出力して終わる(終了コード 0)。結果に「深さ不足の枝」と「Gemini に聞いたこと」が加わる",
+      "note": "問いごとの方針と木、自由に話した文字起こし、ファイルの要点、会話の全文を標準出力に書く",
       "evidence": [
         {
           "path": "src/talk/result.ts",
@@ -528,6 +568,311 @@
       "domain": "handoff",
       "text": "取りやめた",
       "note": "終了コード 1。そこまでの記録はフォルダに残る"
+    },
+    {
+      "id": "person-free",
+      "type": "actor",
+      "domain": "gather",
+      "text": "人",
+      "changed": true
+    },
+    {
+      "id": "cmd-free-talk",
+      "type": "command",
+      "domain": "gather",
+      "text": "自由に話す",
+      "note": "Gemini は黙って聞く(Live にはつながない)。録音を話の切れ目(1〜2 秒の無音、長くても 30 秒)ごとに送り、文字起こしする。録音はブラウザの中だけに置く",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "web/recorder.ts",
+          "symbol": "createSegmenter",
+          "role": "ui"
+        },
+        {
+          "path": "src/talk/server.ts",
+          "symbol": "/api/audio",
+          "role": "contract"
+        }
+      ]
+    },
+    {
+      "id": "ext-flash",
+      "type": "external",
+      "domain": "gather",
+      "text": "Gemini API(文章用 gemini-3.8-flash)",
+      "attach": {
+        "to": "cmd-free-talk",
+        "pos": "below"
+      },
+      "note": "文字起こし・ファイルの要点・問いに分ける、に使う。WHY_WHY_TEXT_MODEL で変えられる。2026-11-16 の試しで 15 秒の音声を 5.5 秒で抜けなく文字起こしした",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/text-model.ts",
+          "symbol": "geminiTextModel",
+          "role": "contract"
+        }
+      ]
+    },
+    {
+      "id": "agg-free-record",
+      "type": "aggregate",
+      "domain": "gather",
+      "text": "自由に話した記録",
+      "invariants": [
+        "文字起こしと要点は保存と出力の前に秘密を伏せる",
+        "文字起こしに失敗した区切りは黙って捨てない(画面に再試行を出す)"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "appendFreeTalk",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "ev-free-said",
+      "type": "event",
+      "domain": "gather",
+      "text": "話が文字になった",
+      "changed": true
+    },
+    {
+      "id": "hs-segment",
+      "type": "hotspot",
+      "domain": "gather",
+      "text": "話の切れ目で区切るとき、言葉の途中で切れて抜けないか(声の試しで確かめる)",
+      "attach": {
+        "to": "ev-free-said",
+        "pos": "above"
+      },
+      "changed": true
+    },
+    {
+      "id": "person-attach",
+      "type": "actor",
+      "domain": "gather",
+      "text": "人 / エージェント",
+      "changed": true
+    },
+    {
+      "id": "cmd-attach",
+      "type": "command",
+      "domain": "gather",
+      "text": "ファイルを渡す",
+      "note": "画面にドラッグ、または --attach。テキスト・Markdown・PDF・画像だけ、1 ファイル 10MB まで",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/attachments.ts",
+          "symbol": "fileKind",
+          "role": "rule"
+        },
+        {
+          "path": "web/files.ts",
+          "symbol": "acceptDrop",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "ev-file-read",
+      "type": "event",
+      "domain": "gather",
+      "text": "ファイルの要点を読んだ",
+      "changed": true
+    },
+    {
+      "id": "rm-free-view",
+      "type": "readModel",
+      "domain": "gather",
+      "text": "画面の文字起こしとファイルの要点",
+      "changed": true
+    },
+    {
+      "id": "person-split",
+      "type": "actor",
+      "domain": "gather",
+      "text": "人",
+      "changed": true
+    },
+    {
+      "id": "cmd-split",
+      "type": "command",
+      "domain": "gather",
+      "text": "問いに分ける",
+      "note": "文字起こし・ファイルの要点・論点・調べた内容から、最大 10 件の問いを作る",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/text-model.ts",
+          "symbol": "splitQuestions",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "agg-question-list",
+      "type": "aggregate",
+      "domain": "gather",
+      "text": "問いのリスト",
+      "invariants": [
+        "問いは 10 件まで",
+        "最初は全部未チェック",
+        "チェックが一つもなければ深掘りを始められない"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "setQuestions",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "ev-questions-made",
+      "type": "event",
+      "domain": "gather",
+      "text": "問いのリストができた",
+      "changed": true
+    },
+    {
+      "id": "pol-topic-given",
+      "type": "policy",
+      "domain": "gather",
+      "text": "論点が渡されていたら",
+      "execution": "sync",
+      "note": "自由に話す段階を飛ばし、画面を開いたらすぐ問いに分ける",
+      "changed": true
+    },
+    {
+      "id": "rm-question-list",
+      "type": "readModel",
+      "domain": "gather",
+      "text": "問いのリスト(チェック欄・直す・足す・消す・並べ替え)",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "web/questions.ts",
+          "symbol": "renderQuestionList",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "person-check",
+      "type": "actor",
+      "domain": "gather",
+      "text": "人",
+      "changed": true
+    },
+    {
+      "id": "cmd-start-dive",
+      "type": "command",
+      "domain": "gather",
+      "text": "チェックして深掘りを始める",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "startDeepDive",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "agg-question-list-dive",
+      "type": "aggregate",
+      "domain": "gather",
+      "text": "問いのリスト",
+      "invariants": [
+        "チェックした問いだけが、リストの順に木の根になる"
+      ],
+      "changed": true
+    },
+    {
+      "id": "ev-dive-started",
+      "type": "event",
+      "domain": "gather",
+      "text": "深掘りが始まった",
+      "changed": true
+    },
+    {
+      "id": "pol-question-done",
+      "type": "policy",
+      "domain": "talk",
+      "text": "今の問いに 5 段に届いた枝があり、掘りかけの浅い枝が残っていなければ",
+      "execution": "external",
+      "note": "Gemini がその問いの方針を下書きし、確認を待たずに next_question を呼ぶ。コマンドが条件を確かめ、足りなければ断る",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/analysis.ts",
+          "symbol": "questionReady",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "cmd-next-question",
+      "type": "command",
+      "domain": "talk",
+      "text": "次の問いへ進む",
+      "note": "Gemini の next_question、または人の「次の問いへ」ボタン(このときは確かめずに進み、その問いは「途中」)",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "advance",
+          "role": "entry"
+        },
+        {
+          "path": "src/talk/tools.ts",
+          "symbol": "next_question",
+          "role": "contract"
+        }
+      ]
+    },
+    {
+      "id": "agg-dives",
+      "type": "aggregate",
+      "domain": "talk",
+      "text": "深掘りの進み",
+      "invariants": [
+        "一度に掘る問いは一つ",
+        "Gemini が進めるのは条件を満たしたときだけ。人のボタンは条件なしで「途中」にする",
+        "最後の問いのあとは進まない"
+      ],
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "dives",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "ev-next-question",
+      "type": "event",
+      "domain": "talk",
+      "text": "次の問いに移った",
+      "changed": true
+    },
+    {
+      "id": "hs-length",
+      "type": "hotspot",
+      "domain": "talk",
+      "text": "問い 10 件をそれぞれ 5 段まで掘ると長い。一回の深掘りの長さの目安は声の試しで決める",
+      "attach": {
+        "to": "cmd-next-question",
+        "pos": "above"
+      },
+      "changed": true
     }
   ],
   "edges": [
@@ -544,11 +889,6 @@
     {
       "from": "agg-session",
       "to": "ev-page-opened",
-      "kind": "flow"
-    },
-    {
-      "from": "ev-page-opened",
-      "to": "person",
       "kind": "flow"
     },
     {
@@ -719,6 +1059,146 @@
     {
       "from": "pol-link-stalled",
       "to": "cmd-connect",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-page-opened",
+      "to": "person-free",
+      "kind": "flow"
+    },
+    {
+      "from": "person-free",
+      "to": "cmd-free-talk",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-free-talk",
+      "to": "agg-free-record",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-free-record",
+      "to": "ev-free-said",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-page-opened",
+      "to": "person-attach",
+      "kind": "flow"
+    },
+    {
+      "from": "person-attach",
+      "to": "cmd-attach",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-attach",
+      "to": "agg-free-record",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-free-record",
+      "to": "ev-file-read",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-free-said",
+      "to": "rm-free-view",
+      "kind": "result"
+    },
+    {
+      "from": "ev-file-read",
+      "to": "rm-free-view",
+      "kind": "result"
+    },
+    {
+      "from": "rm-free-view",
+      "to": "person-split",
+      "kind": "flow"
+    },
+    {
+      "from": "person-split",
+      "to": "cmd-split",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-page-opened",
+      "to": "pol-topic-given",
+      "kind": "flow"
+    },
+    {
+      "from": "pol-topic-given",
+      "to": "cmd-split",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-split",
+      "to": "agg-question-list",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-question-list",
+      "to": "ev-questions-made",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-questions-made",
+      "to": "rm-question-list",
+      "kind": "result"
+    },
+    {
+      "from": "rm-question-list",
+      "to": "person-check",
+      "kind": "flow"
+    },
+    {
+      "from": "person-check",
+      "to": "cmd-start-dive",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-start-dive",
+      "to": "agg-question-list-dive",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-question-list-dive",
+      "to": "ev-dive-started",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-dive-started",
+      "to": "person",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-tree-grown",
+      "to": "pol-question-done",
+      "kind": "flow"
+    },
+    {
+      "from": "pol-question-done",
+      "to": "cmd-next-question",
+      "kind": "flow"
+    },
+    {
+      "from": "rm-tree-view",
+      "to": "cmd-next-question",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-next-question",
+      "to": "agg-dives",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-dives",
+      "to": "ev-next-question",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-next-question",
+      "to": "cmd-speak",
       "kind": "flow"
     }
   ]

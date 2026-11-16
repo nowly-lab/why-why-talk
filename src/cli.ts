@@ -8,29 +8,40 @@ import { parseArgs } from "node:util";
 import { DEFAULT_MODEL, DEFAULT_VOICE, mintToken } from "./talk/gemini.ts";
 import { startTalkServer } from "./talk/server.ts";
 import { TalkSession } from "./talk/session.ts";
+import { readAttachment } from "./talk/attachments.ts";
+import { DEFAULT_TEXT_MODEL, geminiTextModel, type FileSummary, type TextModel } from "./talk/text-model.ts";
 import { VERSION } from "./version.ts";
 
 export const USAGE = `why-why-talk ${VERSION}
-Deep-dive one planning question by voice with Gemini Live. Blocks until the person sends the result.
+Talk freely, split the talk and attached files into questions, then deep-dive the checked questions by voice
+with Gemini Live. Blocks until the person sends the result.
 
 Usage:
-  why-why-talk --topic "<question>" [--context <file>] [--out <dir>] [--no-open]
+  why-why-talk [--topic "<point>"] [--context <file>] [--attach <file>]... [--out <dir>] [--no-open]
+
+  Without --topic the page starts with free talk; with it, the question list is made from the topic,
+  --context and the attached files at once. --attach takes text, Markdown, PDF or images (10MB each).
 
 Exit codes: 0 sent (result Markdown on stdout), 1 cancelled or tab closed, 2 failure.
-Env: GEMINI_API_KEY (required), WHY_WHY_LIVE_MODEL (default ${DEFAULT_MODEL}), WHY_WHY_VOICE (default ${DEFAULT_VOICE}), WHY_WHY_BROWSER=none,
+Env: GEMINI_API_KEY (required), WHY_WHY_LIVE_MODEL (default ${DEFAULT_MODEL}), WHY_WHY_TEXT_MODEL (default ${DEFAULT_TEXT_MODEL}),
+     WHY_WHY_VOICE (default ${DEFAULT_VOICE}), WHY_WHY_BROWSER=none,
      WHY_WHY_FIRST_CONNECT_MS (default 600000: give up when no page connects).
 `;
 
 type IO = { out: (s: string) => void; err: (s: string) => void };
 
-export async function main(argv: string[], env: Record<string, string | undefined>, cwd: string, io: IO): Promise<number> {
-  let values: { topic?: string; context?: string; out?: string; "no-open"?: boolean; help?: boolean };
+/** `text` replaces the Gemini text model (tests). */
+export type MainDeps = { text?: (opts: { apiKey: string; model: string }) => TextModel };
+
+export async function main(argv: string[], env: Record<string, string | undefined>, cwd: string, io: IO, deps: MainDeps = {}): Promise<number> {
+  let values: { topic?: string; context?: string; attach?: string[]; out?: string; "no-open"?: boolean; help?: boolean };
   try {
     ({ values } = parseArgs({
       args: argv,
       options: {
         topic: { type: "string" },
         context: { type: "string" },
+        attach: { type: "string", multiple: true },
         out: { type: "string" },
         "no-open": { type: "boolean" },
         help: { type: "boolean", short: "h" },
@@ -44,11 +55,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     io.out(USAGE);
     return 0;
   }
-  const topic = values.topic?.trim();
-  if (!topic) {
-    io.err(`why-why-talk: --topic is required\n\n${USAGE}`);
-    return 2;
-  }
+  const topic = values.topic?.trim() || null;
   const apiKey = env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
     io.err("why-why-talk: GEMINI_API_KEY is not set\n");
@@ -63,8 +70,22 @@ export async function main(argv: string[], env: Record<string, string | undefine
       return 2;
     }
   }
-  const outDir = values.out ? resolve(cwd, values.out) : join(cwd, ".why-why", `${stamp(new Date())}-${slug(topic)}`);
-  const session = new TalkSession({ topic, context, outDir, secrets: [apiKey] });
+  const textModelName = env.WHY_WHY_TEXT_MODEL?.trim() || DEFAULT_TEXT_MODEL;
+  const text = (deps.text ?? geminiTextModel)({ apiKey, model: textModelName });
+  // Files the agent attached are read and summarized before the page opens; a bad one stops the command.
+  const files: FileSummary[] = [];
+  for (const path of values.attach ?? []) {
+    try {
+      const a = await readAttachment(resolve(cwd, path));
+      io.err(`why-why-talk: 読み込み中: ${a.name}\n`);
+      files.push({ name: a.name, mimeType: a.mimeType, summary: await text.summarizeFile({ name: a.name, mimeType: a.mimeType, data: a.data.toString("base64") }) });
+    } catch (e) {
+      io.err(`why-why-talk: cannot use --attach ${path}: ${(e as Error).message}\n`);
+      return 2;
+    }
+  }
+  const outDir = values.out ? resolve(cwd, values.out) : join(cwd, ".why-why", `${stamp(new Date())}-${topic ? slug(topic) : "free-talk"}`);
+  const session = new TalkSession({ topic, context, outDir, files, secrets: [apiKey] });
   const model = env.WHY_WHY_LIVE_MODEL?.trim() || DEFAULT_MODEL;
   const voice = env.WHY_WHY_VOICE?.trim() || DEFAULT_VOICE;
 
@@ -78,6 +99,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     server = await startTalkServer(session, {
       webRoot: webRoot(),
       mint: (opts) => mintToken({ apiKey, model, voice }, session, opts),
+      text,
       firstConnectMs,
     });
   } catch (e) {

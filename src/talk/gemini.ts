@@ -1,7 +1,8 @@
 import { EndSensitivity, GoogleGenAI, Modality, type CreateAuthTokenConfig, type LiveConnectConfig } from "@google/genai";
-import { treeSummary } from "../analysis.ts";
+import { rootOf, treeSummary } from "../analysis.ts";
 import { redactSecrets } from "../redact.ts";
 import { STATE_LABEL } from "../render/tree.ts";
+import { DIVE_LABEL } from "./result.ts";
 import type { TalkSession } from "./session.ts";
 import { FUNCTION_DECLARATIONS } from "./tools.ts";
 
@@ -9,6 +10,7 @@ export const DEFAULT_MODEL = "gemini-3.8-live";
 export const DEFAULT_VOICE = "Kore";
 export const CONTEXT_LIMIT = 60_000;
 export const FALLBACK_TAIL = 8_000;
+export const FREE_TALK_LIMIT = 30_000;
 const START_WITHIN_MS = 60_000;
 const VALID_FOR_MS = 30 * 60_000;
 
@@ -27,10 +29,11 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     ? `${s.context.slice(0, CONTEXT_LIMIT)}\n(以下 ${s.context.length - CONTEXT_LIMIT} 文字を省略)`
     : s.context;
   const parts = [
-    "あなたは、計画の一点を深掘りするための聞き手です。相手は計画を進めている本人です。",
+    "あなたは、計画を進めている本人が選んだ問いを、一つずつ深掘りするための聞き手です。",
     "",
     "進め方:",
     "- 一度に1つだけ、短く質問する。答えを急がせない。相手の言葉を言い換えて確かめてから次に進む。",
+    "- 今の問いだけを掘る。ほかの問いの木には関数を呼ばない。",
     "- 1本の枝を、根から数えて5段になるまで「なぜ?」で掘る。5段に届くまでは「他には?」で横に広げない。",
     "- 次の「なぜ?」は、相手の直前の言葉をそのまま引いて「なぜ〇〇が大事なのですか?」「なぜ〇〇が起きるのですか?」と聞く。",
     "- 相手を褒めたり励ましたりしない。「いいですね」「自信を持って」などは言わない。評価せず、次の問いだけを返す。",
@@ -41,36 +44,53 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
     "- 人を責めず、どの仕組みや手順が誤りを通したかを聞く。対策は「気をつける」ではなく仕組みの変更にする。",
     "",
     "木の扱い(関数):",
-    "- 新しい理由が出たら add_whys で木に足す。根 n0 は論点そのもの。",
+    "- 新しい理由が出たら add_whys で木に足す。問いごとに木があり、根の ID は問いの ID(q1, q2, …)。",
     "- ある枝の下になぜを足したら、その枝を update_branch で digging(掘っている)にする。掘っている枝を未調査のまま残さない。",
     "- 事実が出たら add_fact、枝を掘り始める・止めるときは update_branch。",
     "- 関数の結果には木の一覧(各ノードの段数 depth つき)と、まだ5段に届いていない枝の先 belowTarget が返る。ID はそれを見て使う。ID や関数名は声に出さない。",
     "- 関数が失敗したら、理由を読んで正しく呼び直す。",
-    "- 相手が「まとめて」と言ったら、propose_direction で方針・理由・見送った案・残った疑問を下書きし、要点を短く声で伝える。",
+    "- 相手が「まとめて」と言ったら、propose_direction(question_id=今の問い)で方針・理由・見送った案・残った疑問を下書きし、要点を短く声で伝える。",
+    "",
+    "問いの進め方:",
+    "- 今の問いに5段に届いた枝が一本以上あり、掘りかけの浅い枝が残っていなければ、propose_direction(question_id=今の問い)で方針を下書きし、要点を一言伝えてから next_question を呼ぶ。相手の確認は待たない。",
+    "- next_question が断られたら、返ってきた枝を掘る。",
+    "- 次の問いに移ったら、その問いを読み上げてから最初の「なぜ?」を聞く。",
+    "- 最後の問いが終わったら(current が空)、「全部終わりました。送信してください」と伝える。",
+    "- 画面から「次の問いへ進みます」と届いたら、関数は呼ばずに次の問いを読み上げて続ける。",
     "",
     "役割の交代:",
     "- 相手が「交代して」と言ったら switch_role(to=\"answerer\")、「戻して」と言ったら switch_role(to=\"interviewer\") を呼ぶ。",
     "- 画面から「役割を交代します」と届いたら、その役割で続ける(関数は呼ばない)。",
-    ...roleBrief(s.role),
+    ...roleBrief(s.role, s.roleBy),
     "",
-    "最初に、論点を一言で確かめてから、最初の「なぜ?」を聞く。",
-    "",
+    ...(opts.fallback ? [] : [`最初に、今の問い(${s.current()?.questionId ?? "q1"})を読み上げてから、最初の「なぜ?」を聞く。`, ""]),
     "RESPOND IN JAPANESE. YOU MUST RESPOND UNMISTAKABLY IN JAPANESE.",
     "",
-    `論点: ${s.topic}`,
+    ...(s.topic ? [`論点: ${s.topic}`, ""] : []),
+    "問いのリスト(この順に掘る):",
+    s.dives.map((d) => `${d.questionId} [${DIVE_LABEL[d.status]}] ${d.text}`).join("\n") || "(なし)",
+    "",
+    s.current() ? `今の問い: ${s.current()!.questionId} ${s.current()!.text}` : "今の問い: なし(全部終わった)",
+    "",
+    "相手が最初に自由に話した内容:",
+    freeTalk(s) || "(なし)",
+    "",
+    "添付ファイルの要点:",
+    s.files.map((f) => `- ${f.name}:\n${f.summary}`).join("\n") || "(なし)",
     "",
     "エージェントが調べた内容:",
     context.trim() || "(なし)",
   ];
   if (opts.fallback) {
     const tree = treeSummary(s.analysis)
+      .sort((a, b) => rootOf(s.analysis, a.id).localeCompare(rootOf(s.analysis, b.id), "en", { numeric: true }))
       .map((n) => `${n.id} (親 ${n.parentId ?? "-"}, ${n.depth}段, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}`)
       .join("\n");
     const all = s.transcript.map((t) => `${t.speaker === "person" ? "相手" : "あなた"}: ${t.text}`).join("\n");
     const tail = redactSecrets(all.length > FALLBACK_TAIL ? all.slice(-FALLBACK_TAIL) : all);
     parts.push(
       "",
-      "これまでの会話(接続が切れたので続きから再開する。最初の確かめは不要。直前の話題から続ける):",
+      `これまでの会話(接続が切れたので続きから再開する。最初の読み上げは不要。今の問い(${s.current()?.questionId ?? "なし"})から続ける):`,
       "今の木:",
       tree,
       "",
@@ -81,13 +101,28 @@ export function systemInstruction(s: TalkSession, opts: { fallback: boolean }): 
   return parts.join("\n");
 }
 
-function roleBrief(role: TalkSession["role"]): string[] {
-  if (role === "interviewer") return ["今の役割: 聞き手", "- Google 検索は使わない。"];
+function freeTalk(s: TalkSession): string {
+  const all = s.freeTalk.map((t) => t.text).join("\n");
+  return all.length > FREE_TALK_LIMIT ? `(前略)${all.slice(-FREE_TALK_LIMIT)}` : all;
+}
+
+function roleBrief(role: TalkSession["role"], by: TalkSession["roleBy"]): string[] {
+  if (role === "interviewer") {
+    return [
+      "今の役割: 聞き手",
+      // The person asked for this (2026-11-16): a question put to Gemini is answered without saying 「交代して」.
+      "- 相手があなたに向けて疑問形で聞いたとき(「〜って何?」「〜はどうなっている?」など、あなたに答えを求める問い)は、switch_role(to=\"answerer\", by=\"question\") を呼び、Google 検索で確かめて短く答える。答えたら switch_role(to=\"interviewer\", by=\"question\") を呼び、直前に掘っていた枝の続きから「なぜ?」を聞く。",
+      "- 相手が自分に向けて考えている問い(「なんでだろう…」などの独り言)や、なぜへの答えの中に出てきた疑問には答えず、そのまま深掘りを続ける。",
+      "- それ以外では Google 検索は使わない。",
+    ];
+  }
   return [
     "今の役割: 答える係",
     "- 相手の質問に、Google 検索で確かめてから日本語で短く答える。確かでないことは「確かではありません」と言う。",
     "- 木の関数(add_whys / add_fact / update_branch)は呼ばない。",
-    "- 答えたら「他に聞きたいことはありますか? 戻すときは『戻して』と言ってください」と聞く。",
+    by === "question"
+      ? "- 相手の質問に答えて交代した。答えたら switch_role(to=\"interviewer\", by=\"question\") を呼び、直前に掘っていた枝の続きから「なぜ?」を聞く。"
+      : "- 答えたら「他に聞きたいことはありますか? 戻すときは『戻して』と言ってください」と聞く。",
   ];
 }
 

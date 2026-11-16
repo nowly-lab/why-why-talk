@@ -10,7 +10,24 @@ const fixedNow = () => "2026-11-13T01:00:00.000Z";
 
 async function session(context = "401 が40分続いた") {
   const outDir = await mkdtemp(join(tmpdir(), "why-why-gem-"));
-  return new TalkSession({ topic: "決済エラーの再発をどう防ぐか", context, outDir, now: fixedNow });
+  const s = new TalkSession({ topic: "決済エラーの再発をどう防ぐか", context, outDir, now: fixedNow });
+  s.setQuestions(["決済エラーの再発をどう防ぐか"]);
+  s.editQuestions([{ text: "決済エラーの再発をどう防ぐか", checked: true }]);
+  s.startDeepDive();
+  return s;
+}
+
+/** No topic: free talk, a file, then three checked questions. */
+async function freeSession(freeTalk = "論点を先に決めるとずれる") {
+  const outDir = await mkdtemp(join(tmpdir(), "why-why-gem-"));
+  const s = new TalkSession({ context: "", outDir, now: fixedNow });
+  s.appendFreeTalk(freeTalk);
+  s.addFile({ name: "memo.md", mimeType: "text/markdown", summary: "- 添付の要点" });
+  const qs = ["なぜ論点がずれるのか", "なぜ資料が使えないのか", "なぜ時間が足りないのか"];
+  s.setQuestions(qs);
+  s.editQuestions(qs.map((text) => ({ text, checked: true })));
+  s.startDeepDive();
+  return s;
 }
 
 test("instruction contains topic, context and the Japanese rule", async () => {
@@ -32,7 +49,7 @@ test("context truncated at the limit with a note", async () => {
 
 test("fallback includes tree summary and transcript tail", async () => {
   const s = await session();
-  s.applyTool("add_whys", { parent_id: "n0", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
+  s.applyTool("add_whys", { parent_id: "q1", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
   s.appendTranscript("person", "い".repeat(9000));
   const text = systemInstruction(s, { fallback: true });
   assert.match(text, /これまでの会話/);
@@ -49,7 +66,7 @@ test("live config has audio, transcription, compression and tools", async () => 
   assert.deepEqual(c.outputAudioTranscription, {});
   assert.deepEqual(c.contextWindowCompression, { slidingWindow: {} });
   assert.equal(c.sessionResumption, undefined, "the handle is added by the browser per connection");
-  assert.equal((c.tools as Array<{ functionDeclarations: unknown[] }>)[0].functionDeclarations.length, 5);
+  assert.equal((c.tools as Array<{ functionDeclarations: unknown[] }>)[0].functionDeclarations.length, 6);
   assert.equal(c.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName, "Kore");
 });
 
@@ -118,7 +135,7 @@ test("instruction asks for five whys before widening", async () => {
 
 test("fallback tree lines show depth", async () => {
   const s = await session();
-  s.applyTool("add_whys", { parent_id: "n0", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
+  s.applyTool("add_whys", { parent_id: "q1", items: [{ text: "APIキーが期限切れ", viewpoint: "仕組み・道具" }] });
   s.applyTool("add_whys", { parent_id: "n1", items: [{ text: "期限を誰も見ていない", viewpoint: "人・体制" }] });
   const text = systemInstruction(s, { fallback: true });
   assert.match(text, /n2 \(親 n1, 2段/);
@@ -129,14 +146,27 @@ test("liveConfig includes googleSearch", async () => {
   const c = liveConfig(await session(), { fallback: false, voice: "Kore" });
   const tools = c.tools as Array<Record<string, unknown>>;
   assert.ok(tools.some((t) => "googleSearch" in t));
-  assert.equal((tools[0] as { functionDeclarations: unknown[] }).functionDeclarations.length, 5);
+  assert.equal((tools[0] as { functionDeclarations: unknown[] }).functionDeclarations.length, 6);
 });
 
-test("interviewer brief says not to search", async () => {
+test("interviewer brief answers a question put to Gemini and then comes back", async () => {
   const text = systemInstruction(await session(), { fallback: false });
   assert.match(text, /今の役割: 聞き手/);
-  assert.match(text, /Google 検索は使わない/);
-  assert.match(text, /switch_role/);
+  assert.ok(text.includes("相手があなたに向けて疑問形で聞いたとき"));
+  assert.ok(text.includes('switch_role(to="answerer", by="question")'));
+  assert.ok(text.includes('switch_role(to="interviewer", by="question")'));
+  assert.ok(text.includes("独り言"), "a question the person asks themselves is not answered");
+  assert.match(text, /それ以外では Google 検索は使わない/);
+});
+
+test("an answerer swapped in by a question goes back after answering; one asked for stays", async () => {
+  const s = await session();
+  s.setRole("answerer", "question");
+  assert.ok(systemInstruction(s, { fallback: true }).includes('答えたら switch_role(to="interviewer", by="question")'));
+  s.setRole("answerer", "request");
+  const asked = systemInstruction(s, { fallback: true });
+  assert.ok(asked.includes("戻すときは『戻して』と言ってください"));
+  assert.ok(!asked.includes('答えたら switch_role(to="interviewer", by="question")'));
 });
 
 test("token minted after role swap carries answerer brief", async () => {
@@ -147,4 +177,47 @@ test("token minted after role swap carries answerer brief", async () => {
   const brief = String(seen?.liveConnectConstraints?.config?.systemInstruction);
   assert.match(brief, /今の役割: 答える係/);
   assert.match(brief, /Google 検索で確かめて/);
+});
+
+// --- question list (2026-11-16) ---
+test("instruction lists questions with their status and the current one", async () => {
+  const s = await freeSession();
+  s.advance("person");
+  const text = systemInstruction(s, { fallback: false });
+  assert.match(text, /q1 \[途中\] なぜ論点がずれるのか/);
+  assert.match(text, /q2 \[掘っている途中\] なぜ資料が使えないのか/);
+  assert.match(text, /q3 \[未着手\] なぜ時間が足りないのか/);
+  assert.match(text, /今の問い: q2 なぜ資料が使えないのか/);
+  assert.match(text, /論点を先に決めるとずれる/);
+  assert.match(text, /添付の要点/);
+});
+
+test("instruction tells Gemini to advance without waiting", async () => {
+  const text = systemInstruction(await freeSession(), { fallback: false });
+  assert.ok(text.includes("今の問いに5段に届いた枝が一本以上あり、掘りかけの浅い枝が残っていなければ、propose_direction(question_id=今の問い)で方針を下書きし、要点を一言伝えてから next_question を呼ぶ。相手の確認は待たない。"));
+  assert.ok(text.includes("今の問いだけを掘る。ほかの問いの木には関数を呼ばない。"));
+  assert.ok(text.includes("画面から「次の問いへ進みます」と届いたら、関数は呼ばずに次の問いを読み上げて続ける。"));
+  assert.ok(text.includes("最初に、今の問い(q1)を読み上げてから、最初の「なぜ?」を聞く。"));
+});
+
+test("instruction omits the topic line when there is none", async () => {
+  assert.doesNotMatch(systemInstruction(await freeSession(), { fallback: false }), /^論点: /m);
+  assert.match(systemInstruction(await session(), { fallback: false }), /^論点: 決済エラーの再発をどう防ぐか/m);
+});
+
+test("fallback resumes on the current question", async () => {
+  const s = await freeSession();
+  s.advance("person");
+  const text = systemInstruction(s, { fallback: true });
+  assert.match(text, /今の問い: q2/);
+  assert.match(text, /q1 \[途中\]/);
+  assert.ok(!text.includes("最初に、今の問い(q1)を読み上げて"));
+  assert.match(text, /今の問い\(q2\)から続ける/);
+});
+
+test("free talk is cut to its tail", async () => {
+  const s = await freeSession("古".repeat(40_000) + "新しい話");
+  const text = systemInstruction(s, { fallback: false });
+  assert.ok(text.includes("新しい話"));
+  assert.ok(!text.includes("古".repeat(31_000)));
 });

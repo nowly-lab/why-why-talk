@@ -55,26 +55,34 @@ export const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     name: "propose_direction",
-    description: "When the person asks to wrap up, draft the final direction. All fields in Japanese.",
+    description: "Draft the direction for one question: when its branches are done (before next_question) or when the person asks to wrap up. All fields in Japanese.",
     parameters: {
       type: Type.OBJECT,
       properties: {
+        question_id: { type: Type.STRING, description: "The question this direction answers, e.g. q1." },
         direction: { type: Type.STRING, description: "The direction decided in the talk." },
         reasons: { type: Type.STRING, description: "Why, in a few sentences, citing the tree." },
         rejected: { type: Type.STRING, description: "Alternatives considered and set aside, with why." },
         open_questions: { type: Type.STRING, description: "What is still unclear or needs checking." },
       },
-      required: ["direction", "reasons", "rejected", "open_questions"],
+      required: ["question_id", "direction", "reasons", "rejected", "open_questions"],
     },
   },
   {
     name: "switch_role",
-    description: "Switch your role when the person says 交代して (to=answerer: you answer their questions using Google Search) or 戻して (to=interviewer: you go back to asking why). Switching to the current role does nothing.",
+    description: "Switch your role when the person says 交代して (to=answerer: you answer their questions using Google Search) or 戻して (to=interviewer: you go back to asking why), or by=question when the person puts a question to you: switch to answerer, answer it, then switch back to interviewer. Switching to the current role does nothing.",
     parameters: {
       type: Type.OBJECT,
-      properties: { to: { type: Type.STRING, enum: [...ROLES] } },
+      properties: {
+        to: { type: Type.STRING, enum: [...ROLES] },
+        by: { type: Type.STRING, enum: ["request", "question"], description: "question: the person put a question to you, so you answer it and come back; request: the person said 交代して / 戻して (default)." },
+      },
       required: ["to"],
     },
+  },
+  {
+    name: "next_question",
+    description: "Move on to the next checked question. Call it yourself, without waiting for the person, when the current question has a branch five whys deep and no shallow branch still open; draft its direction with propose_direction first. If it is refused, dig the branches it names.",
   },
 ];
 
@@ -91,12 +99,14 @@ export const ToolArgs = {
     countermeasure: z.string().optional(),
   }),
   propose_direction: z.object({
+    question_id: z.string(),
     direction: z.string(),
     reasons: z.string(),
     rejected: z.string(),
     open_questions: z.string(),
   }),
-  switch_role: z.object({ to: RoleSchema }),
+  switch_role: z.object({ to: RoleSchema, by: z.enum(["request", "question"]).optional() }),
+  next_question: z.object({}).passthrough(),
 };
 
 export type ToolName = keyof typeof ToolArgs;

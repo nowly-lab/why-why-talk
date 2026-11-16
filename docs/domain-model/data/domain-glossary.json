@@ -2,20 +2,20 @@
   "schema": "domain-glossary/v1",
   "title": "用語集",
   "checked": {
-    "revision": "32134da",
-    "date": "2026-11-14"
+    "revision": "86c1c69",
+    "date": "2026-11-16"
   },
   "terms": [
     {
       "term": "論点",
-      "meaning": "計画の途中で深掘りしたい一点。木の根(n0)になる。",
+      "meaning": "エージェントが --topic で渡す、深掘りのきっかけ。任意。渡されたら自由に話す段階を飛ばし、論点から問いのリストを作る。",
       "code": [
-        "topic",
-        "n0"
+        "topic"
       ],
       "nodes": [
         "cmd-start-talk"
-      ]
+      ],
+      "changed": true
     },
     {
       "term": "調べた内容",
@@ -135,7 +135,7 @@
     },
     {
       "term": "方針の下書き",
-      "meaning": "Gemini が propose_direction で作る、方針・理由・見送った案・残った疑問。人が直してから送る。",
+      "meaning": "Gemini が問いごとに作る方針・理由・見送った案・残った疑問。人が直して送る。",
       "code": [
         "Direction",
         "propose_direction"
@@ -143,11 +143,12 @@
       "nodes": [
         "ev-draft",
         "rm-draft"
-      ]
+      ],
+      "changed": true
     },
     {
       "term": "結果",
-      "meaning": "送信で出力するもの。方針・理由・見送った案・残った疑問・深さ不足の枝・Gemini に聞いたこと・なぜの木・会話の全文。",
+      "meaning": "送信で出力するもの。方針・理由・見送った案・残った疑問・深さ不足の枝・Gemini に聞いたこと・なぜの木・会話の全文。 問いごとに方針・理由・見送った案・残った疑問・木を持ち、自由に話した文字起こしとファイルの要点も入る。",
       "code": [
         "renderResultMarkdown",
         "result.json"
@@ -184,7 +185,6 @@
         "agg-tree",
         "rm-tree-view"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "src/analysis.ts",
@@ -202,7 +202,6 @@
         "agg-tree",
         "ev-sent"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "src/analysis.ts",
@@ -212,23 +211,24 @@
     },
     {
       "term": "役割",
-      "meaning": "Gemini が聞き手か、答える係か。セッションが持ち、つなぎ直しても引き継ぐ。",
+      "meaning": "Gemini が聞き手か、答える係か。セッションが持ち、つなぎ直しても引き継ぐ。 聞き手のときに疑問形で問いかけると、Gemini が自分で答える係に替わって答え、答えたら聞き手に戻る(roleBy=question)。",
       "code": [
         "Role",
         "setRole",
-        "switch_role"
+        "switch_role",
+        "roleBy"
       ],
       "nodes": [
         "cmd-swap-role",
         "ev-role-swapped"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
           "symbol": "setRole"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "term": "Gemini に聞いたこと",
@@ -241,7 +241,6 @@
         "ev-answered",
         "rm-answers"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -260,7 +259,6 @@
       "nodes": [
         "pol-link-stalled"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "src/talk/session.ts",
@@ -278,7 +276,6 @@
       "nodes": [
         "pol-link-stalled"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "web/diag.ts",
@@ -297,13 +294,129 @@
       "nodes": [
         "cmd-connect"
       ],
-      "changed": true,
       "evidence": [
         {
           "path": "web/audio.ts",
           "symbol": "switchDevice"
         }
       ]
+    },
+    {
+      "term": "自由に話す",
+      "meaning": "論点を決めずに、人が思うままに話す最初の段階。Gemini は黙って聞き、録音を区切りごとに文字起こしする。",
+      "code": [
+        "free-talk",
+        "appendFreeTalk"
+      ],
+      "nodes": [
+        "cmd-free-talk"
+      ],
+      "changed": true
+    },
+    {
+      "term": "区切り",
+      "meaning": "録音を送る単位。1〜2 秒の無音か、長くても 30 秒で区切る。ブラウザの中だけに置き、文字起こしが終われば捨てる。",
+      "code": [
+        "createSegmenter"
+      ],
+      "nodes": [
+        "cmd-free-talk"
+      ],
+      "changed": true
+    },
+    {
+      "term": "添付ファイル",
+      "meaning": "画面にドラッグするか --attach で渡すファイル。テキスト・Markdown・PDF・画像だけ、1 ファイル 10MB まで。",
+      "code": [
+        "attach",
+        "fileKind"
+      ],
+      "nodes": [
+        "cmd-attach"
+      ],
+      "changed": true
+    },
+    {
+      "term": "ファイルの要点",
+      "meaning": "添付ファイルを文章用のモデルが日本語でまとめたもの。問いを作るときと深掘りのときに Gemini に渡す。",
+      "code": [
+        "summarizeFile"
+      ],
+      "nodes": [
+        "ev-file-read"
+      ],
+      "changed": true
+    },
+    {
+      "term": "文章用のモデル",
+      "meaning": "文字起こし・ファイルの要点・問いに分ける、に使う Gemini のモデル(既定 gemini-3.8-flash、WHY_WHY_TEXT_MODEL)。",
+      "code": [
+        "TextModel",
+        "geminiTextModel"
+      ],
+      "nodes": [
+        "ext-flash"
+      ],
+      "changed": true
+    },
+    {
+      "term": "問い",
+      "meaning": "自由に話した内容や論点から作った、深掘りする一文。チェックした問いが木の根(q1, q2, …)になる。",
+      "code": [
+        "Question"
+      ],
+      "nodes": [
+        "agg-question-list"
+      ],
+      "changed": true
+    },
+    {
+      "term": "問いのリスト",
+      "meaning": "最大 10 件の問い。最初は全部未チェック。人が直す・足す・消す・並べ替える。",
+      "code": [
+        "questions",
+        "setQuestions"
+      ],
+      "nodes": [
+        "agg-question-list",
+        "rm-question-list"
+      ],
+      "changed": true
+    },
+    {
+      "term": "段階",
+      "meaning": "セッションが今どこにいるか: 自由に話す(free_talk)・問いを選ぶ(questions)・深掘り(deep_dive)。",
+      "code": [
+        "phase"
+      ],
+      "nodes": [
+        "agg-session"
+      ],
+      "changed": true
+    },
+    {
+      "term": "深掘りの進み",
+      "meaning": "チェックした問いごとの状態(未着手・掘っている・終わった・途中)と方針の下書き。",
+      "code": [
+        "dives",
+        "Dive"
+      ],
+      "nodes": [
+        "agg-dives"
+      ],
+      "changed": true
+    },
+    {
+      "term": "次の問いへ",
+      "meaning": "今の問いを終えて次へ移ること。Gemini は条件を満たしたときだけ(next_question)、人はボタンでいつでも(その問いは途中)。",
+      "code": [
+        "next_question",
+        "advance"
+      ],
+      "nodes": [
+        "cmd-next-question"
+      ],
+      "changed": true
     }
   ]
 }

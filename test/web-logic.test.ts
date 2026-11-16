@@ -122,7 +122,7 @@ test("tool response for Gemini keeps belowTarget", async () => {
   assert.deepEqual(ok.belowTarget, [{ id: "n1", depth: 1 }]);
   assert.equal(ok.result, "ok");
   const bad = toGeminiResponse({ ok: false, error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
-  assert.deepEqual(bad, { error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
+  assert.deepEqual(bad, { error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }], current: null });
 });
 
 test("treeRows depth matches server depth and the depth tag", async () => {
@@ -318,4 +318,147 @@ test("a tool call whose local request never answers fails after the deadline ins
     })) as typeof fetch;
   const api = createApi("n", { toolTimeoutMs: 30 });
   await assert.rejects(api.tool("add_whys", {}), /秒応答がありません/);
+});
+
+// --- question list (2026-11-16) ---
+import { canStart, diveLabel, moveQuestion } from "../web/questions.ts";
+import { toGeminiResponse } from "../web/api.ts";
+
+test("moveQuestion moves up and down and keeps the rest", () => {
+  const list = [{ text: "A", checked: false }, { text: "B", checked: true }, { text: "C", checked: false }];
+  assert.deepEqual(moveQuestion(list, 2, 0).map((q) => q.text), ["C", "A", "B"]);
+  assert.deepEqual(moveQuestion(list, 0, 1).map((q) => q.text), ["B", "A", "C"]);
+  assert.deepEqual(moveQuestion(list, 0, -1), list, "out of range does nothing");
+  assert.deepEqual(list.map((q) => q.text), ["A", "B", "C"], "the input is not changed");
+});
+
+test("canStart is false with no checks or an empty text", () => {
+  assert.equal(canStart([{ text: "A", checked: false }]), false);
+  assert.equal(canStart([{ text: "A", checked: true }]), true);
+  assert.equal(canStart([{ text: "A", checked: true }, { text: " ", checked: false }]), false);
+  assert.equal(canStart([]), false);
+});
+
+test("diveLabel covers every status", () => {
+  assert.deepEqual(["pending", "digging", "done", "partial"].map((s) => diveLabel(s as never)), ["未着手", "掘っている途中", "終わった", "途中"]);
+});
+
+test("Gemini gets the current question with every tool answer", () => {
+  const ok = toGeminiResponse({ ok: true, tree: [], current: { questionId: "q2", text: "二" } });
+  assert.deepEqual(ok.current, { questionId: "q2", text: "二" });
+  const last = toGeminiResponse({ ok: true, tree: [], current: null });
+  assert.equal(last.current, null);
+  const bad = toGeminiResponse({ ok: false, error: "x", tree: [], current: { questionId: "q1", text: "一" } });
+  assert.deepEqual(bad.current, { questionId: "q1", text: "一" });
+});
+
+test("treeOf keeps only one question's tree", async () => {
+  const { treeOf } = await import("../web/questions.ts");
+  const nodes = [
+    { id: "q1", parentId: null }, { id: "q2", parentId: null },
+    { id: "n1", parentId: "q1" }, { id: "n2", parentId: "q2" }, { id: "n3", parentId: "n1" },
+  ];
+  assert.deepEqual(treeOf(nodes, "q1").map((n) => n.id), ["q1", "n1", "n3"]);
+  assert.deepEqual(treeOf(nodes, "q9"), []);
+});
+
+test("selectedLabel says how many are checked", async () => {
+  const { selectedLabel } = await import("../web/questions.ts");
+  assert.equal(selectedLabel([{ text: "A", checked: false }]), "0件を選択中 · 1件以上選ぶと始められます");
+  assert.equal(selectedLabel([{ text: "A", checked: true }, { text: "B", checked: true }]), "2件を選択中 · この順に深掘りします");
+});
+
+// --- review I2: question saves apply in order, stale answers are ignored ---
+test("createLatestSaver sends one save at a time and skips superseded ones", async () => {
+  const { createLatestSaver } = await import("../web/questions.ts");
+  const sent: string[] = [];
+  const releases: Array<() => void> = [];
+  const applied: string[] = [];
+  const saver = createLatestSaver<string>(
+    (v) => { sent.push(v); return new Promise((r) => releases.push(() => r(`server:${v}`))); },
+    (v) => applied.push(v),
+  );
+  void saver.save("A");
+  await new Promise((r) => setTimeout(r, 0));
+  void saver.save("AB");
+  void saver.save("ABC");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(sent, ["A"], "nothing else is sent while A is in flight");
+  releases[0]();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(sent, ["A", "ABC"], "AB was superseded before its turn");
+  releases[1]();
+  await saver.settled();
+  assert.deepEqual(applied, ["server:ABC"], "only the newest answer is applied");
+});
+
+test("createLatestSaver.settled rejects when the latest save failed", async () => {
+  const { createLatestSaver } = await import("../web/questions.ts");
+  const saver = createLatestSaver<string>(async () => { throw new Error("400"); }, () => undefined);
+  await saver.save("x").catch(() => undefined);
+  await assert.rejects(saver.settled(), /400/);
+});
+
+test("a task tracker waits for every pending upload", async () => {
+  const { createTaskTracker } = await import("../web/questions.ts");
+  const t = createTaskTracker();
+  let done = false;
+  t.track(new Promise((r) => setTimeout(() => { done = true; r(undefined); }, 30)));
+  t.track(Promise.reject(new Error("x")));
+  await t.settled();
+  assert.equal(done, true);
+  assert.equal(t.pending(), 0);
+});
+
+// --- re-review R2: drain waits for saves started while waiting ---
+test("createLatestSaver.drain waits for a save started during the wait", async () => {
+  const { createLatestSaver } = await import("../web/questions.ts");
+  const releases: Array<() => void> = [];
+  const applied: string[] = [];
+  const saver = createLatestSaver<string>((v) => new Promise((r) => releases.push(() => r(v))), (v) => applied.push(v));
+  void saver.save("A");
+  await new Promise((r) => setTimeout(r, 0));
+  let drained = false;
+  const d = saver.drain().then(() => { drained = true; });
+  void saver.save("AB");
+  releases[0]();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(drained, false, "AB is still being saved");
+  releases[1]();
+  await d;
+  assert.deepEqual(applied, ["AB"]);
+});
+
+test("an answer is kept when Gemini switches back in the same turn", async () => {
+  const { createAnswerCollector } = await import("../web/answers.ts");
+  const c = createAnswerCollector();
+  c.gemini("なぜ遅れたのですか?");
+  c.otherTurn();
+  c.person("ところで無料枠の上限って何件?");
+  c.gemini("1日10万件です。");
+  const entry = c.turnComplete();
+  assert.deepEqual(entry && [entry.question, entry.answer], ["ところで無料枠の上限って何件?", "1日10万件です。"]);
+});
+
+test("returnsAfterAnswer only for a swap made by a question, once an answer is recorded", async () => {
+  const { returnsAfterAnswer } = await import("../web/answers.ts");
+  const entry = { question: "q", answer: "a", queries: [], sources: [] };
+  assert.equal(returnsAfterAnswer({ role: "answerer", byQuestion: true }, entry), true);
+  assert.equal(returnsAfterAnswer({ role: "answerer", byQuestion: true }, null), false);
+  assert.equal(returnsAfterAnswer({ role: "answerer", byQuestion: false }, entry), false);
+  assert.equal(returnsAfterAnswer({ role: "interviewer", byQuestion: true }, entry), false);
+});
+
+test("leaving the answerer records the answer once, by any path (review R3)", async () => {
+  const { createAnswerCollector, createPendingAnswers, leaveAnswerer } = await import("../web/answers.ts");
+  const saved: string[] = [];
+  const c = createAnswerCollector();
+  const pending = createPendingAnswers(async (e) => { saved.push(`${e.question}|${e.answer}|${e.queries.join(",")}`); });
+  c.person("無料枠の上限は?");
+  c.gemini("1日10万件です。");
+  c.grounding({ queries: ["workers free limit"], sources: [] });
+  assert.equal(leaveAnswerer(c, pending), true);
+  assert.equal(leaveAnswerer(c, pending), false, "nothing left to record the second time");
+  await pending.flush();
+  assert.deepEqual(saved, ["無料枠の上限は?|1日10万件です。|workers free limit"]);
 });

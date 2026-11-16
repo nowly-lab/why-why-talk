@@ -6,16 +6,37 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TalkSession } from "../src/talk/session.ts";
 import { startTalkServer } from "../src/talk/server.ts";
+import { TextModelError, type TextModel } from "../src/talk/text-model.ts";
 
-async function setup(opts: { leaseGraceMs?: number } = {}) {
+/** A text model that answers from fixed strings, or fails when told to. */
+function fakeText(over: Partial<TextModel> = {}): TextModel & { calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    transcribe: async (a) => { calls.push(`transcribe ${a.mimeType} ${a.data.length}`); return "話した文"; },
+    summarizeFile: async (f) => { calls.push(`summarize ${f.name}`); return "- 要点"; },
+    splitQuestions: async () => { calls.push("split"); return ["一つめの問い", "二つめの問い"]; },
+    ...over,
+  };
+}
+
+/** The old one-topic setup is a deep dive over one checked question q1 ("dive"); "free" starts with no topic. */
+async function setup(opts: { leaseGraceMs?: number; mode?: "dive" | "free" | "topic"; text?: TextModel } = {}) {
   const outDir = await mkdtemp(join(tmpdir(), "why-why-http-"));
   const webRoot = await mkdtemp(join(tmpdir(), "why-why-web-"));
   await writeFile(join(webRoot, "index.html"), "<!doctype html><title>t</title>");
   await writeFile(join(webRoot, "main.js"), "console.log(1)");
-  const s = new TalkSession({ topic: "論点", context: "", outDir });
+  const mode = opts.mode ?? "dive";
+  const s = new TalkSession({ topic: mode === "free" ? null : "論点", context: "", outDir });
+  if (mode === "dive") {
+    s.setQuestions(["論点"]);
+    s.editQuestions([{ text: "論点", checked: true }]);
+    s.startDeepDive();
+  }
   let minted = 0;
   const srv = await startTalkServer(s, {
     webRoot,
+    text: opts.text ?? fakeText(),
     leaseGraceMs: opts.leaseGraceMs ?? 60_000,
     mint: async (o) => {
       minted++;
@@ -28,6 +49,7 @@ async function setup(opts: { leaseGraceMs?: number } = {}) {
 }
 
 const direction = { direction: "監視する", reasons: "r", rejected: "x", openQuestions: "q" };
+const sendBody = { directions: { q1: direction } };
 
 test("serves the page and the bundle", async () => {
   const { srv } = await setup();
@@ -45,13 +67,14 @@ test("session endpoint returns snapshot with nonce", async () => {
   const body = await (await fetch(`${srv.url}/api/session`)).json();
   assert.equal(body.topic, "論点");
   assert.equal(body.nonce, s.nonce);
-  assert.equal(body.tree[0].id, "n0");
+  assert.equal(body.tree[0].id, "q1");
+  assert.equal(body.phase, "deep_dive");
   await srv.close();
 });
 
 test("wrong nonce is 409", async () => {
   const { srv, post, s } = await setup();
-  const r = await post("/api/tool", { name: "add_whys", args: { parent_id: "n0", items: [{ text: "x", viewpoint: "検知" }] } }, "old-tab");
+  const r = await post("/api/tool", { name: "add_whys", args: { parent_id: "q1", items: [{ text: "x", viewpoint: "検知" }] } }, "old-tab");
   assert.equal(r.status, 409);
   assert.equal(s.analysis.nodes.length, 1);
   await srv.close();
@@ -74,7 +97,7 @@ test("bad host header is 403", async () => {
 
 test("tool endpoint applies and persists", async () => {
   const { srv, post, outDir } = await setup();
-  const r = await (await post("/api/tool", { name: "add_whys", args: { parent_id: "n0", items: [{ text: "期限切れ", viewpoint: "検知" }] } })).json();
+  const r = await (await post("/api/tool", { name: "add_whys", args: { parent_id: "q1", items: [{ text: "期限切れ", viewpoint: "検知" }] } })).json();
   assert.equal(r.ok, true);
   assert.deepEqual(r.added, ["n1"]);
   assert.match(await readFile(join(outDir, "tree.mmd"), "utf8"), /期限切れ/);
@@ -101,12 +124,13 @@ test("token endpoint returns mint result and no key", async () => {
 
 test("submit resolves outcome once; second is 409", async () => {
   const { srv, post } = await setup();
-  assert.equal((await post("/api/submit", { ...direction, direction: "" })).status, 400);
-  assert.equal((await post("/api/submit", direction)).status, 200);
-  assert.equal((await post("/api/submit", direction)).status, 409);
+  assert.equal((await post("/api/submit", { directions: { q9: direction } })).status, 400);
+  assert.equal((await post("/api/submit", direction)).status, 400, "the old one-direction body is refused");
+  assert.equal((await post("/api/submit", sendBody)).status, 200);
+  assert.equal((await post("/api/submit", sendBody)).status, 409);
   const outcome = await srv.outcome;
   assert.equal(outcome.kind, "sent");
-  assert.ok(outcome.kind === "sent" && /## 方針\n\n監視する/.test(outcome.markdown));
+  assert.ok(outcome.kind === "sent" && /### 方針\n\n監視する/.test(outcome.markdown));
   await srv.close();
 });
 
@@ -141,7 +165,7 @@ test("reload within grace keeps session", async () => {
   await new Promise((r) => setTimeout(r, 50));
   const close2 = await openLease(srv.url);
   await new Promise((r) => setTimeout(r, 400));
-  assert.equal((await post("/api/submit", direction)).status, 200);
+  assert.equal((await post("/api/submit", sendBody)).status, 200);
   assert.equal((await srv.outcome).kind, "sent");
   close2();
   await srv.close();
@@ -150,7 +174,7 @@ test("reload within grace keeps session", async () => {
 test("the submit response reaches the page even if the caller closes the server at once", async () => {
   const { srv, post } = await setup();
   void srv.outcome.then(() => srv.close());
-  const r = await post("/api/submit", direction);
+  const r = await post("/api/submit", sendBody);
   assert.equal(r.status, 200);
 });
 
@@ -227,5 +251,113 @@ test("POST /api/log refuses oversized batches and bad kinds", async () => {
   assert.equal((await post("/api/log", { events: many })).status, 400);
   assert.equal((await post("/api/log", { events: [{ kind: "Bad Kind!" }] })).status, 400);
   assert.equal((await post("/api/log", { events: [{ kind: "x", detail: "a".repeat(301) }] })).status, 400);
+  await srv.close();
+});
+
+// --- free talk, files, questions and dives (2026-11-16) ---
+const wav = (bytes: number) => ({ data: Buffer.alloc(bytes).toString("base64"), mimeType: "audio/wav" });
+
+test("audio is transcribed into the free talk", async () => {
+  const text = fakeText();
+  const { srv, post, s, outDir } = await setup({ mode: "free", text });
+  const r = await post("/api/audio", wav(3200));
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, text: "話した文" });
+  assert.equal(s.freeTalk[0].text, "話した文");
+  assert.match(await readFile(join(outDir, "transcript.md"), "utf8"), /話した文/);
+  await srv.close();
+});
+
+test("a 2MB+ audio body is refused but a 1.4MB one is accepted", async () => {
+  const { srv, post } = await setup({ mode: "free" });
+  assert.equal((await post("/api/audio", wav(1_050_000))).status, 200);
+  assert.equal((await post("/api/audio", wav(1_600_000))).status, 400);
+  await srv.close();
+});
+
+test("a failing text model is 502 and changes nothing", async () => {
+  const text = fakeText({ transcribe: async () => { throw new TextModelError("down"); }, splitQuestions: async () => { throw new TextModelError("bad json"); } });
+  const { srv, post, s } = await setup({ mode: "free", text });
+  assert.equal((await post("/api/audio", wav(10))).status, 502);
+  s.appendFreeTalk("材料");
+  assert.equal((await post("/api/questions/split", {})).status, 502);
+  assert.equal(s.phase, "free_talk");
+  await srv.close();
+});
+
+test("split refuses an empty session", async () => {
+  const { srv, post } = await setup({ mode: "free" });
+  const r = await post("/api/questions/split", {});
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /話した内容がありません/);
+  await srv.close();
+});
+
+test("split, edit, start and skip through the endpoints", async () => {
+  const { srv, post, s } = await setup({ mode: "free" });
+  await post("/api/audio", wav(10));
+  const split = await (await post("/api/questions/split", {})).json();
+  assert.deepEqual(split.questions, [{ text: "一つめの問い", checked: false }, { text: "二つめの問い", checked: false }]);
+  assert.equal((await post("/api/dive/start", {})).status, 400, "nothing checked yet");
+  assert.equal((await post("/api/questions", { questions: [{ text: "一つめの問い", checked: true }, { text: "二つめの問い", checked: true }] })).status, 200);
+  const started = await (await post("/api/dive/start", {})).json();
+  assert.deepEqual(started.current, { questionId: "q1", text: "一つめの問い" });
+  const next = await (await post("/api/dive/next", {})).json();
+  assert.equal(next.dives[0].status, "partial");
+  assert.deepEqual(next.current, { questionId: "q2", text: "二つめの問い" });
+  assert.equal(s.phase, "deep_dive");
+  await srv.close();
+});
+
+test("back to free talk from the question list", async () => {
+  const { srv, post, s } = await setup({ mode: "topic" });
+  assert.equal(s.phase, "questions");
+  assert.equal((await post("/api/free-talk", {})).status, 200);
+  assert.equal(s.phase, "free_talk");
+  await srv.close();
+});
+
+test("token is refused before the deep dive", async () => {
+  const { srv, post } = await setup({ mode: "free" });
+  assert.equal((await post("/api/token", {})).status, 409);
+  await srv.close();
+});
+
+test("files are summarized; a .docx is refused with 400", async () => {
+  const text = fakeText();
+  const { srv, post, s } = await setup({ mode: "free", text });
+  const ok = await post("/api/file", { name: "memo.md", mimeType: "text/markdown", data: Buffer.from("# メモ").toString("base64") });
+  assert.equal(ok.status, 200);
+  assert.deepEqual((await ok.json()).file, { name: "memo.md", mimeType: "text/markdown", summary: "- 要点" });
+  assert.equal(s.files.length, 1);
+  const bad = await post("/api/file", { name: "a.docx", mimeType: "application/msword", data: "AAAA" });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(text.calls, ["summarize memo.md"]);
+  await srv.close();
+});
+
+test("draft is per question", async () => {
+  const { srv, post, s } = await setup();
+  assert.equal((await post("/api/draft", { questionId: "q1", ...direction })).status, 200);
+  assert.deepEqual(s.dives[0].draft, direction);
+  await srv.close();
+});
+
+test("a file sent after the deep dive started is refused without calling the model", async () => {
+  const text = fakeText();
+  const { srv, post } = await setup({ text });
+  const r = await post("/api/file", { name: "late.md", mimeType: "text/markdown", data: Buffer.from("x").toString("base64") });
+  assert.equal(r.status, 409);
+  assert.deepEqual(text.calls, []);
+  await srv.close();
+});
+
+test("audio carries its order and the server stores in that order", async () => {
+  let n = 0;
+  const text = fakeText({ transcribe: async () => (++n === 1 ? "後の文" : "先の文") });
+  const { srv, post, s } = await setup({ mode: "free", text });
+  assert.equal((await post("/api/audio", { ...wav(10), order: 20 })).status, 200);
+  assert.equal((await post("/api/audio", { ...wav(10), order: 10 })).status, 200);
+  assert.deepEqual(s.freeTalk.map((t) => t.text), ["先の文", "後の文"]);
   await srv.close();
 });

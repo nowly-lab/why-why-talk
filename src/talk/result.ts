@@ -1,20 +1,39 @@
 import { depthOf, isBacked, shallowLeaves, TARGET_DEPTH, treeSummary } from "../analysis.ts";
 import { redactSecrets } from "../redact.ts";
 import { renderMermaid } from "../render/mermaid.ts";
-import { STATE_LABEL } from "../render/tree.ts";
-import type { TalkSession, TranscriptEntry } from "./session.ts";
+import { STATE_LABEL, subtreeIds } from "../render/tree.ts";
+import type { Dive, DiveStatus, TalkSession, TranscriptEntry } from "./session.ts";
 
 const SPEAKER: Record<TranscriptEntry["speaker"], string> = { person: "あなた", gemini: "Gemini" };
 const FILES = ["result.md", "result.json", "tree.mmd", "transcript.md", "session.json", "events.jsonl"];
 
-/** The Markdown the CLI prints on 送信; the agent reads it as the result of the deep dive. */
+export const DIVE_LABEL: Record<DiveStatus, string> = { pending: "未着手", digging: "掘っている途中", done: "終わった", partial: "途中" };
+
+/** The Markdown the CLI prints on 送信; the agent reads it as the result, one section per checked question. */
 export function renderResultMarkdown(s: TalkSession): string {
-  const d = s.sent ?? s.draft;
-  const section = (title: string, body: string | undefined) => `## ${title}\n\n${body?.trim() || "(なし)"}\n`;
-  const depth = (id: string) => depthLabel(depthOf(s.analysis, id));
-  const shallow = shallowLeaves(s.analysis).map((n) => `- ${n.id} ${n.text}（${depth(n.id)}） 理由: ${n.reason ?? ""}`);
-  const nodes = s.analysis.nodes
-    .filter((n) => n.parentId !== null)
+  const section = (title: string, body: string | undefined, level = "##") => `${level} ${title}\n\n${body?.trim() || "(なし)"}\n`;
+  const dives = divesOf(s);
+  const out = [
+    `# 深掘りの結果: ${s.topic ?? `問い ${dives.length} 件`}\n`,
+    ...dives.map((d, i) => diveSection(s, d, i, section)),
+    section("選ばなかった問い", unchecked(s).map((t) => `- ${t}`).join("\n")),
+    section("添付ファイルの要点", s.files.map((f) => `### ${f.name}\n\n${f.summary}`).join("\n\n")),
+    section("Gemini に聞いたこと", askedMarkdown(s)),
+    `## 自由に話した内容\n\n${transcriptLines(s.freeTalk)}\n`,
+    `## 深掘りの会話の全文\n\n${transcriptLines(s.transcript)}\n`,
+    "---",
+    `files: ${FILES.map((f) => `${s.outDir}/${f}`).join(", ")}`,
+  ];
+  return redactSecrets(`${out.join("\n")}\n`);
+}
+
+function diveSection(s: TalkSession, d: Dive, i: number, section: (t: string, b: string | undefined, l?: string) => string): string {
+  const a = s.analysis;
+  const ids = subtreeIds(a, [d.questionId]);
+  const depth = (id: string) => depthLabel(depthOf(a, id));
+  const shallow = shallowLeaves(a).filter((n) => ids.has(n.id)).map((n) => `- ${n.id} ${n.text}（${depth(n.id)}） 理由: ${n.reason ?? ""}`);
+  const nodes = a.nodes
+    .filter((n) => n.parentId !== null && ids.has(n.id))
     .map((n) => {
       const head = `- ${n.id} ${isBacked(n) ? "✓ " : ""}${n.text} — ${STATE_LABEL[n.state]} · ${depth(n.id)} · ${n.viewpoint ?? ""} · 親 ${n.parentId}`;
       const lines = [
@@ -24,35 +43,52 @@ export function renderResultMarkdown(s: TalkSession): string {
       ];
       return [head, ...lines].join("\n");
     });
-  const out = [
-    `# 深掘りの結果: ${s.topic}\n`,
-    section("方針", d?.direction),
-    section("理由", d?.reasons),
-    section("見送った案", d?.rejected),
-    section("残った疑問", d?.openQuestions),
-    section("深さ不足の枝", shallow.join("\n")),
-    section("Gemini に聞いたこと", askedMarkdown(s)),
-    `## なぜの木\n\n\`\`\`mermaid\n${renderMermaid(s.analysis)}\`\`\`\n\n${nodes.join("\n") || "(なし)"}\n`,
-    `## 会話の全文\n\n${transcriptLines(s.transcript)}\n`,
-    "---",
-    `files: ${FILES.map((f) => `${s.outDir}/${f}`).join(", ")}`,
-  ];
-  return redactSecrets(`${out.join("\n")}\n`);
+  return [
+    `## 問い ${i + 1}: ${d.text}(${DIVE_LABEL[d.status]})\n`,
+    section("方針", d.draft?.direction, "###"),
+    section("理由", d.draft?.reasons, "###"),
+    section("見送った案", d.draft?.rejected, "###"),
+    section("残った疑問", d.draft?.openQuestions, "###"),
+    section("深さ不足の枝", shallow.join("\n"), "###"),
+    `### なぜの木\n\n\`\`\`mermaid\n${renderMermaid(a, { rootId: d.questionId })}\`\`\`\n\n${nodes.join("\n") || "(なし)"}\n`,
+  ].join("\n");
+}
+
+/** Sent before the deep dive started: the checked questions count as 未着手 dives (with no tree yet). */
+function divesOf(s: TalkSession): Dive[] {
+  if (s.dives.length > 0) return s.dives;
+  return s.questions.filter((q) => q.checked).map((q, i) => ({ questionId: `q${i + 1}`, text: q.text, status: "pending", draft: null }));
+}
+
+function unchecked(s: TalkSession): string[] {
+  return s.questions.filter((q) => !q.checked).map((q) => q.text);
 }
 
 export function renderTranscriptMarkdown(s: TalkSession): string {
-  return `# 会話: ${s.topic}\n\n${transcriptLines(s.transcript)}\n`;
+  return `# 会話: ${s.topic ?? "自由に話す"}\n\n## 自由に話した内容\n\n${transcriptLines(s.freeTalk)}\n\n## 深掘りの会話\n\n${transcriptLines(s.transcript)}\n`;
 }
 
 export function resultJson(s: TalkSession) {
+  const summary = treeSummary(s.analysis);
   return {
     topic: s.topic,
     status: s.status,
-    direction: s.sent ?? s.draft,
-    tree: treeSummary(s.analysis).slice(1).map((n) => {
-      const full = s.analysis.nodes.find((x) => x.id === n.id)!;
-      return { ...n, shallow: n.state === "leaf" && n.depth < TARGET_DEPTH, facts: full.facts, reason: full.reason, countermeasure: full.countermeasure };
+    questions: divesOf(s).map((d) => {
+      const ids = subtreeIds(s.analysis, [d.questionId]);
+      return {
+        questionId: d.questionId,
+        text: d.text,
+        status: d.status,
+        direction: d.draft,
+        tree: summary.filter((n) => n.parentId !== null && ids.has(n.id)).map((n) => {
+          const full = s.analysis.nodes.find((x) => x.id === n.id)!;
+          return { ...n, shallow: n.state === "leaf" && n.depth < TARGET_DEPTH, facts: full.facts, reason: full.reason, countermeasure: full.countermeasure };
+        }),
+      };
     }),
+    unchecked: unchecked(s),
+    attachments: s.files,
+    freeTalk: s.freeTalk,
     transcript: s.transcript,
     asked: s.asked,
     startedAt: s.startedAt,

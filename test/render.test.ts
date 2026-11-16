@@ -73,3 +73,16 @@ test("mermaid escapes a leading backtick", () => {
   assert.ok(!mmd.includes("`"), mmd);
   assert.ok(mmd.includes("#96;retry#96; was 0"));
 });
+
+test("mermaid with rootId draws only that question", async () => {
+  const { addRoot } = await import("../src/analysis.ts");
+  let a = startAnalysis({ id: "r", title: "問い" }, now);
+  a = addRoot(a, { id: "q1", text: "一つめ" }, now);
+  a = addRoot(a, { id: "q2", text: "二つめ" }, now);
+  a = addWhys(a, "q1", [{ text: "q1の理由", viewpoint: "検知" }], now).analysis;
+  a = addWhys(a, "q2", [{ text: "q2の理由", viewpoint: "検知" }], now).analysis;
+  const mmd = renderMermaid(a, { rootId: "q1" });
+  assert.match(mmd, /q1\[/);
+  assert.match(mmd, /q1の理由/);
+  assert.doesNotMatch(mmd, /q2/);
+});

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addFact, addWhys, closeAnalysis, isBacked, startAnalysis, treeSummary, updateNode } from "../src/analysis.ts";
+import { addFact, addRoot, addWhys, closeAnalysis, isBacked, questionReady, rootOf, startAnalysis, treeSummary, updateNode } from "../src/analysis.ts";
 import { WhyError, type Analysis } from "../src/model.ts";
 
 const now = () => "2026-11-13T00:00:00.000Z";
@@ -178,4 +178,81 @@ test("openBelowTarget lists only the tips", () => {
   a = addWhys(a, "n1", [{ text: "別の理由", viewpoint: "検知" }], now).analysis; // n3 under n1, candidate
   assert.deepEqual(openBelowTarget(a), [{ id: "n2", depth: 2 }, { id: "n3", depth: 2 }]);
   assert.deepEqual(openBelowTarget(chain(5)), []);
+});
+
+test("a branch that ended in a leaf does not leave its parent as a tip", () => {
+  const a = updateNode(chain(5), "n5", { state: "leaf", countermeasure: "x" }, now);
+  assert.deepEqual(openBelowTarget(a), []);
+  const b = updateNode(chain(2), "n2", { state: "rejected", reason: "違った" }, now);
+  assert.deepEqual(openBelowTarget(b), [{ id: "n1", depth: 1 }], "a rejected child still leaves the parent open");
+});
+
+// --- one root per question (2026-11-16) ---
+
+function questions(): Analysis {
+  let a = startAnalysis({ id: "talk-q", title: "自由に話す" }, now);
+  a = addRoot(a, { id: "q1", text: "なぜ論点を先に決めるとずれるのか" }, now);
+  a = addRoot(a, { id: "q2", text: "なぜ添付資料が使えていないのか" }, now);
+  return a;
+}
+
+/** Adds a chain of `n` whys under `parent`, each one digging, and returns the analysis and the last id. */
+function digChain(a: Analysis, parent: string, n: number, word: string): { a: Analysis; last: string } {
+  let last = parent;
+  for (let i = 0; i < n; i++) {
+    const r = addWhys(a, last, [{ text: `${word}${i}`, viewpoint: "手順・プロセス" }], now);
+    a = updateNode(r.analysis, r.added[0], { state: "digging" }, now);
+    last = r.added[0];
+  }
+  return { a, last };
+}
+
+test("startAnalysis without a problem has no root", () => {
+  assert.deepEqual(startAnalysis({ id: "talk-q", title: "自由に話す" }, now).nodes, []);
+});
+
+test("addRoot creates independent roots counted from 0", () => {
+  const { a, last } = digChain(questions(), "q2", 2, "理由");
+  const kids = a.nodes.filter((n) => n.parentId !== null);
+  assert.deepEqual(kids.map((n) => depthOf(a, n.id)), [1, 2]);
+  assert.equal(depthOf(a, "q1"), 0);
+  assert.equal(rootOf(a, last), "q2");
+  assert.equal(rootOf(a, "q1"), "q1");
+  assert.ok(kids.every((n) => n.id.startsWith("n")));
+  assert.equal(kids[0].id, "n1");
+});
+
+test("addRoot rejects a duplicate or malformed id", () => {
+  assert.match(code(() => addRoot(questions(), { id: "q1", text: "x" }, now)), /^duplicate/);
+  assert.match(code(() => addRoot(questions(), { id: "n0", text: "x" }, now)), /^invalid_input/);
+  assert.match(code(() => addRoot(questions(), { id: "q0", text: "x" }, now)), /^invalid_input/);
+  assert.match(code(() => addRoot(questions(), { id: "q3", text: "  " }, now)), /^invalid_input/);
+});
+
+test("openBelowTarget filters by root", () => {
+  let a = digChain(questions(), "q1", 1, "一").a;
+  a = digChain(a, "q2", 1, "二").a;
+  assert.equal(openBelowTarget(a).length, 2);
+  const only = openBelowTarget(a, "q1");
+  assert.equal(only.length, 1);
+  assert.equal(rootOf(a, only[0].id), "q1");
+});
+
+test("questionReady needs one branch at 5 and no shallow open tip", () => {
+  let a = questions();
+  assert.deepEqual(questionReady(a, "q1"), { ready: false, reached: false, open: [] });
+  const deep = digChain(a, "q1", 5, "深");
+  a = deep.a;
+  assert.equal(questionReady(a, "q1").reached, true);
+  assert.equal(questionReady(a, "q1").ready, true, "a tip at depth 5 is not a shallow branch");
+  a = updateNode(a, deep.last, { state: "leaf", countermeasure: "手順を変える" }, now);
+  assert.deepEqual(questionReady(a, "q1"), { ready: true, reached: true, open: [] });
+  const r = addWhys(a, "q1", [{ text: "別の理由", viewpoint: "人・体制" }], now);
+  a = r.analysis;
+  const q = questionReady(a, "q1");
+  assert.equal(q.ready, false);
+  assert.deepEqual(q.open.map((o) => o.id), [r.added[0]]);
+  a = updateNode(a, r.added[0], { state: "rejected", reason: "本人が否定した" }, now);
+  assert.equal(questionReady(a, "q1").ready, true);
+  assert.equal(questionReady(a, "q2").reached, false);
 });

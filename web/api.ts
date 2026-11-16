@@ -2,19 +2,29 @@ import type { TreeNode } from "./tree-rows.ts";
 import type { AnswerEntry, Source } from "./answers.ts";
 import type { Speaker } from "./transcript.ts";
 import type { DiagEvent } from "./diag.ts";
+import type { CurrentQuestion, Dive, Question } from "./questions.ts";
 
 export type Direction = { direction: string; reasons: string; rejected: string; openQuestions: string };
+export type Phase = "free_talk" | "questions" | "deep_dive";
+export type FileView = { name: string; mimeType: string; summary: string };
 export type SessionView = {
   id: string;
   nonce: string;
-  topic: string;
+  topic: string | null;
   status: "talking" | "sent" | "cancelled";
+  phase: Phase;
+  freeTalk: Array<{ at: string; speaker: Speaker; text: string }>;
+  files: FileView[];
+  questions: Question[];
+  dives: Dive[];
+  current: CurrentQuestion;
   tree: TreeNode[];
   transcript: Array<{ at: string; speaker: Speaker; text: string }>;
-  draft: Direction | null;
   role: Role;
+  roleBy: "request" | "question" | null;
   asked: AskedView[];
 };
+export type DivesView = { dives: Dive[]; current: CurrentQuestion };
 export type Role = "interviewer" | "answerer";
 export type AskedView = { at: string; question: string; answer: string; queries: string[]; sources: Source[] };
 export type TokenInfo = { token: string; model: string; expiresAt: string; config: Record<string, unknown> };
@@ -26,12 +36,14 @@ export type ToolResult = {
   role?: Role;
   tree: Array<{ id: string; text: string; state: string; depth?: number }>;
   belowTarget?: Array<{ id: string; depth: number }>;
+  current?: CurrentQuestion;
 };
 
 /** What goes back to Gemini for one function call: the tree with depths and the branches still below 5 whys. */
 export function toGeminiResponse(r: ToolResult): Record<string, unknown> {
-  if (!r.ok) return { error: r.error, tree: r.tree, belowTarget: r.belowTarget ?? [] };
-  return { result: "ok", added: r.added ?? [], note: r.note, tree: r.tree, belowTarget: r.belowTarget ?? [], ...(r.role ? { role: r.role } : {}) };
+  const current = r.current ?? null;
+  if (!r.ok) return { error: r.error, tree: r.tree, belowTarget: r.belowTarget ?? [], current };
+  return { result: "ok", added: r.added ?? [], note: r.note, tree: r.tree, belowTarget: r.belowTarget ?? [], current, ...(r.role ? { role: r.role } : {}) };
 }
 
 /** Gemini waits for every tool answer; a local request that hangs must still end so Gemini gets an error back. */
@@ -70,8 +82,15 @@ export function createApi(nonce: string, opts: { toolTimeoutMs?: number } = {}) 
     token: (fallback: boolean) => post<TokenInfo>("/api/token", { fallback }),
     tool: (name: string, args: unknown) => post<ToolResult>("/api/tool", { name, args }, toolTimeoutMs),
     transcript: (speaker: Speaker, text: string) => post<{ ok: true }>("/api/transcript", { speaker, text }),
-    draft: (d: Direction) => post<{ ok: true }>("/api/draft", d),
-    submit: (d: Direction) => post<{ ok: true }>("/api/submit", d),
+    draft: (questionId: string, d: Direction) => post<{ ok: true }>("/api/draft", { questionId, ...d }),
+    submit: (directions: Record<string, Direction>) => post<{ ok: true }>("/api/submit", { directions }),
+    audio: (data: string, order: number) => post<{ ok: true; text: string }>("/api/audio", { data, mimeType: "audio/wav", order }),
+    file: (name: string, mimeType: string, data: string) => post<{ ok: true; file: FileView }>("/api/file", { name, mimeType, data }),
+    split: () => post<{ questions: Question[] }>("/api/questions/split", {}),
+    questions: (questions: Question[]) => post<{ questions: Question[] }>("/api/questions", { questions }),
+    freeTalk: () => post<{ ok: true }>("/api/free-talk", {}),
+    diveStart: () => post<DivesView>("/api/dive/start", {}),
+    diveNext: () => post<DivesView>("/api/dive/next", {}),
     cancel: () => post<{ ok: true }>("/api/cancel", {}),
     role: (role: Role) => post<{ ok: true; role: Role }>("/api/role", { role }),
     answer: (e: AnswerEntry) => post<{ ok: true }>("/api/answer", e),

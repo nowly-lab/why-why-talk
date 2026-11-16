@@ -2,8 +2,8 @@
   "schema": "workflow-models/v1",
   "title": "状態の移り方",
   "checked": {
-    "revision": "32134da",
-    "date": "2026-11-14"
+    "revision": "86c1c69",
+    "date": "2026-11-16"
   },
   "lifecycles": [
     {
@@ -48,13 +48,14 @@
           "from": "talking",
           "on": "cmd-send",
           "to": "sent",
-          "guard": "方針が空でない",
+          "guard": "どの段階からでもよい。深掘りした問いの方針は空でない",
           "evidence": [
             {
               "path": "src/talk/session.ts",
               "symbol": "submit"
             }
-          ]
+          ],
+          "changed": true
         },
         {
           "from": "talking",
@@ -64,6 +65,35 @@
         {
           "from": "talking",
           "on": "cmd-swap-role",
+          "to": "talking"
+        },
+        {
+          "from": "talking",
+          "on": "cmd-free-talk",
+          "to": "talking",
+          "changed": true
+        },
+        {
+          "from": "talking",
+          "on": "cmd-attach",
+          "to": "talking",
+          "changed": true
+        },
+        {
+          "from": "talking",
+          "on": "cmd-split",
+          "to": "talking",
+          "changed": true
+        },
+        {
+          "from": "talking",
+          "on": "cmd-start-dive",
+          "to": "talking",
+          "changed": true
+        },
+        {
+          "from": "talking",
+          "on": "cmd-next-question",
           "to": "talking",
           "changed": true
         }
@@ -133,14 +163,387 @@
           "state": "sent",
           "on": "cmd-swap-role",
           "kind": "invalid",
-          "reason": "終わった後は交代しない",
-          "changed": true
+          "reason": "終わった後は交代しない"
         },
         {
           "state": "cancelled",
           "on": "cmd-swap-role",
           "kind": "invalid",
-          "reason": "終わった後は交代しない",
+          "reason": "終わった後は交代しない"
+        },
+        {
+          "state": "sent",
+          "on": "cmd-free-talk",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-free-talk",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "sent",
+          "on": "cmd-attach",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-attach",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "sent",
+          "on": "cmd-split",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-split",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "sent",
+          "on": "cmd-start-dive",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-start-dive",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "sent",
+          "on": "cmd-next-question",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        },
+        {
+          "state": "cancelled",
+          "on": "cmd-next-question",
+          "kind": "invalid",
+          "reason": "終わった後は変えない",
+          "changed": true
+        }
+      ]
+    },
+    {
+      "id": "phase-life",
+      "name": "段階",
+      "domain": "gather",
+      "summary": "論点がなければ自由に話すから、あれば問いを選ぶから始まる。深掘りに入ったら戻らない。",
+      "states": [
+        {
+          "id": "free-talk",
+          "name": "自由に話す",
+          "initial": true,
+          "changed": true
+        },
+        {
+          "id": "questions",
+          "name": "問いを選ぶ",
+          "changed": true
+        },
+        {
+          "id": "deep-dive",
+          "name": "深掘り",
+          "changed": true
+        }
+      ],
+      "transitions": [
+        {
+          "from": "free-talk",
+          "on": "cmd-free-talk",
+          "to": "free-talk",
+          "changed": true
+        },
+        {
+          "from": "free-talk",
+          "on": "cmd-attach",
+          "to": "free-talk",
+          "changed": true
+        },
+        {
+          "from": "free-talk",
+          "on": "cmd-split",
+          "to": "questions",
+          "guard": "文字起こし・ファイル・調べた内容のどれかがある",
+          "evidence": [
+            {
+              "path": "src/talk/session.ts",
+              "symbol": "setQuestions"
+            }
+          ],
+          "changed": true
+        },
+        {
+          "from": "questions",
+          "on": "cmd-split",
+          "to": "questions",
+          "effect": "リストを作り直す",
+          "changed": true
+        },
+        {
+          "from": "questions",
+          "on": "cmd-attach",
+          "to": "questions",
+          "changed": true
+        },
+        {
+          "from": "questions",
+          "on": "cmd-free-talk",
+          "to": "free-talk",
+          "effect": "「もう少し話して問いを足す」",
+          "changed": true
+        },
+        {
+          "from": "questions",
+          "on": "cmd-start-dive",
+          "to": "deep-dive",
+          "guard": "チェックが一つ以上",
+          "evidence": [
+            {
+              "path": "src/talk/session.ts",
+              "symbol": "startDeepDive"
+            }
+          ],
+          "changed": true
+        },
+        {
+          "from": "deep-dive",
+          "on": "cmd-next-question",
+          "to": "deep-dive",
+          "changed": true
+        },
+        {
+          "from": "deep-dive",
+          "on": "cmd-grow-tree",
+          "to": "deep-dive",
+          "changed": true
+        },
+        {
+          "from": "deep-dive",
+          "on": "cmd-connect",
+          "to": "deep-dive",
+          "changed": true
+        }
+      ],
+      "rejections": [
+        {
+          "state": "free-talk",
+          "on": "cmd-start-dive",
+          "kind": "invalid",
+          "reason": "まだ問いがない",
+          "changed": true
+        },
+        {
+          "state": "free-talk",
+          "on": "cmd-connect",
+          "kind": "invalid",
+          "reason": "自由に話す間は Live につながない",
+          "changed": true
+        },
+        {
+          "state": "free-talk",
+          "on": "cmd-grow-tree",
+          "kind": "invalid",
+          "reason": "木はまだない",
+          "changed": true
+        },
+        {
+          "state": "free-talk",
+          "on": "cmd-next-question",
+          "kind": "invalid",
+          "reason": "深掘りしていない",
+          "changed": true
+        },
+        {
+          "state": "questions",
+          "on": "cmd-connect",
+          "kind": "invalid",
+          "reason": "深掘りを始めるまで Live につながない",
+          "changed": true
+        },
+        {
+          "state": "questions",
+          "on": "cmd-grow-tree",
+          "kind": "invalid",
+          "reason": "木はまだない",
+          "changed": true
+        },
+        {
+          "state": "questions",
+          "on": "cmd-next-question",
+          "kind": "invalid",
+          "reason": "深掘りしていない",
+          "changed": true
+        },
+        {
+          "state": "deep-dive",
+          "on": "cmd-free-talk",
+          "kind": "invalid",
+          "reason": "深掘りの途中でリストには戻らない(今回は作らない)",
+          "changed": true
+        },
+        {
+          "state": "deep-dive",
+          "on": "cmd-split",
+          "kind": "invalid",
+          "reason": "深掘りの途中で問いは作り直さない",
+          "changed": true
+        },
+        {
+          "state": "deep-dive",
+          "on": "cmd-attach",
+          "kind": "invalid",
+          "reason": "深掘りの途中ではファイルを足さない",
+          "changed": true
+        },
+        {
+          "state": "deep-dive",
+          "on": "cmd-start-dive",
+          "kind": "invalid",
+          "reason": "もう始まっている(二度目は断る)",
+          "changed": true
+        }
+      ]
+    },
+    {
+      "id": "dive-life",
+      "name": "問いの深掘り",
+      "domain": "talk",
+      "summary": "チェックした問いごと。一度に掘るのは一つ。",
+      "states": [
+        {
+          "id": "pending",
+          "name": "未着手",
+          "initial": true,
+          "changed": true
+        },
+        {
+          "id": "digging",
+          "name": "掘っている",
+          "changed": true
+        },
+        {
+          "id": "done",
+          "name": "終わった",
+          "final": true,
+          "changed": true
+        },
+        {
+          "id": "partial",
+          "name": "途中",
+          "final": true,
+          "changed": true
+        }
+      ],
+      "transitions": [
+        {
+          "from": "pending",
+          "on": "cmd-start-dive",
+          "to": "digging",
+          "guard": "リストの最初の問い",
+          "changed": true
+        },
+        {
+          "from": "pending",
+          "on": "ev-next-question",
+          "to": "digging",
+          "guard": "直前の問いが終わった・途中になった次の問い",
+          "changed": true
+        },
+        {
+          "from": "digging",
+          "on": "cmd-next-question",
+          "to": "done",
+          "guard": "Gemini の next_question、かつ 5 段に届いた枝があり浅い掘りかけの枝がない",
+          "evidence": [
+            {
+              "path": "src/analysis.ts",
+              "symbol": "questionReady"
+            }
+          ],
+          "changed": true
+        },
+        {
+          "from": "digging",
+          "on": "cmd-grow-tree",
+          "to": "digging",
+          "changed": true
+        },
+        {
+          "from": "digging",
+          "on": "cmd-organise",
+          "to": "digging",
+          "effect": "その問いの方針を下書きする",
+          "changed": true
+        },
+        {
+          "from": "digging",
+          "on": "cmd-next-question",
+          "to": "partial",
+          "guard": "人の「次の問いへ」ボタン(条件なし)",
+          "changed": true
+        }
+      ],
+      "rejections": [
+        {
+          "state": "pending",
+          "on": "cmd-next-question",
+          "kind": "ignored",
+          "reason": "今の問いにだけ効く",
+          "changed": true
+        },
+        {
+          "state": "pending",
+          "on": "cmd-grow-tree",
+          "kind": "invalid",
+          "reason": "まだ掘っていない問いの木は育てない",
+          "changed": true
+        },
+        {
+          "state": "done",
+          "on": "cmd-next-question",
+          "kind": "ignored",
+          "reason": "終わった問い",
+          "changed": true
+        },
+        {
+          "state": "partial",
+          "on": "cmd-next-question",
+          "kind": "ignored",
+          "reason": "途中で飛ばした問い",
+          "changed": true
+        },
+        {
+          "state": "done",
+          "on": "cmd-grow-tree",
+          "kind": "invalid",
+          "reason": "終わった問いの木は変えない",
+          "changed": true
+        },
+        {
+          "state": "partial",
+          "on": "cmd-grow-tree",
+          "kind": "invalid",
+          "reason": "飛ばした問いの木は変えない",
           "changed": true
         }
       ]
@@ -202,8 +605,7 @@
               "path": "src/analysis.ts",
               "symbol": "updateNode"
             }
-          ],
-          "changed": true
+          ]
         },
         {
           "from": "digging",
@@ -248,18 +650,16 @@
       "id": "role-life",
       "name": "Gemini の役割",
       "domain": "talk",
-      "summary": "始めは聞き手。ボタンか声で交代し、戻すまで答える係。",
+      "summary": "始めは聞き手。ボタンか声で交代し、戻すまで答える係。疑問形で問いかけられたら自分で交代して答え、答えたら戻る。",
       "states": [
         {
           "id": "interviewer",
           "name": "聞き手",
-          "initial": true,
-          "changed": true
+          "initial": true
         },
         {
           "id": "answerer",
-          "name": "答える係",
-          "changed": true
+          "name": "答える係"
         }
       ],
       "transitions": [
@@ -267,33 +667,50 @@
           "from": "interviewer",
           "on": "cmd-swap-role",
           "to": "answerer",
-          "guard": "交代して",
-          "changed": true
+          "guard": "交代して"
         },
         {
           "from": "answerer",
           "on": "cmd-swap-role",
           "to": "interviewer",
-          "guard": "戻して",
-          "changed": true
+          "guard": "戻して"
         },
         {
           "from": "answerer",
           "on": "cmd-ask",
           "to": "answerer",
-          "effect": "答えを記録する",
-          "changed": true
+          "effect": "答えを記録する"
+        },
+        {
+          "from": "interviewer",
+          "on": "cmd-ask",
+          "to": "answerer",
+          "guard": "相手が Gemini に向けて疑問形で聞いた(独り言やなぜへの答えの中の疑問は除く)",
+          "effect": "switch_role(by=question)。答えを記録する",
+          "changed": true,
+          "evidence": [
+            {
+              "path": "src/talk/gemini.ts",
+              "symbol": "roleBrief"
+            }
+          ]
+        },
+        {
+          "from": "answerer",
+          "on": "cmd-grow-tree",
+          "to": "interviewer",
+          "guard": "質問で交代していた(by=question)",
+          "effect": "答えたあと深掘りに戻ったとみなす",
+          "changed": true,
+          "evidence": [
+            {
+              "path": "src/talk/session.ts",
+              "symbol": "roleBy"
+            }
+          ]
         }
       ],
-      "rejections": [
-        {
-          "state": "interviewer",
-          "on": "cmd-ask",
-          "kind": "ignored",
-          "reason": "聞き手のときの質問は普通の会話として扱い、記録しない",
-          "changed": true
-        }
-      ]
+      "rejections": []
     }
   ]
 }

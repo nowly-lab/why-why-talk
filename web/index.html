@@ -80,23 +80,84 @@ textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px s
 textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
 .actions .hint { margin-right: auto; font-size: 12px; color: var(--muted); }
+/* --- phases (2026-11-16): free talk, question list, deep dive --- */
+.steps { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.steps .step { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); }
+.steps .step b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--border); color: var(--fg); font-size: 11px; }
+.steps .step[aria-current="step"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+.steps .step[aria-current="step"] b { background: var(--accent-fg); color: var(--accent); }
+.steps .sep { width: 18px; border-top: 1px solid var(--line); }
+.quiet-badge { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--gemini); color: var(--muted); }
+.phase { display: none; }
+body[data-phase="free_talk"] #free-talk, body[data-phase="questions"] #questions, body[data-phase="deep_dive"] #deep-dive { display: grid; }
+body:not([data-phase="deep_dive"]) .dive-only { display: none !important; }
+body:not([data-phase="free_talk"]) .free-only { display: none !important; }
+body:not([data-phase="questions"]) .q-only { display: none !important; }
+#free-talk { flex: 1; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px; min-height: 0; }
+#free-talk .hint, #questions .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+section h2.row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.free-line { display: flex; gap: 10px; margin: 6px 0; }
+.free-line time { font-size: 12px; color: var(--muted); flex: 0 0 44px; padding-top: 8px; }
+.free-line .said { background: var(--person); padding: 8px 12px; border-radius: 10px; white-space: pre-wrap; flex: 1; }
+.failed { color: var(--err); font-size: 13px; padding: 6px 14px 10px; }
+.failed button { padding: 2px 8px; font-size: 13px; }
+.drop { margin: 12px 14px 4px; padding: 18px 12px; border: 1.5px dashed var(--line); border-radius: 10px; text-align: center; cursor: pointer; }
+.drop.over { border-color: var(--accent); background: var(--person); }
+.drop strong { display: block; }
+.drop span { font-size: 12px; color: var(--muted); }
+.file { margin: 8px 14px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.file .name { font-weight: 600; overflow-wrap: anywhere; }
+.file .summary { font-size: 13px; color: var(--muted); white-space: pre-wrap; max-height: 7.5em; overflow: auto; }
+.file.busy .summary { font-style: italic; }
+.file.error { border-color: var(--err); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--border); background: var(--card); }
+.bar .hint { margin-right: auto; }
+#questions { flex: 1; padding: 16px 20px; min-height: 0; align-content: start; grid-template-columns: minmax(0, 1040px); justify-content: center; overflow: auto; }
+#questions section { padding-bottom: 8px; }
+#questions .lead { padding: 8px 14px 0; font-size: 13px; color: var(--muted); }
+.q-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.q-row .num { color: var(--muted); font-size: 13px; min-width: 1.6em; text-align: right; }
+.q-row input[type="text"] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 0; }
+.q-row input[type="checkbox"] { width: 18px; height: 18px; }
+.q-row button { padding: 4px 10px; }
+.q-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; }
+.q-tools .count { margin-left: auto; font-size: 13px; color: var(--muted); }
+#deep-dive { flex: 1; grid-template-columns: minmax(200px, 0.7fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; padding: 16px 20px; min-height: 0; }
+.dive { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.dive { cursor: pointer; }
+.dive[aria-current="true"] { border-color: var(--accent); border-width: 2px; background: var(--person); }
+.dive .chip { display: inline-block; margin-top: 4px; font-size: 12px; border-radius: 999px; padding: 0 8px; background: var(--gemini); color: var(--muted); }
+.dive[data-status="digging"] .chip { background: var(--accent); color: var(--accent-fg); }
+.dive[data-status="done"] .chip { color: var(--ok); }
+.dive-foot { padding: 0 14px 12px; }
+.dive-foot button { width: 100%; }
+form label.q-pick { flex-direction: row; align-items: center; gap: 8px; grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+.q-pick select { font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; max-width: 100%; }
 body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
 @media (max-width: 860px) {
-  main { grid-template-columns: 1fr; }
+  main, #free-talk, #deep-dive { grid-template-columns: 1fr; }
+  .q-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .q-row .num, .q-row .move { display: none; }
   section { min-height: 260px; }
   form { grid-template-columns: 1fr; padding: 12px 16px; }
-  header, main { padding-left: 16px; padding-right: 16px; }
+  header, main, .bar { padding-left: 16px; padding-right: 16px; }
 }
 </style>
 </head>
-<body>
+<body data-phase="free_talk">
 <header>
   <div style="flex: 1 1 320px">
-    <div class="label">深掘り(Gemini Live との壁打ち)</div>
+    <div class="label">深掘り(自由に話す → 問いを選ぶ → Gemini Live と深掘り)</div>
     <h1 id="topic">読み込んでいます…</h1>
   </div>
-  <span id="role" class="role" data-role="interviewer">Gemini: 聞き手</span>
-  <button id="role-btn" type="button" disabled>役割を交代</button>
+  <nav class="steps" aria-label="段階">
+    <span class="step" data-step="free_talk"><b>1</b>自由に話す</span><span class="sep"></span>
+    <span class="step" data-step="questions"><b>2</b>問いを選ぶ</span><span class="sep"></span>
+    <span class="step" data-step="deep_dive"><b>3</b>深掘り</span>
+  </nav>
+  <span class="quiet-badge free-only">Gemini は話しません</span>
+  <span id="role" class="role dive-only" data-role="interviewer">Gemini: 聞き手</span>
+  <button id="role-btn" class="dive-only" type="button" disabled>役割を交代</button>
   <span id="status" data-kind="idle">読み込んでいます…</span>
   <button id="nudge" type="button" hidden>Gemini に呼びかけ直す</button>
   <label class="mic-pick">マイク
@@ -105,7 +166,48 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
   </label>
   <button id="mic" class="primary" type="button">マイクを開始</button>
 </header>
-<main>
+
+<main id="free-talk" class="phase" aria-label="自由に話す">
+  <section aria-labelledby="h-free">
+    <h2 id="h-free" class="row">話したこと <span class="hint">話し終えて数秒後に文字になります</span></h2>
+    <div id="free-lines" class="scroll" aria-live="polite"></div>
+    <div id="free-failed" class="failed" hidden>文字起こしに失敗した部分があります(<button id="free-retry" type="button">再試行</button> <button id="free-discard" type="button">捨てる</button>)</div>
+  </section>
+  <section aria-labelledby="h-files">
+    <h2 id="h-files">参考ファイル</h2>
+    <div id="drop" class="drop" role="button" tabindex="0">
+      <strong>ファイルをここにドロップ</strong>
+      <span>テキスト・Markdown・PDF・画像 / 10MBまで(クリックで選ぶ)</span>
+      <input id="file-input" type="file" multiple hidden accept=".txt,.md,.markdown,.pdf,.png,.jpg,.jpeg,.webp,.gif">
+    </div>
+    <div id="file-list" class="scroll"></div>
+  </section>
+</main>
+
+<main id="questions" class="phase" aria-label="問いを選ぶ">
+  <section aria-labelledby="h-questions">
+    <h2 id="h-questions">深掘りする問いを選ぶ</h2>
+    <p class="lead">最大10件。チェックした問いを、この順に深掘りします。</p>
+    <div id="q-list"></div>
+    <div class="q-tools">
+      <button id="q-add" type="button">+ 問いを足す</button>
+      <button id="q-resplit" type="button">もう一度分ける</button>
+      <button id="q-back" type="button">もう少し話して問いを足す</button>
+      <span id="q-count" class="count">0 / 10件</span>
+    </div>
+    <div id="q-files" hidden>
+      <p class="lead">参考ファイル(ここにドロップして足せます)</p>
+      <div id="q-file-list"></div>
+    </div>
+  </section>
+</main>
+
+<main id="deep-dive" class="phase" aria-label="深掘り">
+  <section aria-labelledby="h-dives">
+    <h2 id="h-dives">選んだ問い</h2>
+    <div id="dives" class="scroll"></div>
+    <div class="dive-foot"><button id="next-q" class="primary" type="button">次の問いへ</button></div>
+  </section>
   <section aria-labelledby="h-talk">
     <h2 id="h-talk">会話</h2>
     <div id="transcript" class="scroll" aria-live="polite"></div>
@@ -115,18 +217,29 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
     </div>
   </section>
   <section aria-labelledby="h-tree">
-    <h2 id="h-tree">なぜの木(✓ 事実で裏付けあり / ? まだ裏付けなし)</h2>
+    <h2 id="h-tree">なぜの木(今の問い ✓ 事実で裏付けあり / ? まだ裏付けなし)</h2>
     <div id="tree" class="scroll"></div>
   </section>
 </main>
+
+<div class="bar free-only">
+  <span class="hint">話し終えたら、話とファイルを問いに分けます</span>
+  <button id="split" class="primary" type="button">問いに分ける</button>
+</div>
+<div class="bar q-only" id="q-bar">
+  <span id="q-selected" class="hint">0件を選択中 · 1件以上選ぶと始められます</span>
+  <button id="start-dive" class="primary" type="button" disabled>深掘りを始める</button>
+</div>
+
 <form id="direction-form">
-  <label>方針(必須)<textarea id="f-direction" name="direction" required></textarea></label>
-  <label>理由<textarea name="reasons"></textarea></label>
-  <label>見送った案<textarea name="rejected"></textarea></label>
-  <label>残った疑問<textarea name="openQuestions"></textarea></label>
+  <label class="q-pick dive-only">問いごとの方針 <select id="f-question" aria-label="方針を書く問い"></select></label>
+  <label class="dive-only">方針<textarea id="f-direction" name="direction"></textarea></label>
+  <label class="dive-only">理由<textarea name="reasons"></textarea></label>
+  <label class="dive-only">見送った案<textarea name="rejected"></textarea></label>
+  <label class="dive-only">残った疑問<textarea name="openQuestions"></textarea></label>
   <div class="actions">
-    <span class="hint">「整理する」で Gemini が下書きを作ります。直してから送信してください。</span>
-    <button id="organise" type="button">整理する</button>
+    <span class="hint" id="form-hint">送信すると、ここまでの内容をエージェントに送ります。</span>
+    <button id="organise" class="dive-only" type="button">整理する</button>
     <button id="cancel" type="button">取りやめ</button>
     <button id="send" class="primary" type="submit">送信</button>
   </div>

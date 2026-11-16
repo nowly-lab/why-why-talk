@@ -45,18 +45,70 @@ test("missing key exits 2", async () => {
   assert.match(r.stderr, /GEMINI_API_KEY/);
 });
 
-test("missing topic exits 2 with usage", async () => {
+test("runs without --topic and starts in free talk", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
-  const r = await run(["--no-open"], { GEMINI_API_KEY: "k" }, cwd).done;
-  assert.equal(r.code, 2);
-  assert.match(r.stderr, /--topic/);
+  const r = run(["--no-open"], { GEMINI_API_KEY: "k" }, cwd);
+  const url = await r.url;
+  const body = await (await fetch(`${url}/api/session`)).json();
+  assert.equal(body.phase, "free_talk");
+  assert.equal(body.topic, null);
+  await post(url, "/api/cancel", body.nonce, {});
+  const done = await r.done;
+  assert.equal(done.code, 1);
+  assert.match(done.stdout, /\.why-why\/\d{8}-\d{6}-free-talk/);
+});
+
+test("a topic starts in the questions phase", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
+  const r = run(["--topic", "論点", "--no-open"], { GEMINI_API_KEY: "k" }, cwd);
+  const url = await r.url;
+  const body = await (await fetch(`${url}/api/session`)).json();
+  assert.equal(body.phase, "questions");
+  await post(url, "/api/cancel", body.nonce, {});
+  assert.equal((await r.done).code, 1);
+});
+
+test("--attach of an unsupported or missing file exits 2", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
+  await writeFile(join(cwd, "a.docx"), "x");
+  const bad = await run(["--attach", "a.docx", "--no-open"], { GEMINI_API_KEY: "k" }, cwd).done;
+  assert.equal(bad.code, 2);
+  assert.match(bad.stderr, /テキスト・Markdown・PDF・画像/);
+  const missing = await run(["--attach", "none.md", "--no-open"], { GEMINI_API_KEY: "k" }, cwd).done;
+  assert.equal(missing.code, 2);
+});
+
+test("--attach twice reads and summarizes both files", async () => {
+  const { main } = await import("../src/cli.ts");
+  const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
+  await writeFile(join(cwd, "a.md"), "# A");
+  await writeFile(join(cwd, "b.txt"), "B");
+  const seen: string[] = [];
+  let err = "";
+  const text = {
+    transcribe: async () => "",
+    summarizeFile: async (f: { name: string }) => { seen.push(f.name); return `要点 ${f.name}`; },
+    splitQuestions: async () => [],
+  };
+  const running = main(["--attach", "a.md", "--attach", "b.txt", "--no-open"], { GEMINI_API_KEY: "k" }, cwd, { out: () => undefined, err: (s) => (err += s) }, { text: () => text });
+  let url = "";
+  for (let i = 0; i < 100 && !url; i++) {
+    url = /open (http:\/\/127\.0\.0\.1:\d+)/.exec(err)?.[1] ?? "";
+    if (!url) await new Promise((r) => setTimeout(r, 20));
+  }
+  const body = await (await fetch(`${url}/api/session`)).json();
+  assert.deepEqual(seen, ["a.md", "b.txt"]);
+  assert.deepEqual(body.files.map((f: { name: string; summary: string }) => [f.name, f.summary]), [["a.md", "要点 a.md"], ["b.txt", "要点 b.txt"]]);
+  await post(url, "/api/cancel", body.nonce, {});
+  assert.equal(await running, 1);
 });
 
 test("help exits 0", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "why-cli-"));
   const r = await run(["--help"], {}, cwd).done;
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /why-why-talk --topic/);
+  assert.match(r.stdout, /why-why-talk \[--topic/);
+  assert.match(r.stdout, /--attach/);
 });
 
 test("submit prints result and exits 0; out dir has result files", async () => {
@@ -67,12 +119,10 @@ test("submit prints result and exits 0; out dir has result files", async () => {
   const r = run(["--topic", "決済エラーの再発をどう防ぐか", "--context", ctx, "--out", out, "--no-open"], { GEMINI_API_KEY: "k" }, cwd);
   const url = await r.url;
   const nonce = await session(url);
-  await post(url, "/api/tool", nonce, { name: "add_whys", args: { parent_id: "n0", items: [{ text: "期限切れ", viewpoint: "検知" }] } });
-  assert.equal((await post(url, "/api/submit", nonce, { direction: "監視する", reasons: "r", rejected: "x", openQuestions: "q" })).status, 200);
+  assert.equal((await post(url, "/api/submit", nonce, { directions: {} })).status, 200);
   const done = await r.done;
   assert.equal(done.code, 0);
   assert.match(done.stdout, /^# 深掘りの結果: 決済エラーの再発をどう防ぐか/);
-  assert.match(done.stdout, /期限切れ/);
   assert.ok(!done.stdout.includes("GEMINI_API_KEY"));
   const files = await readdir(out);
   for (const f of ["result.md", "result.json", "tree.mmd", "transcript.md", "session.json"]) assert.ok(files.includes(f), f);
@@ -121,7 +171,7 @@ test("runs when started through a symlink (npm bin)", async () => {
   child.stdout.on("data", (d) => (stdout += d));
   const code = await new Promise<number | null>((r) => child.on("close", r));
   assert.equal(code, 0);
-  assert.match(stdout, /why-why-talk --topic/);
+  assert.match(stdout, /why-why-talk \[--topic/);
 });
 
 test("unwritable out dir exits 2 instead of hanging", async () => {
