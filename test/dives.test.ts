@@ -285,3 +285,30 @@ test("drafting a ready question tells Gemini to call next_question", async () =>
   const r2 = s2.applyTool("propose_direction", { question_id: "q1", direction: "A", reasons: "B", rejected: "C", open_questions: "D" });
   assert.ok(r2.ok && !/next_question/.test(r2.note ?? ""));
 });
+
+// --- review M3: questions checked but never dug are 未着手, not 選ばなかった ---
+test("sending before the deep dive lists checked questions as 未着手", async () => {
+  const s = await fresh("論点");
+  s.setQuestions(["選んだ", "選ばなかった"]);
+  s.editQuestions([{ text: "選んだ", checked: true }, { text: "選ばなかった", checked: false }]);
+  s.submit({});
+  const md = renderResultMarkdown(s);
+  assert.match(md, /## 問い 1: 選んだ\(未着手\)/);
+  assert.match(md, /## 選ばなかった問い\n\n- 選ばなかった\n/);
+  const j = resultJson(s);
+  assert.deepEqual(j.questions.map((q) => [q.text, q.status]), [["選んだ", "pending"]]);
+  assert.deepEqual(j.unchecked, ["選ばなかった"]);
+});
+
+test("file names given at start are redacted too", async () => {
+  const outDir = await mkdtemp(join(tmpdir(), "why-dives-"));
+  const key = "AIza" + "S".repeat(35);
+  const s = new TalkSession({ context: "", outDir, now, files: [{ name: `${key}.md`, mimeType: "text/markdown", summary: "x" }] });
+  assert.ok(!s.files[0].name.includes(key));
+});
+
+test("addFile is refused in the deep dive before any model work (canAddFile)", async () => {
+  const s = await diving();
+  assert.equal(s.canAddFile(), false);
+  assert.equal((await fresh()).canAddFile(), true);
+});

@@ -86,10 +86,55 @@ export function renderDives(el: HTMLElement, dives: Dive[], current: CurrentQues
     const card = document.createElement("div");
     card.className = "dive";
     card.dataset.status = d.status;
+    card.dataset.question = d.questionId;
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.title = "押すとこの問いの木を表示します";
     if (current?.questionId === d.questionId) card.setAttribute("aria-current", "true");
     const text = Object.assign(document.createElement("div"), { textContent: `${i + 1}. ${d.text}` });
     const chip = Object.assign(document.createElement("span"), { className: "chip", textContent: diveLabel(d.status) });
     card.append(text, chip);
     return card;
   }));
+}
+
+/**
+ * Saves a value through `post`, one request at a time in edit order, so the server never receives an older list
+ * after a newer one. A save superseded before its turn is skipped; only the newest answer is applied.
+ * settled() waits for the newest save and rejects if it failed.
+ */
+export function createLatestSaver<T>(post: (value: T) => Promise<T>, apply: (saved: T) => void) {
+  let rev = 0;
+  let tail: Promise<unknown> = Promise.resolve();
+  let latest: Promise<void> = Promise.resolve();
+  return {
+    save(value: T): Promise<void> {
+      const mine = ++rev;
+      const run = tail.then(async () => {
+        if (mine !== rev) return;
+        const saved = await post(value);
+        if (mine === rev) apply(saved);
+      });
+      tail = run.catch(() => undefined);
+      latest = run;
+      return run;
+    },
+    settled: () => latest,
+  };
+}
+
+/** Uploads still running; split, start and send wait for them so no file is left out. */
+export function createTaskTracker() {
+  const running = new Set<Promise<unknown>>();
+  return {
+    track<T>(p: Promise<T>): Promise<T> {
+      running.add(p);
+      void p.finally(() => running.delete(p)).catch(() => undefined);
+      return p;
+    },
+    settled: async (): Promise<void> => {
+      while (running.size > 0) await Promise.allSettled([...running]);
+    },
+    pending: () => running.size,
+  };
 }

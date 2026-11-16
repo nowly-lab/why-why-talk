@@ -2,7 +2,7 @@ import { createAnswerCollector, createPendingAnswers, readGrounding, submitAfter
 import { createApi, loadSession, toGeminiResponse, type Direction, type FileView, type Phase, type Role } from "./api.ts";
 import { acceptDrop } from "./files.ts";
 import { createFreeTalk } from "./free-talk.ts";
-import { canStart, MAX_QUESTIONS, renderDives, renderQuestionList, selectedLabel, treeOf, type CurrentQuestion, type Dive, type Question } from "./questions.ts";
+import { canStart, createLatestSaver, createTaskTracker, MAX_QUESTIONS, renderDives, renderQuestionList, selectedLabel, treeOf, type CurrentQuestion, type Dive, type Question } from "./questions.ts";
 import { bytesToBase64 } from "./recorder.ts";
 import { createPlayer, startMic, type Mic } from "./audio.ts";
 import { createDiagLog, createLinkWatch, createStallWatch, NUDGE_TEXT } from "./diag.ts";
@@ -30,7 +30,8 @@ export async function boot(): Promise<void> {
   let dives: Dive[] = view.dives;
   let current: CurrentQuestion = view.current;
   let files: Array<FileView & { busy?: boolean; error?: string }> = [...view.files];
-  let freeLines = view.freeTalk.map((t) => ({ at: Date.parse(t.at), text: t.text }));
+  // seq orders lines by when they were said (a retried segment keeps its place); lines from the server come first.
+  let freeLines = view.freeTalk.map((t, i) => ({ at: Date.parse(t.at), text: t.text, seq: i - view.freeTalk.length }));
   // Free-talk audio is taken only while this is true: 問いに分ける closes it before the phase changes on the server.
   let freeOpen = true;
   const setPhase = (next: Phase) => {
@@ -69,7 +70,7 @@ export async function boot(): Promise<void> {
   };
   // --- free talk and files ---
   const freeLinesEl = $("free-lines");
-  const fileListEl = $("file-list");
+  const fileLists = [$("file-list"), $("q-file-list")];
   const freeFailed = $("free-failed");
   const started = Date.now();
   const clock = (at: number) => {
@@ -85,7 +86,8 @@ export async function boot(): Promise<void> {
     freeLinesEl.scrollTop = freeLinesEl.scrollHeight;
   };
   const renderFiles = () => {
-    fileListEl.replaceChildren(...files.map((f) => {
+    $("q-files").hidden = files.length === 0;
+    for (const el of fileLists) el.replaceChildren(...files.map((f) => {
       const card = Object.assign(document.createElement("div"), { className: `file${f.busy ? " busy" : ""}${f.error ? " error" : ""}` });
       card.append(
         Object.assign(document.createElement("div"), { className: "name", textContent: f.name }),
@@ -96,8 +98,9 @@ export async function boot(): Promise<void> {
   };
   const freeTalk = createFreeTalk({
     postAudio: async (wav) => (await api.audio(wav)).text,
-    onText: (text) => {
-      freeLines.push({ at: Date.now(), text });
+    onText: (text, seq) => {
+      freeLines.push({ at: Date.now(), text, seq });
+      freeLines.sort((a, b) => a.seq - b.seq);
       renderFree();
     },
     onFailedChange: (n) => {
@@ -105,8 +108,29 @@ export async function boot(): Promise<void> {
     },
   });
   $("free-retry").addEventListener("click", () => void freeTalk.retry());
-  async function addFiles(list: FileList | File[]): Promise<void> {
-    for (const file of Array.from(list)) {
+  $("free-discard").addEventListener("click", () => {
+    freeTalk.discard();
+    setStatus("失敗した部分を捨てました", "idle");
+  });
+  const uploads = createTaskTracker();
+  /**
+   * Before leaving free talk or sending: wait for the last words and every file. Untranscribed words stop the step
+   * until the person retries or discards them; nothing is dropped silently.
+   */
+  async function materialReady(): Promise<boolean> {
+    const failedLeft = await freeTalk.finish();
+    await uploads.settled();
+    if (failedLeft > 0) {
+      setStatus(`文字起こしに失敗した部分が ${failedLeft} つあります。「再試行」するか「捨てる」を選んでから進んでください`, "error");
+      return false;
+    }
+    return true;
+  }
+  function addFiles(list: FileList | File[]): void {
+    void uploads.track(uploadFiles(Array.from(list)));
+  }
+  async function uploadFiles(list: File[]): Promise<void> {
+    for (const file of list) {
       const ok = acceptDrop(file);
       if (!ok.ok) {
         files.push({ name: file.name, mimeType: file.type, summary: "", error: ok.reason });
@@ -133,23 +157,22 @@ export async function boot(): Promise<void> {
     if (e.key === "Enter" || e.key === " ") fileInput.click();
   });
   fileInput.addEventListener("change", () => {
-    if (fileInput.files) void addFiles(fileInput.files);
+    if (fileInput.files) addFiles(fileInput.files);
     fileInput.value = "";
   });
-  for (const target of [drop, document.body]) {
-    target.addEventListener("dragover", (e) => {
-      if (phase === "deep_dive") return;
-      e.preventDefault();
-      drop.classList.add("over");
-    });
-    target.addEventListener("dragleave", () => drop.classList.remove("over"));
-    target.addEventListener("drop", (e) => {
-      if (phase === "deep_dive") return;
-      e.preventDefault();
-      drop.classList.remove("over");
-      if (e.dataTransfer?.files.length) void addFiles(e.dataTransfer.files);
-    });
-  }
+  // One handler on the body covers the drop zone too (a drop on the zone bubbles up once).
+  document.body.addEventListener("dragover", (e) => {
+    if (phase === "deep_dive") return;
+    e.preventDefault();
+    drop.classList.add("over");
+  });
+  document.body.addEventListener("dragleave", () => drop.classList.remove("over"));
+  document.body.addEventListener("drop", (e) => {
+    if (phase === "deep_dive") return;
+    e.preventDefault();
+    drop.classList.remove("over");
+    if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files);
+  });
   renderFree();
   renderFiles();
 
@@ -163,14 +186,18 @@ export async function boot(): Promise<void> {
     startBtn.disabled = !canStart(questions);
     $<HTMLButtonElement>("q-add").disabled = questions.length >= MAX_QUESTIONS;
   };
+  // Saves go in edit order and only the newest answer is applied, so a slow early save cannot undo a later check.
+  const questionSaver = createLatestSaver<Question[]>(async (list) => (await api.questions(list)).questions, (saved) => {
+    questions = saved;
+    renderQuestions();
+  });
   async function saveQuestions(next: Question[]): Promise<void> {
     questions = next;
     renderQuestions();
     // A blank row is kept on screen until it has text; the server refuses empty questions.
     if (next.some((q) => q.text.trim() === "")) return;
     try {
-      questions = (await api.questions(next)).questions;
-      renderQuestions();
+      await questionSaver.save(next);
     } catch (e) {
       setStatus(`問いを保存できませんでした: ${(e as Error).message}`, "error");
     }
@@ -181,7 +208,10 @@ export async function boot(): Promise<void> {
     const wasOpen = freeOpen;
     freeOpen = false;
     try {
-      await freeTalk.finish();
+      if (!(await materialReady())) {
+        freeOpen = wasOpen;
+        return;
+      }
       questions = (await api.split()).questions;
       setPhase("questions");
       renderQuestions();
@@ -218,7 +248,30 @@ export async function boot(): Promise<void> {
   const drafts = new Map<string, Direction>(view.dives.filter((d) => d.draft).map((d) => [d.questionId, d.draft!]));
   const edited = new Set<string>();
   let shownQuestion = "";
-  const showTree = (fresh: Set<string>) => renderTree(treeEl, current ? treeOf(tree, current.questionId) : tree, fresh);
+  // The tree on screen: the current question's, or one the person opened from the list.
+  let viewing: string | null = null;
+  const showTree = (fresh: Set<string>) => {
+    const id = viewing ?? current?.questionId ?? null;
+    renderTree(treeEl, id ? treeOf(tree, id) : tree, fresh);
+    const d = dives.find((x) => x.questionId === id);
+    $("h-tree").textContent = viewing && viewing !== current?.questionId
+      ? `なぜの木(${d ? dives.indexOf(d) + 1 : ""}. を表示中 · 今の問いに戻るには一覧でもう一度押す)`
+      : "なぜの木(今の問い ✓ 事実で裏付けあり / ? まだ裏付けなし)";
+  };
+  {
+    $("dives").addEventListener("click", (e) => {
+      const card = (e.target as HTMLElement).closest<HTMLElement>(".dive");
+      if (!card?.dataset.question) return;
+      viewing = viewing === card.dataset.question || card.dataset.question === current?.questionId ? null : card.dataset.question;
+      showTree(new Set());
+    });
+    $("dives").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        (e.target as HTMLElement).closest<HTMLElement>(".dive")?.click();
+      }
+    });
+  }
   const fillPick = () => {
     qPick.replaceChildren(...dives.map((d, i) => new Option(`${i + 1} ${d.text}`, d.questionId)));
     if (!shownQuestion || !dives.some((d) => d.questionId === shownQuestion)) shownQuestion = current?.questionId ?? dives[0]?.questionId ?? "";
@@ -244,6 +297,7 @@ export async function boot(): Promise<void> {
     const moved = v.current?.questionId !== current?.questionId;
     dives = v.dives;
     current = v.current;
+    if (moved) viewing = null;
     // Follow the question being dug unless the person is writing another one's direction.
     if (moved && v.current && shownQuestion && !edited.has(shownQuestion)) {
       shownQuestion = v.current.questionId;
@@ -539,7 +593,12 @@ export async function boot(): Promise<void> {
   startBtn.addEventListener("click", async () => {
     startBtn.disabled = true;
     try {
-      await freeTalk.finish();
+      if (!(await materialReady())) {
+        startBtn.disabled = !canStart(questions);
+        return;
+      }
+      // The roots come from the list the server holds: wait until every edit is saved.
+      await questionSaver.settled();
       applyDives(await api.diveStart());
       setPhase("deep_dive");
       fillPick();
@@ -636,7 +695,8 @@ export async function boot(): Promise<void> {
         },
         pending: pendingAnswers,
         submit: async () => {
-          await freeTalk.finish();
+          if (!(await materialReady())) throw new Error("文字起こしに失敗した部分があります");
+          await questionSaver.settled();
           await api.submit(directions);
         },
       });

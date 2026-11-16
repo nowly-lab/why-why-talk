@@ -128,3 +128,28 @@ test("finish flushes the last words and waits for them", async () => {
   await ft.finish();
   assert.deepEqual(texts, ["最後"]);
 });
+
+// --- review I1: failed segments are never dropped silently, and keep their place ---
+test("finish reports failed segments; discard clears them", async () => {
+  const ft = createFreeTalk({ postAudio: async () => { throw new Error("502"); }, onText: () => undefined, onFailedChange: () => undefined });
+  say(ft, 800, 0);
+  assert.equal(await ft.finish(), 1, "the last flushed segment failed");
+  ft.discard();
+  assert.equal(ft.failedCount(), 0);
+  assert.equal(await ft.finish(), 0);
+});
+
+test("a retried segment keeps its original place", async () => {
+  let calls = 0;
+  const lines: Array<[number, string]> = [];
+  const ft = createFreeTalk({
+    postAudio: async () => { calls++; if (calls === 1) throw new Error("502"); return `文${calls}`; },
+    onText: (t, seq) => lines.push([seq, t]),
+    onFailedChange: () => undefined,
+  });
+  say(ft, 1_000, 1_500);
+  say(ft, 1_000, 1_500);
+  await ft.idle();
+  await ft.retry();
+  assert.deepEqual(lines.sort((a, b) => a[0] - b[0]).map(([, t]) => t), ["文3", "文2"], "the first segment, retried last, still comes first");
+});

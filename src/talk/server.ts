@@ -191,6 +191,7 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
         }
         case "/api/file": {
           const f = FileBody.parse(body);
+          if (!s.canAddFile()) return json(res, 409, { error: "ファイルは深掘りを始める前に渡してください" });
           const kind = checkAttachment(f.name, f.mimeType || undefined, Buffer.byteLength(f.data, "base64"));
           const summary = await deps.text.summarizeFile({ name: f.name, mimeType: kind.mimeType, data: f.data });
           s.addFile({ name: f.name, mimeType: kind.mimeType, summary });

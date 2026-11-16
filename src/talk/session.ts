@@ -68,7 +68,7 @@ export class TalkSession {
     const topic = input.topic?.trim() ?? "";
     this.topic = topic === "" ? null : redactSecrets(topic, { extra: this.secrets });
     this.phase = this.topic === null ? "free_talk" : "questions";
-    this.files = (input.files ?? []).map((f) => ({ ...f, summary: this.clean(f.summary) }));
+    this.files = (input.files ?? []).map((f) => ({ ...f, name: this.clean(f.name), summary: this.clean(f.summary) }));
     this.context = redactSecrets(input.context, { extra: this.secrets });
     this.outDir = input.outDir;
     this.startedAt = this.now();
@@ -112,6 +112,11 @@ export class TalkSession {
     this.assertTalking();
     this.assertPhase("free_talk", "questions");
     this.files.push({ name: this.clean(f.name), mimeType: f.mimeType, summary: this.clean(f.summary) });
+  }
+
+  /** Checked before a file is summarized, so a late upload costs no model call. */
+  canAddFile(): boolean {
+    return this.status === "talking" && (this.phase === "free_talk" || this.phase === "questions");
   }
 
   hasMaterial(): boolean {

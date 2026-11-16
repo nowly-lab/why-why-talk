@@ -124,6 +124,7 @@ section h2.row { display: flex; justify-content: space-between; align-items: bas
 .q-tools .count { margin-left: auto; font-size: 13px; color: var(--muted); }
 #deep-dive { flex: 1; grid-template-columns: minmax(200px, 0.7fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; padding: 16px 20px; min-height: 0; }
 .dive { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.dive { cursor: pointer; }
 .dive[aria-current="true"] { border-color: var(--accent); border-width: 2px; background: var(--person); }
 .dive .chip { display: inline-block; margin-top: 4px; font-size: 12px; border-radius: 999px; padding: 0 8px; background: var(--gemini); color: var(--muted); }
 .dive[data-status="digging"] .chip { background: var(--accent); color: var(--accent-fg); }
@@ -170,7 +171,7 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
   <section aria-labelledby="h-free">
     <h2 id="h-free" class="row">話したこと <span class="hint">話し終えて数秒後に文字になります</span></h2>
     <div id="free-lines" class="scroll" aria-live="polite"></div>
-    <div id="free-failed" class="failed" hidden>文字起こしに失敗した部分があります(<button id="free-retry" type="button">再試行</button>)</div>
+    <div id="free-failed" class="failed" hidden>文字起こしに失敗した部分があります(<button id="free-retry" type="button">再試行</button> <button id="free-discard" type="button">捨てる</button>)</div>
   </section>
   <section aria-labelledby="h-files">
     <h2 id="h-files">参考ファイル</h2>
@@ -193,6 +194,10 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
       <button id="q-resplit" type="button">もう一度分ける</button>
       <button id="q-back" type="button">もう少し話して問いを足す</button>
       <span id="q-count" class="count">0 / 10件</span>
+    </div>
+    <div id="q-files" hidden>
+      <p class="lead">参考ファイル(ここにドロップして足せます)</p>
+      <div id="q-file-list"></div>
     </div>
   </section>
 </main>

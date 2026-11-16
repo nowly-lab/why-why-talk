@@ -342,3 +342,12 @@ test("draft is per question", async () => {
   assert.deepEqual(s.dives[0].draft, direction);
   await srv.close();
 });
+
+test("a file sent after the deep dive started is refused without calling the model", async () => {
+  const text = fakeText();
+  const { srv, post } = await setup({ text });
+  const r = await post("/api/file", { name: "late.md", mimeType: "text/markdown", data: Buffer.from("x").toString("base64") });
+  assert.equal(r.status, 409);
+  assert.deepEqual(text.calls, []);
+  await srv.close();
+});

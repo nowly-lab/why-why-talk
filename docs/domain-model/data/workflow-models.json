@@ -418,8 +418,8 @@
         {
           "state": "deep-dive",
           "on": "cmd-start-dive",
-          "kind": "ignored",
-          "reason": "もう始まっている",
+          "kind": "invalid",
+          "reason": "もう始まっている(二度目は断る)",
           "changed": true
         }
       ]

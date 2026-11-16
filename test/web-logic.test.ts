@@ -367,3 +367,45 @@ test("selectedLabel says how many are checked", async () => {
   assert.equal(selectedLabel([{ text: "A", checked: false }]), "0件を選択中 · 1件以上選ぶと始められます");
   assert.equal(selectedLabel([{ text: "A", checked: true }, { text: "B", checked: true }]), "2件を選択中 · この順に深掘りします");
 });
+
+// --- review I2: question saves apply in order, stale answers are ignored ---
+test("createLatestSaver sends one save at a time and skips superseded ones", async () => {
+  const { createLatestSaver } = await import("../web/questions.ts");
+  const sent: string[] = [];
+  const releases: Array<() => void> = [];
+  const applied: string[] = [];
+  const saver = createLatestSaver<string>(
+    (v) => { sent.push(v); return new Promise((r) => releases.push(() => r(`server:${v}`))); },
+    (v) => applied.push(v),
+  );
+  void saver.save("A");
+  await new Promise((r) => setTimeout(r, 0));
+  void saver.save("AB");
+  void saver.save("ABC");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(sent, ["A"], "nothing else is sent while A is in flight");
+  releases[0]();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(sent, ["A", "ABC"], "AB was superseded before its turn");
+  releases[1]();
+  await saver.settled();
+  assert.deepEqual(applied, ["server:ABC"], "only the newest answer is applied");
+});
+
+test("createLatestSaver.settled rejects when the latest save failed", async () => {
+  const { createLatestSaver } = await import("../web/questions.ts");
+  const saver = createLatestSaver<string>(async () => { throw new Error("400"); }, () => undefined);
+  await saver.save("x").catch(() => undefined);
+  await assert.rejects(saver.settled(), /400/);
+});
+
+test("a task tracker waits for every pending upload", async () => {
+  const { createTaskTracker } = await import("../web/questions.ts");
+  const t = createTaskTracker();
+  let done = false;
+  t.track(new Promise((r) => setTimeout(() => { done = true; r(undefined); }, 30)));
+  t.track(Promise.reject(new Error("x")));
+  await t.settled();
+  assert.equal(done, true);
+  assert.equal(t.pending(), 0);
+});

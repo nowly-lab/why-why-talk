@@ -12,9 +12,10 @@ export const DIVE_LABEL: Record<DiveStatus, string> = { pending: "未着手", di
 /** The Markdown the CLI prints on 送信; the agent reads it as the result, one section per checked question. */
 export function renderResultMarkdown(s: TalkSession): string {
   const section = (title: string, body: string | undefined, level = "##") => `${level} ${title}\n\n${body?.trim() || "(なし)"}\n`;
+  const dives = divesOf(s);
   const out = [
-    `# 深掘りの結果: ${s.topic ?? `問い ${s.dives.length} 件`}\n`,
-    ...s.dives.map((d, i) => diveSection(s, d, i, section)),
+    `# 深掘りの結果: ${s.topic ?? `問い ${dives.length} 件`}\n`,
+    ...dives.map((d, i) => diveSection(s, d, i, section)),
     section("選ばなかった問い", unchecked(s).map((t) => `- ${t}`).join("\n")),
     section("添付ファイルの要点", s.files.map((f) => `### ${f.name}\n\n${f.summary}`).join("\n\n")),
     section("Gemini に聞いたこと", askedMarkdown(s)),
@@ -53,8 +54,14 @@ function diveSection(s: TalkSession, d: Dive, i: number, section: (t: string, b:
   ].join("\n");
 }
 
+/** Sent before the deep dive started: the checked questions count as 未着手 dives (with no tree yet). */
+function divesOf(s: TalkSession): Dive[] {
+  if (s.dives.length > 0) return s.dives;
+  return s.questions.filter((q) => q.checked).map((q, i) => ({ questionId: `q${i + 1}`, text: q.text, status: "pending", draft: null }));
+}
+
 function unchecked(s: TalkSession): string[] {
-  return s.dives.length > 0 ? s.questions.filter((q) => !q.checked).map((q) => q.text) : s.questions.map((q) => q.text);
+  return s.questions.filter((q) => !q.checked).map((q) => q.text);
 }
 
 export function renderTranscriptMarkdown(s: TalkSession): string {
@@ -66,7 +73,7 @@ export function resultJson(s: TalkSession) {
   return {
     topic: s.topic,
     status: s.status,
-    questions: s.dives.map((d) => {
+    questions: divesOf(s).map((d) => {
       const ids = subtreeIds(s.analysis, [d.questionId]);
       return {
         questionId: d.questionId,
