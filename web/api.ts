@@ -2,6 +2,7 @@ import type { TreeNode } from "./tree-rows.ts";
 import type { AnswerEntry, Source } from "./answers.ts";
 import type { Speaker } from "./transcript.ts";
 import type { DiagEvent } from "./diag.ts";
+import type { CurrentQuestion, Dive, Question } from "./questions.ts";
 
 export type Direction = { direction: string; reasons: string; rejected: string; openQuestions: string };
 export type SessionView = {
@@ -26,12 +27,14 @@ export type ToolResult = {
   role?: Role;
   tree: Array<{ id: string; text: string; state: string; depth?: number }>;
   belowTarget?: Array<{ id: string; depth: number }>;
+  current?: CurrentQuestion;
 };
 
 /** What goes back to Gemini for one function call: the tree with depths and the branches still below 5 whys. */
 export function toGeminiResponse(r: ToolResult): Record<string, unknown> {
-  if (!r.ok) return { error: r.error, tree: r.tree, belowTarget: r.belowTarget ?? [] };
-  return { result: "ok", added: r.added ?? [], note: r.note, tree: r.tree, belowTarget: r.belowTarget ?? [], ...(r.role ? { role: r.role } : {}) };
+  const current = r.current ?? null;
+  if (!r.ok) return { error: r.error, tree: r.tree, belowTarget: r.belowTarget ?? [], current };
+  return { result: "ok", added: r.added ?? [], note: r.note, tree: r.tree, belowTarget: r.belowTarget ?? [], current, ...(r.role ? { role: r.role } : {}) };
 }
 
 /** Gemini waits for every tool answer; a local request that hangs must still end so Gemini gets an error back. */

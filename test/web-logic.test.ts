@@ -122,7 +122,7 @@ test("tool response for Gemini keeps belowTarget", async () => {
   assert.deepEqual(ok.belowTarget, [{ id: "n1", depth: 1 }]);
   assert.equal(ok.result, "ok");
   const bad = toGeminiResponse({ ok: false, error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
-  assert.deepEqual(bad, { error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }] });
+  assert.deepEqual(bad, { error: "x", tree: [], belowTarget: [{ id: "n2", depth: 2 }], current: null });
 });
 
 test("treeRows depth matches server depth and the depth tag", async () => {
@@ -318,4 +318,36 @@ test("a tool call whose local request never answers fails after the deadline ins
     })) as typeof fetch;
   const api = createApi("n", { toolTimeoutMs: 30 });
   await assert.rejects(api.tool("add_whys", {}), /秒応答がありません/);
+});
+
+// --- question list (2026-11-16) ---
+import { canStart, diveLabel, moveQuestion } from "../web/questions.ts";
+import { toGeminiResponse } from "../web/api.ts";
+
+test("moveQuestion moves up and down and keeps the rest", () => {
+  const list = [{ text: "A", checked: false }, { text: "B", checked: true }, { text: "C", checked: false }];
+  assert.deepEqual(moveQuestion(list, 2, 0).map((q) => q.text), ["C", "A", "B"]);
+  assert.deepEqual(moveQuestion(list, 0, 1).map((q) => q.text), ["B", "A", "C"]);
+  assert.deepEqual(moveQuestion(list, 0, -1), list, "out of range does nothing");
+  assert.deepEqual(list.map((q) => q.text), ["A", "B", "C"], "the input is not changed");
+});
+
+test("canStart is false with no checks or an empty text", () => {
+  assert.equal(canStart([{ text: "A", checked: false }]), false);
+  assert.equal(canStart([{ text: "A", checked: true }]), true);
+  assert.equal(canStart([{ text: "A", checked: true }, { text: " ", checked: false }]), false);
+  assert.equal(canStart([]), false);
+});
+
+test("diveLabel covers every status", () => {
+  assert.deepEqual(["pending", "digging", "done", "partial"].map((s) => diveLabel(s as never)), ["未着手", "掘っている途中", "終わった", "途中"]);
+});
+
+test("Gemini gets the current question with every tool answer", () => {
+  const ok = toGeminiResponse({ ok: true, tree: [], current: { questionId: "q2", text: "二" } });
+  assert.deepEqual(ok.current, { questionId: "q2", text: "二" });
+  const last = toGeminiResponse({ ok: true, tree: [], current: null });
+  assert.equal(last.current, null);
+  const bad = toGeminiResponse({ ok: false, error: "x", tree: [], current: { questionId: "q1", text: "一" } });
+  assert.deepEqual(bad.current, { questionId: "q1", text: "一" });
 });
