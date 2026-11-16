@@ -245,6 +245,10 @@ export class TalkSession {
         case "propose_direction": {
           const a = ToolArgs.propose_direction.parse(args);
           this.setDraft(a.question_id, { direction: a.direction, reasons: a.reasons, rejected: a.rejected, openQuestions: a.open_questions });
+          // Live trial 2026-11-16: Gemini drafted a finished question and then waited; say plainly that it may move on.
+          if (this.current()?.questionId === a.question_id && questionReady(this.analysis, a.question_id).ready) {
+            note = `${a.question_id} is ready: call next_question now, without waiting for the person`;
+          }
           break;
         }
         case "next_question": {

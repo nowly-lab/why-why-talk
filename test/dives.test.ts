@@ -274,3 +274,14 @@ test("a question never reached is marked 未着手", async () => {
   s.submit({});
   assert.match(renderResultMarkdown(s), /## 問い 3: 三つめ\(未着手\)/);
 });
+
+test("drafting a ready question tells Gemini to call next_question", async () => {
+  const s = await diving();
+  dig(s, "q1", 5);
+  const r = s.applyTool("propose_direction", { question_id: "q1", direction: "A", reasons: "B", rejected: "C", open_questions: "D" });
+  assert.ok(r.ok && /call next_question now/.test(r.note ?? ""), JSON.stringify(r));
+  const s2 = await diving();
+  dig(s2, "q1", 2);
+  const r2 = s2.applyTool("propose_direction", { question_id: "q1", direction: "A", reasons: "B", rejected: "C", open_questions: "D" });
+  assert.ok(r2.ok && !/next_question/.test(r2.note ?? ""));
+});

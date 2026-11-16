@@ -4,6 +4,8 @@
 // (output transcription), then reconnects with the session-resumption handle on a fresh token.
 // Then checks the five-whys rule (a shallow leaf without a reason is refused), the role swap
 // (switch_role on 「交代して」) and Google Search grounding while Gemini is the answerer.
+// Last, the question list: next_question is refused while the question is shallow, and once a branch is five
+// whys deep Gemini drafts the direction (propose_direction with question_id) and moves on by itself.
 import { GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -20,6 +22,10 @@ const s = new TalkSession({
   context: "2026-11-13 10:00 から決済APIが 401 で40分失敗した。応答本文は API key expired。",
   outDir: await mkdtemp(join(tmpdir(), "live-smoke-")),
 });
+const QUESTIONS = ["決済エラーの再発をどう防ぐか", "なぜ障害に気づくのが遅れたのか"];
+s.setQuestions(QUESTIONS);
+s.editQuestions(QUESTIONS.map((text) => ({ text, checked: true })));
+s.startDeepDive();
 
 type Run = { session: Session; transcript: string; toolCalls: string[]; toolErrors: string[]; queries: string[]; handle: string | null; turnDone: Promise<void>; finishTurn: () => void };
 
@@ -96,7 +102,7 @@ async function say(run: Run, text: string, waitMs = 60_000): Promise<void> {
 }
 
 const c = await connect(null, "roles");
-const tip = s.analysis.nodes.find((n) => n.parentId === "n0")?.id ?? "n1";
+const tip = s.analysis.nodes.find((n) => n.parentId === "q1")?.id ?? "n1";
 s.applyTool("update_branch", { node_id: tip, state: "digging" });
 await say(c, `${tip} の枝は掘り終わりにして、葉にしてください。対策は「期限を監視する」です。理由は言いません。`);
 const tipNode = s.analysis.nodes.find((n) => n.id === tip);
@@ -109,4 +115,32 @@ await say(c, "Cloudflare Workers の無料プランで、1日に使えるリク�
 console.log("grounding queries:", c.queries.join(" / ") || "(none)");
 console.log("answer:", c.transcript.slice(-200));
 c.session.close();
+
+// The question list: refused while shallow, then Gemini moves on by itself.
+const d = await connect(null, "questions");
+await say(d, "戻して。q1 はもう十分なので、次の問いに進んでください。");
+console.log("next_question refused while shallow:", d.toolErrors.some((e) => /is not finished/.test(e)), "| current:", s.current()?.questionId);
+// Make q1 ready: one branch five whys deep, every other branch closed.
+for (const n of s.analysis.nodes.filter((x) => x.parentId !== null && s.analysis.nodes.find((r) => r.id === x.parentId) && x.state === "candidate")) {
+  s.applyTool("update_branch", { node_id: n.id, state: "rejected", reason: "smoke: closed" });
+}
+let parent = "q1";
+for (let i = 1; i <= 5; i++) {
+  const r = s.applyTool("add_whys", { parent_id: parent, items: [{ text: `深い理由${i}`, viewpoint: "仕組み・道具" }] });
+  if (!r.ok) throw new Error(r.error);
+  parent = r.added[0]!;
+  s.applyTool("update_branch", { node_id: parent, state: "digging" });
+}
+for (const o of s.applyTool("add_fact", { node_id: parent, summary: "smoke", supports: true }).belowTarget) {
+  s.applyTool("update_branch", { node_id: o.id, state: "rejected", reason: "smoke: closed" });
+}
+d.toolCalls.length = 0;
+await say(d, `${parent} まで5段掘れました。q1 の枝はこれで全部です。進め方どおりに続けてください。`, 90_000);
+// next_question may come in a later turn, after propose_direction's result: wait up to 30 s for it.
+for (let i = 0; i < 60 && s.dives[0].status !== "done"; i++) await new Promise((r) => setTimeout(r, 500));
+console.log("calls:", d.toolCalls.join(", ") || "(none)");
+console.log("q1 drafted:", s.dives[0].draft !== null, "| q1 status:", s.dives[0].status, "| current:", s.current()?.questionId ?? "none");
+console.log("moved on by itself:", s.dives[0].status === "done" && s.current()?.questionId === "q2");
+console.log("said:", d.transcript.slice(-200));
+d.session.close();
 process.exit(0);
