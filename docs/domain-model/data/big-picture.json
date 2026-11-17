@@ -883,7 +883,7 @@
       "text": "深掘りしたい問いを足す（MCP add_question）",
       "evidence": [
         {
-          "path": "src/mcp/tools.ts",
+          "path": "src/mcp/server.ts",
           "symbol": "add_question",
           "role": "entry"
         },
@@ -922,7 +922,7 @@
       "note": "会議中は Gemini とつながず、画面を Claude が埋める掲示板にする。声の深掘りは後で「Gemini と話す」から始める。",
       "evidence": [
         {
-          "path": "src/mcp/tools.ts",
+          "path": "src/mcp/server.ts",
           "symbol": "start_dive",
           "role": "entry"
         }
@@ -941,7 +941,7 @@
           "role": "rule"
         },
         {
-          "path": "src/mcp/tools.ts",
+          "path": "src/mcp/server.ts",
           "symbol": "add_whys",
           "role": "entry"
         }
@@ -989,7 +989,7 @@
       "evidence": [
         {
           "path": "web/main.ts",
-          "symbol": "onChanged",
+          "symbol": "onAgentChange",
           "role": "ui"
         }
       ],

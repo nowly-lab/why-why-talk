@@ -37,6 +37,17 @@ The record (`result.md`, `result.json`, `tree.mmd`, `transcript.md`, `session.js
 | `WHY_WHY_TEXT_MODEL` | `gemini-3.8-flash` | Free-talk transcription, file summaries, the question list |
 | `WHY_WHY_VOICE` | `Kore` | Any Gemini voice name |
 | `WHY_WHY_BROWSER` | — | `none` to never open a browser |
+| `WHY_WHY_HOME` | `~/.why-why-talk` | Where running talks list themselves for `why-why-talk mcp` |
+
+### Operate a running talk from an agent (MCP)
+
+An agent can work a talk while the person watches the page, for example Claude filling it from a meeting transcript. Register the MCP server once:
+
+```bash
+claude mcp add why-why -- npx -y github:nowly-lab/why-why-talk mcp
+```
+
+Tools: `list_talks`, `get_talk`, `add_question` (20 questions in all), `start_dive` (the deep dive without voice: the page becomes a board the agent fills; the person starts Gemini later with マイクを開始), and Gemini's own `add_whys`, `add_fact`, `update_branch`, `propose_direction`, on **any** question. What the agent adds shows on the page at once with a 「Claude」 badge and is marked （Claude） in the result; a connected Gemini is told in one quiet line. Each running talk lists itself in `~/.why-why-talk/talks/<id>.json` (`WHY_WHY_HOME` moves it; readable by you only, removed when the talk ends) with its own agent token, separate from the page's. 「Gemini の声を消す」 silences Gemini's voice while it keeps listening.
 
 Pick the microphone in the header (switchable mid-talk; the level meter warns when no sound arrives). If Gemini goes quiet after you spoke, 「Gemini に呼びかけ直す」 nudges it; if you keep talking and nothing at all comes back for 15 s, the page reconnects by itself. Long talks keep going: each Live connection (about 10 minutes) is renewed with a fresh token and the session-resumption handle, and if that fails the talk restarts seeded with the tree and the end of the transcript. Gemini Live pricing is roughly $0.005/min for audio in and $0.018/min out. On the free tier, Google may use what you send, including free-talk audio and attached files, to improve its products.
 
