@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -8,6 +9,7 @@ import { parseArgs } from "node:util";
 import { DEFAULT_MODEL, DEFAULT_VOICE, mintToken } from "./talk/gemini.ts";
 import { startTalkServer } from "./talk/server.ts";
 import { TalkSession } from "./talk/session.ts";
+import { removeTalkEntry, talksDir, writeTalkEntry } from "./talk/registry.ts";
 import { readAttachment } from "./talk/attachments.ts";
 import { DEFAULT_TEXT_MODEL, geminiTextModel, type FileSummary, type TextModel } from "./talk/text-model.ts";
 import { VERSION } from "./version.ts";
@@ -94,6 +96,9 @@ export async function main(argv: string[], env: Record<string, string | undefine
     io.err(`why-why-talk: WHY_WHY_FIRST_CONNECT_MS must be a positive number of milliseconds, got ${env.WHY_WHY_FIRST_CONNECT_MS}\n`);
     return 2;
   }
+  // Agents (Claude in a meeting, through `why-why-talk mcp`) find this talk in the registry and use this token.
+  const agentToken = randomBytes(32).toString("hex");
+  const registry = talksDir(env);
   let server: Awaited<ReturnType<typeof startTalkServer>>;
   try {
     server = await startTalkServer(session, {
@@ -101,11 +106,15 @@ export async function main(argv: string[], env: Record<string, string | undefine
       mint: (opts) => mintToken({ apiKey, model, voice }, session, opts),
       text,
       firstConnectMs,
+      agentToken,
     });
   } catch (e) {
     io.err(`why-why-talk: cannot start (out dir ${outDir}): ${(e as Error).message}\n`);
     return 2;
   }
+  await writeTalkEntry(registry, { id: session.id, url: server.url, token: agentToken, topic, outDir, startedAt: session.startedAt, pid: process.pid }).catch((e: unknown) =>
+    io.err(`why-why-talk: agents cannot find this talk (${(e as Error).message})\n`),
+  );
   io.err(`why-why-talk: open ${server.url}\n`);
   if (!values["no-open"] && env.WHY_WHY_BROWSER !== "none") openBrowser(server.url);
 
@@ -114,6 +123,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
   process.once("SIGTERM", stop);
 
   const outcome = await server.outcome;
+  await removeTalkEntry(registry, session.id).catch(() => undefined);
   await server.close();
   if (outcome.kind === "sent") {
     io.out(outcome.markdown);
