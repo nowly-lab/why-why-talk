@@ -22,7 +22,10 @@ export function createWhyWhyMcp(opts: { dir?: string } = {}): McpServer {
     const ok = await Promise.all(talks.map(async (t) => {
       try {
         const r = await fetch(`${t.url}/api/agent/state`, { headers: { authorization: `Bearer ${t.token}` }, signal: AbortSignal.timeout(1500) });
-        return r.ok;
+        if (!r.ok) return false;
+        // It must be this talk: an unrelated listener on a reused port may also answer 200.
+        const body = (await r.json().catch(() => null)) as { id?: unknown } | null;
+        return body?.id === t.id;
       } catch {
         return false;
       }

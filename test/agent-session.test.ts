@@ -124,3 +124,20 @@ test("R4: Gemini's opening instruction carries the board an agent built, with fa
   assert.match(text, /AGENT ROOT FACT/);
   assert.match(text, /AGENT DIRECTION/);
 });
+
+test("RR1: a stale page list that would push an agent question over the cap is refused, keeping the agent question", async () => {
+  const s = await fresh();
+  for (let i = 0; i < 19; i++) s.addQuestion(`問い ${i}`, "agent");
+  const base = s.snapshot().questionsVersion;
+  s.addQuestion("二十番目（エージェント）", "agent");
+  const stale = Array.from({ length: 20 }, (_, i) => ({ text: `人の問い ${i}`, checked: true }));
+  assert.throws(() => s.editQuestions(stale, base), (e: unknown) => e instanceof WhyError && e.code === "conflict");
+  assert.ok(s.questions.some((q) => q.text === "二十番目（エージェント）"));
+});
+
+test("RR2: a person's question can be added during the deep dive (an edit that missed the agent's start)", async () => {
+  const s = await diving();
+  const r = s.addQuestion("入力中だった問い", "person");
+  assert.equal(r.questionId, "q3");
+  assert.equal(s.dives.at(-1)?.by, undefined);
+});

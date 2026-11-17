@@ -50,8 +50,8 @@ export function selectedLabel(list: Question[]): string {
 /** Questions in all, the person's and those Claude added in a meeting (the server's MAX_TOTAL_QUESTIONS). */
 export const MAX_QUESTIONS = 20;
 
-type NoteNode = { id: string; parentId: string | null; text: string; state?: string; reason?: string; facts?: Array<{ summary: string; by?: "agent" }>; by?: "agent" };
-type NoteDive = { questionId: string; draft: { direction: string } | null };
+type NoteNode = { id: string; parentId: string | null; text: string; state?: string; reason?: string; countermeasure?: string; facts?: Array<{ summary: string; by?: "agent" }>; by?: "agent" };
+type NoteDive = { questionId: string; draft: { direction: string; reasons?: string; rejected?: string; openQuestions?: string } | null };
 const NOTE_STATE: Record<string, string> = { candidate: "未調査", digging: "掘っている", leaf: "葉", rejected: "却下", hypothesis: "仮説" };
 /**
  * One line for a connected Gemini after Claude (the meeting's agent) changed the talk: the questions, whys and facts
@@ -60,14 +60,21 @@ const NOTE_STATE: Record<string, string> = { candidate: "未調査", digging: "�
 export function agentChangeNote(before: { tree: NoteNode[]; questions: Question[]; dives?: NoteDive[] }, after: { tree: NoteNode[]; questions: Question[]; dives?: NoteDive[] }): string | null {
   const known = new Set(before.tree.map((n) => n.id));
   const oldNode = new Map(before.tree.map((n) => [n.id, n]));
-  const oldDraft = new Map((before.dives ?? []).map((d) => [d.questionId, d.draft?.direction ?? null]));
+  const oldDraft = new Map((before.dives ?? []).map((d) => [d.questionId, d.draft]));
+  const DRAFT_FIELDS = [["direction", "方針"], ["reasons", "理由"], ["rejected", "見送った案"], ["openQuestions", "残った疑問"]] as const;
   const oldFacts = new Map(before.tree.map((n) => [n.id, n.facts?.length ?? 0]));
   const parts = [
     ...after.questions.slice(before.questions.length).filter((q) => q.by === "agent").map((q) => `問い「${q.text}」`),
     ...after.tree.filter((n) => !known.has(n.id) && n.by === "agent").map((n) => `${n.parentId} の下に ${n.id}「${n.text}」`),
     ...after.tree.flatMap((n) => (n.facts ?? []).slice(oldFacts.get(n.id) ?? 0).filter((f) => f.by === "agent").map((f) => `${n.id} に事実「${f.summary}」`)),
-    ...after.tree.filter((n) => known.has(n.id) && n.state && oldNode.get(n.id)?.state !== n.state).map((n) => `${n.id} を「${NOTE_STATE[n.state!] ?? n.state}」に${n.reason ? `（理由: ${n.reason}）` : ""}`),
-    ...(after.dives ?? []).filter((d) => d.draft && d.draft.direction !== oldDraft.get(d.questionId)).map((d) => `${d.questionId} の方針「${d.draft!.direction}」`),
+    ...after.tree.filter((n) => known.has(n.id)).flatMap((n) => {
+      const o = oldNode.get(n.id)!;
+      return [
+        ...(n.state && o.state !== n.state ? [`${n.id} を「${NOTE_STATE[n.state] ?? n.state}」に${n.reason ? `（理由: ${n.reason}）` : ""}`] : n.reason && o.reason !== n.reason ? [`${n.id} の理由「${n.reason}」`] : []),
+        ...(n.countermeasure && o.countermeasure !== n.countermeasure ? [`${n.id} の対策「${n.countermeasure}」`] : []),
+      ];
+    }),
+    ...(after.dives ?? []).flatMap((d) => DRAFT_FIELDS.filter(([k]) => d.draft?.[k] && d.draft[k] !== oldDraft.get(d.questionId)?.[k]).map(([k, label]) => `${d.questionId} の${label}「${d.draft![k]}」`)),
   ];
   return parts.length ? `画面から: 会議の Claude が書き足しました（返事は要りません。同じ枝を掘り直さないでください）: ${parts.join("、")}` : null;
 }

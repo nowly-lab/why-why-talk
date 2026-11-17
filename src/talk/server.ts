@@ -219,6 +219,12 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
           await s.persist();
           return json(res, 200, { questions: s.questions, version: s.questionsVersion });
         }
+        // The person's question during the deep dive: an edit that missed Claude starting the dive becomes a question.
+        case "/api/question": {
+          const r = s.addQuestion(AgentQuestionBody.parse(body).text, "person");
+          await s.persist();
+          return json(res, 200, { ok: true, ...r, dives: s.dives, current: s.current() });
+        }
         case "/api/free-talk": {
           s.backToFreeTalk();
           await s.persist();

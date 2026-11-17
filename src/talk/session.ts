@@ -165,7 +165,10 @@ export class TalkSession {
     // The page edited an older list: keep what an agent added since, which that list could not contain.
     if (baseVersion !== undefined && baseVersion < this.questionsVersion) {
       for (const a of this.agentQuestions) {
-        if (a.version > baseVersion && !next.some((q) => q.text === a.text) && next.length < MAX_TOTAL_QUESTIONS) next.push({ text: a.text, checked: true, by: "agent" });
+        if (a.version <= baseVersion || next.some((q) => q.text === a.text) || !this.questions.some((q) => q.text === a.text)) continue;
+        // No room for the agent's question: refuse rather than silently choose one writer; the page reloads.
+        if (next.length >= MAX_TOTAL_QUESTIONS) throw new WhyError("conflict", `問いが ${MAX_TOTAL_QUESTIONS} 件を超えるため保存できません。Claude が問いを足したので、読み直してから直してください`);
+        next.push({ text: a.text, checked: true, by: "agent" });
       }
     }
     this.questions = next;
@@ -176,7 +179,8 @@ export class TalkSession {
    * An agent (Claude in a meeting, through MCP) adds a question worth digging. Before the deep dive it joins the list
    * checked; during the deep dive it becomes a new question with its own root, dug after the others.
    */
-  addQuestion(text: string, by: "agent"): { questionId: string | null; index: number } {
+  addQuestion(text: string, by: "agent" | "person"): { questionId: string | null; index: number } {
+    const mark = by === "agent" ? { by } : {};
     this.assertTalking();
     const t = this.clean(text);
     if (t === "") throw new WhyError("invalid_input", "空の問いは足せません");
@@ -184,9 +188,9 @@ export class TalkSession {
     if (total >= MAX_TOTAL_QUESTIONS) throw new WhyError("invalid_input", `問いは ${MAX_TOTAL_QUESTIONS} 件までです`);
     if (this.phase !== "deep_dive") {
       this.phase = "questions";
-      this.questions.push({ text: t, checked: true, by });
+      this.questions.push({ text: t, checked: true, ...mark });
       this.questionsVersion++;
-      this.agentQuestions.push({ text: t, version: this.questionsVersion });
+      if (by === "agent") this.agentQuestions.push({ text: t, version: this.questionsVersion });
       return { questionId: null, index: this.questions.length - 1 };
     }
     let n = this.dives.length + 1;
@@ -195,10 +199,10 @@ export class TalkSession {
     this.analysis = addRoot(this.analysis, { id: questionId, text: t }, this.now);
     // Every question finished: the new one is dug now; otherwise it waits its turn.
     const status: DiveStatus = this.current() ? "pending" : "digging";
-    this.dives.push({ questionId, text: t, status, draft: null, by });
-    this.questions.push({ text: t, checked: true, by });
+    this.dives.push({ questionId, text: t, status, draft: null, ...mark });
+    this.questions.push({ text: t, checked: true, ...mark });
     this.questionsVersion++;
-    this.agentQuestions.push({ text: t, version: this.questionsVersion });
+    if (by === "agent") this.agentQuestions.push({ text: t, version: this.questionsVersion });
     return { questionId, index: this.dives.length - 1 };
   }
 

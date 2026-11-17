@@ -94,3 +94,18 @@ test("R8: a registry entry whose process lives but whose talk does not answer is
     await real.srv.close();
   }
 });
+
+test("RR5: a listener that answers 200 but is not that talk is not offered", async () => {
+  const { createServer } = await import("node:http");
+  const other = createServer((_q, r) => { r.writeHead(200, { "content-type": "text/html" }); r.end("<html>unrelated app</html>"); });
+  await new Promise<void>((r) => other.listen(0, "127.0.0.1", r));
+  const port = (other.address() as { port: number }).port;
+  const dir = join(await mkdtemp(join(tmpdir(), "why-mcp-reg-")), "talks");
+  await writeTalkEntry(dir, { id: "imposter", url: `http://127.0.0.1:${port}`, token: TOKEN, topic: "古い", outDir: "/x", startedAt: "2026-11-17T00:00:00.000Z", pid: process.pid });
+  const { call } = await client(dir);
+  try {
+    assert.deepEqual((await call("list_talks")).body.data, []);
+  } finally {
+    other.close();
+  }
+});

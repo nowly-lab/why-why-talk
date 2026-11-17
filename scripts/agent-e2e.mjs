@@ -59,8 +59,12 @@ await page.locator('#q-list .q-row input[type=text]').first().press('Tab');
 await page.waitForTimeout(1200);
 const qs = (await call('get_talk')).body.data.questions.map((q) => q.text);
 ok('R1: the edit and Claude\'s new question are both saved', qs.length === 3 && qs[0].endsWith('（人が直した）') && qs.includes('オフィス全体のホストは要るか'), JSON.stringify(qs));
+// RR2: the person is typing in a question at the moment Claude starts the dive.
+await page.locator('#q-list .q-row input[type=text]').nth(1).click();
+await page.locator('#q-list .q-row input[type=text]').nth(1).fill('入力中だった問い（RR2）');
 await call('start_dive');
-await page.waitForTimeout(1200);
+await page.waitForTimeout(1500);
+ok('RR2: the question being typed is kept as a new question', (await call('get_talk')).body.data.dives.some((d) => d.text === '入力中だった問い（RR2）'));
 ok('Claude starts the dive without voice', (await page.evaluate(() => document.body.dataset.phase)) === 'deep_dive' && /声なしで深掘りを始めました/.test(await page.textContent('#status')), await page.textContent('#status'));
 ok('R3: with the mic open the button offers Gemini', (await page.textContent('#mic')) === 'Gemini と話す');
 // R2: the person is typing a direction when Claude adds a question; the text stays.
@@ -86,6 +90,41 @@ ok('the voice mute sets the player gain to 0', await page.evaluate(() => window.
 await page.click('#voice-mute');
 ok('and back to 1', await page.evaluate(() => window.__gains.every((n) => n.gain.value === 1)));
 
+// RR3: Gemini started from the page (深掘りを始める with the mic open) still hears Claude's changes; a fake Live socket.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['microphone'] });
+  const p2 = await ctx.newPage();
+  const sent = [];
+  await p2.route('**/api/token', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ token: 'auth_tokens/e2e', model: 'gemini-e2e', expiresAt: 'x', config: {} }) }));
+  await p2.routeWebSocket(/generativelanguage\.googleapis\.com/, (ws) => {
+    ws.onMessage((m) => {
+      const msg = JSON.parse(typeof m === 'string' ? m : m.toString());
+      sent.push(msg);
+      if (msg.setup) ws.send(JSON.stringify({ setupComplete: {} }));
+    });
+  });
+  const talk2 = spawn('node', ['dist/cli.js', '--no-open', '--out', mkdtempSync(join(tmpdir(), 'why-e2e-out2-'))], { env });
+  const url2 = await new Promise((resolve) => talk2.stderr.on('data', (d) => { const m = /open (http:\/\/127\.0\.0\.1:\d+)/.exec(String(d)); if (m) resolve(m[1]); }));
+  await p2.goto(url2);
+  await p2.waitForSelector('#status');
+  await p2.waitForTimeout(800);
+  const t2 = (await call('list_talks')).body.data.find((t) => t.url === url2).id;
+  await p2.click('#mic');
+  await p2.waitForTimeout(600);
+  await call('add_question', { talk: t2, text: 'ページから始める問い' });
+  await p2.waitForTimeout(1200);
+  await p2.click('#start-dive');
+  await p2.waitForTimeout(2000);
+  await call('add_whys', { talk: t2, parent_id: 'q1', items: [{ text: 'RR3 会議の理由', viewpoint: '検知' }] });
+  await p2.waitForTimeout(1500);
+  const texts = sent.flatMap((m) => m.clientContent?.turns?.flatMap((t) => t.parts.map((x) => x.text)) ?? []);
+  ok('RR3: a page-started Gemini is told about Claude\'s additions', texts.some((t) => /RR3 会議の理由/.test(t)), JSON.stringify(texts).slice(0, 160));
+  await p2.click('#mic');
+  await p2.waitForTimeout(300);
+  ok('RR3: the next mic click mutes the mic', (await p2.textContent('#mic')) === 'ミュート解除', await p2.textContent('#mic'));
+  await ctx.close();
+  talk2.kill('SIGTERM');
+}
 await browser.close();
 await mcp.close();
 talk.kill('SIGTERM');

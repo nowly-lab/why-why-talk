@@ -515,3 +515,13 @@ test("R4: agentChangeNote also reports a branch Claude closed and a direction it
   assert.match(note, /n1 を「却下」/);
   assert.match(note, /q1 の方針「移動で消す」/);
 });
+
+test("RR4: agentChangeNote reports a new reason on an unchanged state and a changed draft field", () => {
+  const tree = [{ id: "q1", parentId: null, text: "Q", state: "digging", facts: [] }, { id: "n1", parentId: "q1", text: "枝", state: "rejected", reason: "古い理由", facts: [] }];
+  const d = { direction: "移動で消す", reasons: "", rejected: "", openQuestions: "" };
+  const before = { tree, questions: [], dives: [{ questionId: "q1", draft: d }] };
+  const after = { tree: [tree[0], { ...tree[1], reason: "会議で新しい理由" }], questions: [], dives: [{ questionId: "q1", draft: { ...d, openQuestions: "時間で消すか" } }] };
+  const note = agentChangeNote(before, after)!;
+  assert.match(note, /会議で新しい理由/);
+  assert.match(note, /残った疑問「時間で消すか」/);
+});

@@ -88,6 +88,7 @@ export function createApi(nonce: string, opts: { toolTimeoutMs?: number } = {}) 
     audio: (data: string, order: number) => post<{ ok: true; text: string }>("/api/audio", { data, mimeType: "audio/wav", order }),
     file: (name: string, mimeType: string, data: string) => post<{ ok: true; file: FileView }>("/api/file", { name, mimeType, data }),
     split: () => post<{ questions: Question[] }>("/api/questions/split", {}),
+    addQuestion: (text: string) => post<DivesView & { ok: true }>("/api/question", { text }),
     questions: (questions: Question[], version?: number) => post<{ questions: Question[]; version: number }>("/api/questions", { questions, version }),
     freeTalk: () => post<{ ok: true }>("/api/free-talk", {}),
     diveStart: () => post<DivesView>("/api/dive/start", {}),

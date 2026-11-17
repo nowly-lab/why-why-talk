@@ -218,9 +218,28 @@ export async function boot(): Promise<void> {
     try {
       await questionSaver.save({ list: next, base });
     } catch (e) {
-      setStatus(`問いを保存できませんでした: ${(e as Error).message}`, "error");
+      const msg = (e as Error).message;
+      if (phase === "deep_dive" && /invalid_state/.test(msg)) {
+        // Claude started the dive while this save was on its way: the edited questions join as new questions.
+        await keepEdits(next.filter((q) => q.checked && q.text.trim() !== "" && !dives.some((d) => d.text === q.text)).map((q) => q.text));
+        return;
+      }
+      if (/conflict/.test(msg)) {
+        // Claude added a question meanwhile and the list would pass its limit: show the server's list again.
+        const v = await loadSession();
+        questions = v.questions;
+        questionsVersion = v.questionsVersion ?? questionsVersion;
+        renderQuestions();
+      }
+      setStatus(`問いを保存できませんでした: ${msg}`, "error");
     }
   }
+  /** Questions the person was editing when Claude started the dive: kept as new questions at the end. */
+  async function keepEdits(texts: string[]): Promise<void> {
+    for (const t of texts) applyDives(await api.addQuestion(t));
+    if (texts.length) setStatus(`会議の Claude が声なしで深掘りを始めました。入力中だった問い「${texts.join("」「")}」は最後の問いとして足しました`, "warn");
+  }
+
   async function split(): Promise<void> {
     setStatus("話とファイルを問いに分けています…", "live");
     for (const b of [$<HTMLButtonElement>("split"), $<HTMLButtonElement>("q-resplit")]) b.disabled = true;
@@ -645,12 +664,12 @@ export async function boot(): Promise<void> {
     const v = await loadSession();
     if (v.status !== "talking") return;
     questionsVersion = v.questionsVersion ?? questionsVersion;
+    // What the person is typing in a question right now (kept through a redraw, or kept as a question at the dive).
+    const active = document.activeElement as HTMLInputElement | null;
+    const row = active && qListEl.contains(active) ? [...qListEl.querySelectorAll(".q-row")].findIndex((r) => r.contains(active)) : -1;
+    const typed = row >= 0 && active?.type === "text" ? { row, value: active.value, start: active.selectionStart, end: active.selectionEnd } : null;
     if (v.phase !== "deep_dive") {
       questions = v.questions;
-      // Keep what the person is typing in a question while the list is redrawn.
-      const active = document.activeElement as HTMLInputElement | null;
-      const row = active && qListEl.contains(active) ? [...qListEl.querySelectorAll(".q-row")].findIndex((r) => r.contains(active)) : -1;
-      const typed = row >= 0 && active?.type === "text" ? { row, value: active.value, start: active.selectionStart, end: active.selectionEnd } : null;
       if (phase !== v.phase) {
         freeOpen = false;
         setPhase(v.phase);
@@ -676,10 +695,17 @@ export async function boot(): Promise<void> {
       fillPick();
       if (mics.mic()) micBtn.textContent = "Gemini と話す";
       setStatus(mics.mic() ? "会議の Claude が声なしで深掘りを始めました。声で続けるときは「Gemini と話す」を押してください" : "会議の Claude が声なしで深掘りを始めました。声で続けるときはマイクを開始してください", "idle");
+      if (typed && typed.value.trim() !== "" && typed.value !== before.questions[typed.row]?.text) await keepEdits([typed.value]);
       return;
     }
     const note = agentChangeNote(before, v);
     if (note && liveStarted) live.sendText(note, { quiet: true });
+  }
+
+  // Every way Gemini Live starts goes through here, so the page always knows whether it is connected.
+  async function startLive(): Promise<void> {
+    await live.start();
+    liveStarted = true;
   }
 
   micBtn.addEventListener("click", async () => {
@@ -695,8 +721,7 @@ export async function boot(): Promise<void> {
       micBtn.disabled = true;
       try {
         await player.resume();
-        await live.start();
-        liveStarted = true;
+        await startLive();
         roleBtn.disabled = false;
         micBtn.textContent = muted ? "ミュート解除" : "ミュート";
       } catch (e) {
@@ -718,9 +743,7 @@ export async function boot(): Promise<void> {
         void refreshMics();
         micBtn.textContent = "ミュート";
         if (phase === "deep_dive") {
-          await live.start();
-        liveStarted = true;
-          liveStarted = true;
+          await startLive();
           if (mics.ended()) return;
           roleBtn.disabled = false;
         } else {
@@ -756,7 +779,7 @@ export async function boot(): Promise<void> {
       // The roots q1, q2, … exist only on the server until now.
       await refresh(new Set());
       if (mics.mic()) {
-        await live.start();
+        await startLive();
         roleBtn.disabled = false;
       } else {
         setStatus("マイクを開始すると、Gemini が最初の問いを読み上げて質問を始めます", "idle");
