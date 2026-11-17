@@ -61,8 +61,11 @@ export async function startMic(
 }
 
 /** Plays Gemini's 24 kHz PCM16 audio back to back; `interrupt` stops what is queued (the person spoke over it). */
-export function createPlayer(): { play(base64: string): void; interrupt(): void; busy(): boolean; resume(): Promise<void>; close(): void } {
+export function createPlayer(): { play(base64: string): void; interrupt(): void; busy(): boolean; resume(): Promise<void>; close(): void; setMuted(on: boolean): void; muted(): boolean } {
   const ctx = new AudioContext({ sampleRate: 24_000 });
+  // Everything plays through one gain: muting Gemini's voice stops the sound only; the talk and the timing go on.
+  const out = ctx.createGain();
+  out.connect(ctx.destination);
   let playhead = 0;
   const playing = new Set<AudioBufferSourceNode>();
   return {
@@ -73,7 +76,7 @@ export function createPlayer(): { play(base64: string): void; interrupt(): void;
       buffer.copyToChannel(samples, 0);
       const src = ctx.createBufferSource();
       src.buffer = buffer;
-      src.connect(ctx.destination);
+      src.connect(out);
       playhead = Math.max(playhead, ctx.currentTime);
       src.start(playhead);
       playhead += buffer.duration;
@@ -93,5 +96,9 @@ export function createPlayer(): { play(base64: string): void; interrupt(): void;
     close() {
       void ctx.close();
     },
+    setMuted(on: boolean) {
+      out.gain.value = on ? 0 : 1;
+    },
+    muted: () => out.gain.value === 0,
   };
 }

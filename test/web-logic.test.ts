@@ -485,3 +485,24 @@ test("ROLE_KICK tells the new session its role", async () => {
   assert.match(ROLE_KICK.interviewer, /聞き手に戻って/);
   assert.equal(ROLE_RESTART_WAIT_MS, 10_000);
 });
+
+import { agentChangeNote } from "../web/questions.ts";
+
+test("agentChangeNote tells Gemini what Claude added, in one line, and nothing when Claude added nothing", () => {
+  const before = { tree: [{ id: "q1", parentId: null, text: "なぜホストはフロアごとか", state: "digging", facts: [] }], questions: [{ text: "なぜホストはフロアごとか", checked: true }] };
+  const after = {
+    tree: [
+      { ...before.tree[0], facts: [{ summary: "会議で「部屋の単位だから」", supports: true, by: "agent" as const }] },
+      { id: "n1", parentId: "q1", text: "フロアが部屋の単位だから", state: "candidate", facts: [], by: "agent" as const },
+      { id: "n2", parentId: "q1", text: "Gemini が足した枝", state: "candidate", facts: [] },
+    ],
+    questions: [...before.questions, { text: "オフィス全体のホストは要るか", checked: true, by: "agent" as const }],
+  };
+  const note = agentChangeNote(before, after)!;
+  assert.match(note, /^画面から: 会議の Claude が書き足しました/);
+  assert.match(note, /問い「オフィス全体のホストは要るか」/);
+  assert.match(note, /n1「フロアが部屋の単位だから」/);
+  assert.match(note, /q1 に事実「会議で「部屋の単位だから」」/);
+  assert.doesNotMatch(note, /Gemini が足した枝/);
+  assert.equal(agentChangeNote(after, after), null);
+});

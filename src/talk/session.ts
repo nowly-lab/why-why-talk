@@ -203,7 +203,7 @@ export class TalkSession {
     const checked = this.questions.filter((q) => q.checked);
     if (checked.length === 0) throw new WhyError("invalid_state", "チェックした問いがありません");
     let a = this.analysis;
-    const dives: Dive[] = checked.map((q, i) => ({ questionId: `q${i + 1}`, text: q.text, status: i === 0 ? "digging" : "pending", draft: null }));
+    const dives: Dive[] = checked.map((q, i) => ({ questionId: `q${i + 1}`, text: q.text, status: i === 0 ? "digging" : "pending", draft: null, ...(q.by ? { by: q.by } : {}) }));
     for (const d of dives) a = addRoot(a, { id: d.questionId, text: d.text }, this.now);
     this.analysis = a;
     this.dives = dives;

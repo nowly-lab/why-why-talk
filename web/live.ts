@@ -226,10 +226,11 @@ export function connectLive(
     },
     /** Texts held for the next connection (for tests). */
     heldCount: () => heldTexts.length,
-    sendText(text: string) {
+    /** `quiet`: tell Gemini without asking for a reply (Claude's additions from a meeting). */
+    sendText(text: string, opts: { quiet?: boolean } = {}) {
       // During an open the connection in service is about to be retired: hold the text for the next one.
       if (busy) heldTexts.push(text);
-      else current?.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
+      else current?.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: !opts.quiet });
     },
     close() {
       closedByUs = true;

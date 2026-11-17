@@ -2,7 +2,7 @@ import { createAnswerCollector, createPendingAnswers, leaveAnswerer, readGroundi
 import { createApi, loadSession, toGeminiResponse, type Direction, type FileView, type Phase, type Role } from "./api.ts";
 import { acceptDrop } from "./files.ts";
 import { createFreeTalk } from "./free-talk.ts";
-import { canStart, createLatestSaver, createTaskTracker, MAX_QUESTIONS, renderDives, renderQuestionList, selectedLabel, treeOf, type CurrentQuestion, type Dive, type Question } from "./questions.ts";
+import { agentChangeNote, canStart, createLatestSaver, createTaskTracker, MAX_QUESTIONS, renderDives, renderQuestionList, selectedLabel, treeOf, type CurrentQuestion, type Dive, type Question } from "./questions.ts";
 import { bytesToBase64 } from "./recorder.ts";
 import { createPlayer, startMic, type Mic } from "./audio.ts";
 import { createDiagLog, createLinkWatch, createStallWatch, NUDGE_TEXT } from "./diag.ts";
@@ -341,6 +341,14 @@ export async function boot(): Promise<void> {
 
   const player = createPlayer();
   let muted = false;
+  // Gemini's voice can be silenced without stopping the talk: it still listens, grows the tree and calls its tools.
+  const voiceBtn = $<HTMLButtonElement>("voice-mute");
+  voiceBtn.addEventListener("click", () => {
+    const on = !player.muted();
+    player.setMuted(on);
+    voiceBtn.textContent = on ? "Gemini の声を戻す" : "Gemini の声を消す";
+    voiceBtn.setAttribute("aria-pressed", String(on));
+  });
 
   // Microphone choice ("" = system default), remembered per browser; switchable mid-talk without reconnecting.
   const micSelect = $<HTMLSelectElement>("mic-select");
@@ -610,6 +618,40 @@ export async function boot(): Promise<void> {
       byQuestion = v.roleBy === "question";
       applyRole(v.role);
     }
+  }
+
+  // Claude (the meeting's agent, through MCP) changed the talk: show it at once, and tell a connected Gemini in one
+  // line so it does not dig the same branch again. Changes are handled one at a time, in order.
+  let agentQueue: Promise<void> = Promise.resolve();
+  lease.addEventListener("changed", () => {
+    agentQueue = agentQueue.then(onAgentChange).catch(() => undefined);
+  });
+  async function onAgentChange(): Promise<void> {
+    if (finishing) return;
+    const before = { tree, questions };
+    const v = await loadSession();
+    if (v.status !== "talking") return;
+    if (v.phase !== "deep_dive") {
+      questions = v.questions;
+      if (phase !== v.phase) {
+        freeOpen = false;
+        setPhase(v.phase);
+      }
+      renderQuestions();
+      setStatus("会議の Claude が問いを足しました", "idle");
+      return;
+    }
+    const startedNow = phase !== "deep_dive";
+    questions = v.questions;
+    if (startedNow) setPhase("deep_dive");
+    await refresh(new Set(v.tree.filter((n) => !before.tree.some((o) => o.id === n.id)).map((n) => n.id)));
+    if (startedNow) {
+      fillPick();
+      setStatus("会議の Claude が声なしで深掘りを始めました。声で続けるときはマイクを開始してください", "idle");
+      return;
+    }
+    const note = agentChangeNote(before, v);
+    if (note && mics.mic()) live.sendText(note, { quiet: true });
   }
 
   micBtn.addEventListener("click", async () => {

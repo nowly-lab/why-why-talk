@@ -76,3 +76,8 @@ test("the result marks what the agent added", async () => {
   s.submit({});
   assert.match(renderResultMarkdown(s), /フロアが部屋の単位だから（Claude）/);
 });
+
+test("questions an agent added before the dive keep its mark on their dives", async () => {
+  const s = await diving();
+  assert.deepEqual(s.dives.map((d) => d.by), ["agent", "agent"]);
+});

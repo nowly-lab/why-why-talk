@@ -69,6 +69,7 @@ section h2 { margin: 0; padding: 10px 14px; font-size: 13px; color: var(--muted)
 .mark { color: var(--muted); font-size: 13px; }
 .mark.ok { color: var(--ok); }
 .meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.by-agent { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 7px; background: #6b4fd8; color: #fff; vertical-align: 1px; }
 .tag { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; color: var(--muted); }
 .fact { font-size: 13px; margin-top: 4px; }
 .fact.neg, .reason { color: var(--muted); font-size: 13px; margin-top: 4px; }
@@ -158,6 +159,7 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
   <span class="quiet-badge free-only">Gemini は話しません</span>
   <span id="role" class="role dive-only" data-role="interviewer">Gemini: 聞き手</span>
   <button id="role-btn" class="dive-only" type="button" disabled>役割を交代</button>
+  <button id="voice-mute" class="dive-only" type="button" aria-pressed="false" title="Gemini は聞き取りを続け、声だけ止まります">Gemini の声を消す</button>
   <span id="status" data-kind="idle">読み込んでいます…</span>
   <button id="nudge" type="button" hidden>Gemini に呼びかけ直す</button>
   <label class="mic-pick">マイク
