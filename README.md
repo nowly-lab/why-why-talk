@@ -1,3 +1,11 @@
+> [!IMPORTANT]
+> **Moved to [nowly-lab/mcp](https://github.com/nowly-lab/mcp/tree/main/packages/why-why-talk)** (2026-11-17), with its full history. This repository is archived and no longer updated.
+>
+> ```sh
+> npx -y -p github:nowly-lab/mcp why-why-talk …
+> ```
+
+
 # why-why-talk
 
 Talk first, then deep-dive **by voice**. An agent runs one command; a local page opens. You start by **talking freely** (Gemini only listens; your speech is transcribed a few seconds after each pause) and dropping files (text, Markdown, PDF, images). Press 問いに分ける and Gemini turns the talk and the files into a list of up to 10 questions; check the ones worth digging (edit, add, delete or reorder them first). Then **Gemini Live** interviews you on each checked question in turn: it asks "why?" to go deeper and "what else?" to go wider, grows a **why tree** per question on screen (through function calls), and once a branch is five whys deep it drafts that question's direction and moves on by itself. With `--topic`, free talk is skipped and the list is made from the topic, `--context` and the attached files at once. Ask Gemini a question while it interviews (or press 役割を交代 / say 「交代して」) about something you don't know; it answers with Google Search, goes back to digging, and those answers go to the result marked unverified. When you are done, you edit each question's direction and press 送信, and the command prints the result for the agent and exits — the same shape as a [Plannotator](https://github.com/backnotprop/plannotator) plan review.
