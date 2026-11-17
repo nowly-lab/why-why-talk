@@ -1,0 +1,50 @@
+# Claude fills a talk from a meeting through MCP, without Gemini's voice: questions, the dive, a why and a fact on
+# any question, each shown at once with a Claude badge. No Gemini call is made (the microphone is never started).
+# Local: npm ci (builds dist/), then, with one temporary WHY_WHY_HOME for both:
+#   export WHY_WHY_HOME=$(mktemp -d) WHY_WHY_BROWSER=none
+#   GEMINI_API_KEY=<key> node dist/cli.js --no-open --out <dir>       # prints "open http://127.0.0.1:<port>"
+#   node .maestro/demo/agent.mjs &                                     # the "Claude" side, on 127.0.0.1:8797
+#   MAESTRO_WHY_URL=http://127.0.0.1:<port> python3 <implementation>/scripts/demo-video/demo_take.py web .maestro/demo/meeting-board.yaml <out> \
+#     --points 1440x900 --window-title "自由に話す"
+url: ${MAESTRO_WHY_URL}
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "マイクを開始"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Never shown text"
+    timeout: 9000
+    optional: true
+- evalScript:
+    script: "${http.post('http://127.0.0.1:8797/call?tool=add_question&args=' + encodeURIComponent(JSON.stringify({ text: 'なぜホストはフロアごとなのか' })), { body: '' }).body}"
+    label: "会議から問いを足す"
+- evalScript:
+    script: "${http.post('http://127.0.0.1:8797/call?tool=add_question&args=' + encodeURIComponent(JSON.stringify({ text: '退室した人の席をいつ消すか' })), { body: '' }).body}"
+- extendedWaitUntil:
+    visible: "退室した人の席をいつ消すか"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Never shown text"
+    timeout: 2500
+    optional: true
+- evalScript:
+    script: "${http.post('http://127.0.0.1:8797/call?tool=start_dive', { body: '' }).body}"
+    label: "声なしで深掘りを始める"
+- extendedWaitUntil:
+    visible: ".*声なしで深掘りを始めました.*"
+    timeout: 5000
+- evalScript:
+    script: "${http.post('http://127.0.0.1:8797/call?tool=add_whys&args=' + encodeURIComponent(JSON.stringify({ parent_id: 'q1', items: [{ text: 'フロアが部屋（Durable Object）の単位だから', viewpoint: '仕組み・道具' }] })), { body: '' }).body}"
+    label: "答えを木に書く"
+- evalScript:
+    script: "${http.post('http://127.0.0.1:8797/call?tool=add_fact&args=' + encodeURIComponent(JSON.stringify({ node_id: 'q1', summary: '会議で「部屋の単位だから」と説明があった', supports: true })), { body: '' }).body}"
+- extendedWaitUntil:
+    visible: "フロアが部屋（Durable Object）の単位だから"
+    timeout: 5000
+    label: "Claude の印つきで出る"
+- extendedWaitUntil:
+    visible: "Never shown text"
+    timeout: 3500
+    optional: true

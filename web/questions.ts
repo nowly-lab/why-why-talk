@@ -88,7 +88,8 @@ export function renderQuestionList(el: HTMLElement, list: Question[], on: { chan
     check.setAttribute("aria-label", `問い ${i + 1} を選ぶ`);
     check.addEventListener("change", () => on.change(list.map((x, j) => (j === i ? { ...x, checked: check.checked } : x))));
     const num = Object.assign(document.createElement("span"), { className: "num", textContent: `${i + 1}.` });
-    const by = q.by === "agent" ? [Object.assign(document.createElement("span"), { className: "by-agent", textContent: "Claude" })] : [];
+    // The badge sits in the number cell, so the row keeps its six grid columns.
+    if (q.by === "agent") num.append(Object.assign(document.createElement("span"), { className: "by-agent", textContent: "Claude" }));
     const text = Object.assign(document.createElement("input"), { type: "text", value: q.text });
     text.setAttribute("aria-label", `問い ${i + 1} の文`);
     text.addEventListener("change", () => on.change(list.map((x, j) => (j === i ? { ...x, text: text.value } : x))));
@@ -103,7 +104,6 @@ export function renderQuestionList(el: HTMLElement, list: Question[], on: { chan
     row.append(
       check,
       num,
-      ...by,
       text,
       button("↑", "上へ", "move", () => on.change(moveQuestion(list, i, i - 1)), i === 0 || !!opts.locked),
       button("↓", "下へ", "move", () => on.change(moveQuestion(list, i, i + 1)), i === list.length - 1 || !!opts.locked),

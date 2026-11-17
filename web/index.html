@@ -118,7 +118,7 @@ section h2.row { display: flex; justify-content: space-between; align-items: bas
 #questions section { padding-bottom: 8px; }
 #questions .lead { padding: 8px 14px 0; font-size: 13px; color: var(--muted); }
 .q-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); }
-.q-row .num { color: var(--muted); font-size: 13px; min-width: 1.6em; text-align: right; }
+.q-row .num { color: var(--muted); font-size: 13px; min-width: 1.6em; text-align: right; white-space: nowrap; }
 .q-row input[type="text"] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 0; }
 .q-row input[type="checkbox"] { width: 18px; height: 18px; }
 .q-row button { padding: 4px 10px; }
@@ -191,7 +191,7 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
 <main id="questions" class="phase" aria-label="問いを選ぶ">
   <section aria-labelledby="h-questions">
     <h2 id="h-questions">深掘りする問いを選ぶ</h2>
-    <p class="lead">最大10件。チェックした問いを、この順に深掘りします。</p>
+    <p class="lead">最大20件（Claude が足した問いを含む）。チェックした問いを、この順に深掘りします。</p>
     <div id="q-list"></div>
     <div class="q-tools">
       <button id="q-add" type="button">+ 問いを足す</button>
