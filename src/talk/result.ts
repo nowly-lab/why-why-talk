@@ -35,9 +35,9 @@ function diveSection(s: TalkSession, d: Dive, i: number, section: (t: string, b:
   const nodes = a.nodes
     .filter((n) => n.parentId !== null && ids.has(n.id))
     .map((n) => {
-      const head = `- ${n.id} ${isBacked(n) ? "✓ " : ""}${n.text} — ${STATE_LABEL[n.state]} · ${depth(n.id)} · ${n.viewpoint ?? ""} · 親 ${n.parentId}`;
+      const head = `- ${n.id} ${isBacked(n) ? "✓ " : ""}${n.text}${n.by === "agent" ? "（Claude）" : ""} — ${STATE_LABEL[n.state]} · ${depth(n.id)} · ${n.viewpoint ?? ""} · 親 ${n.parentId}`;
       const lines = [
-        ...n.facts.map((f) => `  - ${f.supports ? "支持" : "否定"}: ${f.summary}`),
+        ...n.facts.map((f) => `  - ${f.supports ? "支持" : "否定"}: ${f.summary}${f.by === "agent" ? "（Claude）" : ""}`),
         ...(n.countermeasure ? [`  - 対策: ${n.countermeasure}`] : []),
         ...(n.reason ? [`  - 理由: ${n.reason}`] : []),
       ];

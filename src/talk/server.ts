@@ -65,7 +65,7 @@ const LogBody = z.object({
 const TokenBody = z.object({ fallback: z.boolean().default(false), roleSwitch: z.boolean().default(false) });
 const AudioBody = z.object({ data: z.string().min(1), mimeType: z.literal("audio/wav"), order: z.number().finite().optional() });
 const FileBody = z.object({ name: z.string().min(1).max(300), mimeType: z.string().max(200).default(""), data: z.string().min(1) });
-const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean() })) });
+const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean(), by: z.literal("agent").optional() })) });
 const DraftBody = DirectionBody.extend({ questionId: z.string() });
 const SubmitBody = z.object({ directions: z.record(z.string(), DirectionBody) });
 
