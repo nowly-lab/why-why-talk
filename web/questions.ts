@@ -74,7 +74,7 @@ export function agentChangeNote(before: { tree: NoteNode[]; questions: Question[
         ...(n.countermeasure && o.countermeasure !== n.countermeasure ? [`${n.id} の対策「${n.countermeasure}」`] : []),
       ];
     }),
-    ...(after.dives ?? []).flatMap((d) => DRAFT_FIELDS.filter(([k]) => d.draft?.[k] && d.draft[k] !== oldDraft.get(d.questionId)?.[k]).map(([k, label]) => `${d.questionId} の${label}「${d.draft![k]}」`)),
+    ...(after.dives ?? []).flatMap((d) => DRAFT_FIELDS.filter(([k]) => (d.draft?.[k] ?? "") !== (oldDraft.get(d.questionId)?.[k] ?? "")).map(([k, label]) => (d.draft?.[k] ? `${d.questionId} の${label}「${d.draft[k]}」` : `${d.questionId} の${label}を消しました`))),
   ];
   return parts.length ? `画面から: 会議の Claude が書き足しました（返事は要りません。同じ枝を掘り直さないでください）: ${parts.join("、")}` : null;
 }

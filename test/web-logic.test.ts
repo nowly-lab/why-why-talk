@@ -525,3 +525,9 @@ test("RR4: agentChangeNote reports a new reason on an unchanged state and a chan
   assert.match(note, /会議で新しい理由/);
   assert.match(note, /残った疑問「時間で消すか」/);
 });
+
+test("RRR3: agentChangeNote reports a draft field Claude cleared", () => {
+  const d = { direction: "移動で消す", reasons: "", rejected: "", openQuestions: "時間で消すか" };
+  const note = agentChangeNote({ tree: [], questions: [], dives: [{ questionId: "q1", draft: d }] }, { tree: [], questions: [], dives: [{ questionId: "q1", draft: { ...d, openQuestions: "" } }] })!;
+  assert.match(note, /q1 の残った疑問を消しました/);
+});

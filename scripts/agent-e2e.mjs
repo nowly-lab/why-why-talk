@@ -59,12 +59,28 @@ await page.locator('#q-list .q-row input[type=text]').first().press('Tab');
 await page.waitForTimeout(1200);
 const qs = (await call('get_talk')).body.data.questions.map((q) => q.text);
 ok('R1: the edit and Claude\'s new question are both saved', qs.length === 3 && qs[0].endsWith('（人が直した）') && qs.includes('オフィス全体のホストは要るか'), JSON.stringify(qs));
+// RRR1: an edit whose save is still on its way when Claude starts the dive, refused before the page learns of it.
+let releaseSave;
+const saveHeld = new Promise((r) => (releaseSave = r));
+await page.route('**/api/questions', async (r) => { await saveHeld; await r.continue(); });
+let releaseSession;
+const sessionHeld = new Promise((r) => (releaseSession = r));
+await page.route('**/api/session', async (r) => { await sessionHeld; await r.continue(); });
+await page.locator('#q-list .q-row input[type=text]').nth(2).fill('送信中だった問い（RRR1）');
+await page.locator('#q-list .q-row input[type=text]').nth(2).press('Tab');
 // RR2: the person is typing in a question at the moment Claude starts the dive.
 await page.locator('#q-list .q-row input[type=text]').nth(1).click();
 await page.locator('#q-list .q-row input[type=text]').nth(1).fill('入力中だった問い（RR2）');
 await call('start_dive');
-await page.waitForTimeout(1500);
-ok('RR2: the question being typed is kept as a new question', (await call('get_talk')).body.data.dives.some((d) => d.text === '入力中だった問い（RR2）'));
+releaseSave();
+await page.waitForTimeout(800);
+releaseSession();
+await page.unroute('**/api/questions');
+await page.unroute('**/api/session');
+await page.waitForTimeout(1800);
+const recovered = (await call('get_talk')).body.data.dives.map((d) => d.text);
+ok('RRR1: the edit refused before the page saw the dive is kept exactly once', recovered.filter((t) => t === '送信中だった問い（RRR1）').length === 1, JSON.stringify(recovered));
+ok('RR2: the question being typed is kept as exactly one new question', (await call('get_talk')).body.data.dives.filter((d) => d.text === '入力中だった問い（RR2）').length === 1);
 ok('Claude starts the dive without voice', (await page.evaluate(() => document.body.dataset.phase)) === 'deep_dive' && /声なしで深掘りを始めました/.test(await page.textContent('#status')), await page.textContent('#status'));
 ok('R3: with the mic open the button offers Gemini', (await page.textContent('#mic')) === 'Gemini と話す');
 // R2: the person is typing a direction when Claude adds a question; the text stays.

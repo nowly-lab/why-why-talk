@@ -219,9 +219,10 @@ export async function boot(): Promise<void> {
       await questionSaver.save({ list: next, base });
     } catch (e) {
       const msg = (e as Error).message;
-      if (phase === "deep_dive" && /invalid_state/.test(msg)) {
-        // Claude started the dive while this save was on its way: the edited questions join as new questions.
-        await keepEdits(next.filter((q) => q.checked && q.text.trim() !== "" && !dives.some((d) => d.text === q.text)).map((q) => q.text));
+      // The server refused because Claude already started the dive (the page may not know yet): the edited
+      // questions join as new questions. The server ignores a text it already has, so racing recoveries add one.
+      if (/invalid_state/.test(msg) && /deep_dive/.test(msg)) {
+        await keepEdits(next.filter((q) => q.checked && q.text.trim() !== "").map((q) => q.text));
         return;
       }
       if (/conflict/.test(msg)) {
@@ -236,7 +237,13 @@ export async function boot(): Promise<void> {
   }
   /** Questions the person was editing when Claude started the dive: kept as new questions at the end. */
   async function keepEdits(texts: string[]): Promise<void> {
-    for (const t of texts) applyDives(await api.addQuestion(t));
+    const added: string[] = [];
+    for (const t of texts) {
+      const r = await api.addQuestion(t);
+      applyDives(r);
+      if (r.added) added.push(t);
+    }
+    texts = added;
     if (texts.length) setStatus(`会議の Claude が声なしで深掘りを始めました。入力中だった問い「${texts.join("」「")}」は最後の問いとして足しました`, "warn");
   }
 

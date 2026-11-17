@@ -179,8 +179,16 @@ export class TalkSession {
    * An agent (Claude in a meeting, through MCP) adds a question worth digging. Before the deep dive it joins the list
    * checked; during the deep dive it becomes a new question with its own root, dug after the others.
    */
-  addQuestion(text: string, by: "agent" | "person"): { questionId: string | null; index: number } {
+  addQuestion(text: string, by: "agent" | "person"): { questionId: string | null; index: number; added: boolean } {
     const mark = by === "agent" ? { by } : {};
+    // The page may recover the same interrupted edit twice (two paths race): the second add is the first one.
+    if (by === "person") {
+      const t0 = this.clean(text);
+      const di = this.dives.findIndex((d) => d.text === t0);
+      if (this.phase === "deep_dive" && di >= 0) return { questionId: this.dives[di].questionId, index: di, added: false };
+      const qi = this.questions.findIndex((q) => q.text === t0);
+      if (this.phase !== "deep_dive" && qi >= 0) return { questionId: null, index: qi, added: false };
+    }
     this.assertTalking();
     const t = this.clean(text);
     if (t === "") throw new WhyError("invalid_input", "空の問いは足せません");
@@ -191,7 +199,7 @@ export class TalkSession {
       this.questions.push({ text: t, checked: true, ...mark });
       this.questionsVersion++;
       if (by === "agent") this.agentQuestions.push({ text: t, version: this.questionsVersion });
-      return { questionId: null, index: this.questions.length - 1 };
+      return { questionId: null, index: this.questions.length - 1, added: true };
     }
     let n = this.dives.length + 1;
     while (this.analysis.nodes.some((x) => x.id === `q${n}`)) n++;
@@ -203,7 +211,7 @@ export class TalkSession {
     this.questions.push({ text: t, checked: true, ...mark });
     this.questionsVersion++;
     if (by === "agent") this.agentQuestions.push({ text: t, version: this.questionsVersion });
-    return { questionId, index: this.dives.length - 1 };
+    return { questionId, index: this.dives.length - 1, added: true };
   }
 
   /** An agent's tree tools: Gemini's, on any question (not only the one being dug), marked as the agent's. */

@@ -141,3 +141,11 @@ test("RR2: a person's question can be added during the deep dive (an edit that m
   assert.equal(r.questionId, "q3");
   assert.equal(s.dives.at(-1)?.by, undefined);
 });
+
+test("RRR2: recovering the same edit twice adds one question (idempotent person add)", async () => {
+  const s = await diving();
+  const a = s.addQuestion("入力中だった問い", "person");
+  const b = s.addQuestion("入力中だった問い", "person");
+  assert.equal(a.questionId, b.questionId);
+  assert.equal(s.dives.filter((d) => d.text === "入力中だった問い").length, 1);
+});
