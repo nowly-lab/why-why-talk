@@ -167,6 +167,13 @@ function panStep(start, x, y, moving, threshold) {
   if (!moving && Math.hypot(dx, dy) <= threshold) return { moving: false, left: start.left, top: start.top };
   return { moving: true, left: start.left - dx, top: start.top - dy };
 }
+function wheelAction(e, v) {
+  if (e.ctrlKey || e.metaKey) return 'zoom';
+  if (!e.deltaY) return 'view';
+  var room = v.scrollHeight - v.clientHeight;
+  if (e.deltaY > 0 ? v.scrollTop < room - 1 : v.scrollTop > 0) return 'view';
+  return 'page';
+}
 document.querySelectorAll('.zoomable').forEach(function (box) {
   var view = box.querySelector('.zoom-view'), content = box.querySelector('.zoom-content'), out = box.querySelector('output');
   var s = 1, w = content.offsetWidth, h = content.offsetHeight;
@@ -196,10 +203,13 @@ document.querySelectorAll('.zoomable').forEach(function (box) {
     e.preventDefault();
   });
   // Trackpad pinch in Chrome, Edge and Firefox arrives as wheel + ctrlKey; so does Ctrl/⌘ + wheel.
+  // A plain vertical wheel scrolls the board, or the page once the board cannot move that way.
   view.addEventListener('wheel', function (e) {
-    if (!e.ctrlKey && !e.metaKey) return;
+    var act = wheelAction(e, view);
+    if (act === 'view') return;
     e.preventDefault();
     var d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    if (act === 'page') { (document.scrollingElement || document.documentElement).scrollBy(0, d); return; }
     zoomAt(s * Math.exp(-Math.max(-50, Math.min(50, d)) * 0.01), e.clientX, e.clientY);
   }, { passive: false });
   // Safari trackpad pinch arrives as gesture events.
