@@ -141,6 +141,26 @@ ok('and back to 1', await page.evaluate(() => window.__gains.every((n) => n.gain
   await ctx.close();
   talk2.kill('SIGTERM');
 }
+// RRR4: at 20 questions an interrupted edit cannot be added; it must stay on screen, not vanish.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const p3 = await ctx.newPage();
+  const talk3 = spawn('node', ['dist/cli.js', '--no-open', '--out', mkdtempSync(join(tmpdir(), 'why-e2e-out3-'))], { env });
+  const url3 = await new Promise((resolve) => talk3.stderr.on('data', (d) => { const m = /open (http:\/\/127\.0\.0\.1:\d+)/.exec(String(d)); if (m) resolve(m[1]); }));
+  await p3.goto(url3);
+  await p3.waitForSelector('#status');
+  await p3.waitForTimeout(600);
+  const t3 = (await call('list_talks')).body.data.find((t) => t.url === url3).id;
+  for (let i = 0; i < 20; i++) await call('add_question', { talk: t3, text: `上限の問い ${i + 1}` });
+  await p3.waitForTimeout(1500);
+  await p3.locator('#q-list .q-row input[type=text]').first().click();
+  await p3.locator('#q-list .q-row input[type=text]').first().fill('上限で失いたくない入力');
+  await call('start_dive', { talk: t3 });
+  await p3.waitForTimeout(2000);
+  ok('RRR4: at the cap the typed text stays on screen with an error', /上限で失いたくない入力/.test(await p3.textContent('#lost-edits')) && /足せませんでした/.test(await p3.textContent('#status')), await p3.textContent('#status'));
+  await ctx.close();
+  talk3.kill('SIGTERM');
+}
 await browser.close();
 await mcp.close();
 talk.kill('SIGTERM');

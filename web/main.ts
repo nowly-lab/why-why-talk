@@ -238,10 +238,23 @@ export async function boot(): Promise<void> {
   /** Questions the person was editing when Claude started the dive: kept as new questions at the end. */
   async function keepEdits(texts: string[]): Promise<void> {
     const added: string[] = [];
+    const kept: string[] = [];
     for (const t of texts) {
-      const r = await api.addQuestion(t);
-      applyDives(r);
-      if (r.added) added.push(t);
+      try {
+        const r = await api.addQuestion(t);
+        applyDives(r);
+        if (r.added) added.push(t);
+      } catch {
+        // No room (20 questions) or refused: never drop what the person typed; keep it on screen to copy.
+        kept.push(t);
+      }
+    }
+    if (kept.length) {
+      const box = $("lost-edits");
+      box.hidden = false;
+      box.textContent = `問いに足せなかった入力（20件の上限）: ${kept.map((t) => `「${t}」`).join(" ")}`;
+      setStatus(`入力中だった問いを足せませんでした（問いは20件まで）。画面下に残してあります: ${kept.join(" / ")}`, "error");
+      return;
     }
     texts = added;
     if (texts.length) setStatus(`会議の Claude が声なしで深掘りを始めました。入力中だった問い「${texts.join("」「")}」は最後の問いとして足しました`, "warn");

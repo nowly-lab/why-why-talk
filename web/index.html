@@ -69,6 +69,7 @@ section h2 { margin: 0; padding: 10px 14px; font-size: 13px; color: var(--muted)
 .mark { color: var(--muted); font-size: 13px; }
 .mark.ok { color: var(--ok); }
 .meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.lost-edits { margin: 6px 20px; padding: 8px 12px; border-radius: 8px; background: #fde2e2; color: #7a1f1f; font-size: 13px; user-select: text; }
 .by-agent { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 7px; background: #6b4fd8; color: #fff; vertical-align: 1px; }
 .tag { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; color: var(--muted); }
 .fact { font-size: 13px; margin-top: 4px; }
@@ -169,6 +170,7 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
   <button id="mic" class="primary" type="button">マイクを開始</button>
 </header>
 
+<p id="lost-edits" class="lost-edits" role="alert" hidden></p>
 <main id="free-talk" class="phase" aria-label="自由に話す">
   <section aria-labelledby="h-free">
     <h2 id="h-free" class="row">話したこと <span class="hint">話し終えて数秒後に文字になります</span></h2>
