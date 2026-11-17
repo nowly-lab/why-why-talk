@@ -69,6 +69,8 @@ section h2 { margin: 0; padding: 10px 14px; font-size: 13px; color: var(--muted)
 .mark { color: var(--muted); font-size: 13px; }
 .mark.ok { color: var(--ok); }
 .meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.lost-edits { margin: 6px 20px; padding: 8px 12px; border-radius: 8px; background: #fde2e2; color: #7a1f1f; font-size: 13px; user-select: text; }
+.by-agent { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 7px; background: #6b4fd8; color: #fff; vertical-align: 1px; }
 .tag { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; color: var(--muted); }
 .fact { font-size: 13px; margin-top: 4px; }
 .fact.neg, .reason { color: var(--muted); font-size: 13px; margin-top: 4px; }
@@ -116,7 +118,7 @@ section h2.row { display: flex; justify-content: space-between; align-items: bas
 #questions section { padding-bottom: 8px; }
 #questions .lead { padding: 8px 14px 0; font-size: 13px; color: var(--muted); }
 .q-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); }
-.q-row .num { color: var(--muted); font-size: 13px; min-width: 1.6em; text-align: right; }
+.q-row .num { color: var(--muted); font-size: 13px; min-width: 1.6em; text-align: right; white-space: nowrap; }
 .q-row input[type="text"] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 0; }
 .q-row input[type="checkbox"] { width: 18px; height: 18px; }
 .q-row button { padding: 4px 10px; }
@@ -158,6 +160,7 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
   <span class="quiet-badge free-only">Gemini は話しません</span>
   <span id="role" class="role dive-only" data-role="interviewer">Gemini: 聞き手</span>
   <button id="role-btn" class="dive-only" type="button" disabled>役割を交代</button>
+  <button id="voice-mute" class="dive-only" type="button" aria-pressed="false" title="Gemini は聞き取りを続け、声だけ止まります">Gemini の声を消す</button>
   <span id="status" data-kind="idle">読み込んでいます…</span>
   <button id="nudge" type="button" hidden>Gemini に呼びかけ直す</button>
   <label class="mic-pick">マイク
@@ -167,6 +170,7 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
   <button id="mic" class="primary" type="button">マイクを開始</button>
 </header>
 
+<p id="lost-edits" class="lost-edits" role="alert" hidden></p>
 <main id="free-talk" class="phase" aria-label="自由に話す">
   <section aria-labelledby="h-free">
     <h2 id="h-free" class="row">話したこと <span class="hint">話し終えて数秒後に文字になります</span></h2>
@@ -187,7 +191,7 @@ body[data-done="1"] main, body[data-done="1"] form { opacity: .7; }
 <main id="questions" class="phase" aria-label="問いを選ぶ">
   <section aria-labelledby="h-questions">
     <h2 id="h-questions">深掘りする問いを選ぶ</h2>
-    <p class="lead">最大10件。チェックした問いを、この順に深掘りします。</p>
+    <p class="lead">最大20件（Claude が足した問いを含む）。チェックした問いを、この順に深掘りします。</p>
     <div id="q-list"></div>
     <div class="q-tools">
       <button id="q-add" type="button">+ 問いを足す</button>

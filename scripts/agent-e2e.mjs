@@ -1,0 +1,170 @@
+#!/usr/bin/env node
+// Browser check of the agent path (needs Google Chrome and GEMINI_API_KEY in the environment; makes no Gemini call):
+// a talk without voice, Claude adding questions, starting the dive and writing to any question through MCP, the
+// page showing it with the Claude badge, and the Gemini-voice mute.
+//   node scripts/agent-e2e.mjs <screenshot-dir>
+import { spawn } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { chromium } from 'playwright-core';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+const out = process.argv[2] ?? mkdtempSync(join(tmpdir(), 'why-e2e-shots-'));
+const home = mkdtempSync(join(tmpdir(), 'why-e2e-home-'));
+const env = { ...process.env, WHY_WHY_HOME: home, WHY_WHY_BROWSER: 'none' };
+let fails = 0;
+const ok = (name, cond, detail = '') => { if (!cond) fails++; console.log(`${cond ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`); };
+
+const talk = spawn('node', ['dist/cli.js', '--no-open', '--out', mkdtempSync(join(tmpdir(), 'why-e2e-out-'))], { env });
+let talkExit = null;
+talk.on('exit', (c) => (talkExit = c));
+const url = await new Promise((resolve, reject) => {
+  talk.stderr.on('data', (d) => { const m = /open (http:\/\/127\.0\.0\.1:\d+)/.exec(String(d)); if (m) resolve(m[1]); });
+  setTimeout(() => reject(new Error('the talk did not start')), 20000);
+});
+
+const mcp = new Client({ name: 'claude-code', version: 'e2e' });
+await mcp.connect(new StdioClientTransport({ command: 'node', args: ['dist/cli.js', 'mcp'], env }));
+const call = async (name, args = {}) => { const r = await mcp.callTool({ name, arguments: args }); return { error: !!r.isError, body: JSON.parse(r.content[0].text) }; };
+
+const browser = await chromium.launch({ channel: 'chrome', args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['microphone'] })).newPage();
+// Count the gain nodes the Gemini player makes, so the mute can be read off its gain.
+await page.addInitScript(() => { const g = AudioContext.prototype.createGain; window.__gains = []; AudioContext.prototype.createGain = function () { const n = g.call(this); window.__gains.push(n); return n; }; });
+await page.goto(url);
+await page.waitForSelector('#status');
+await page.waitForTimeout(800);
+
+ok('list_talks finds the talk', (await call('list_talks')).body.data.length === 1);
+// Count token requests without calling Gemini: the voice start is refused here on purpose.
+let tokenCalls = 0;
+await page.route('**/api/token', (r) => { tokenCalls++; return r.fulfill({ status: 503, body: JSON.stringify({ error: 'e2e: no Gemini' }) }); });
+// The mic is opened before Claude starts the dive (R3).
+await page.click('#mic');
+await page.waitForTimeout(800);
+await call('add_question', { text: 'なぜホストはフロアごとなのか' });
+await call('add_question', { text: '退室した人の席をいつ消すか' });
+await page.waitForTimeout(1200);
+ok('the page moves to the question list with Claude badges', (await page.evaluate(() => document.body.dataset.phase)) === 'questions' && (await page.locator('#q-list .by-agent').count()) === 2);
+// R1: the person is typing in a question when Claude adds another; both survive.
+const firstInput = page.locator('#q-list .q-row input[type=text]').first();
+await firstInput.click();
+await firstInput.fill('なぜホストはフロアごとなのか（人が直した）');
+await call('add_question', { text: 'オフィス全体のホストは要るか' });
+await page.waitForTimeout(1200);
+ok('R1: the typed text is kept on screen', (await page.locator('#q-list .q-row input[type=text]').first().inputValue()) === 'なぜホストはフロアごとなのか（人が直した）');
+await page.locator('#q-list .q-row input[type=text]').first().press('Tab');
+await page.waitForTimeout(1200);
+const qs = (await call('get_talk')).body.data.questions.map((q) => q.text);
+ok('R1: the edit and Claude\'s new question are both saved', qs.length === 3 && qs[0].endsWith('（人が直した）') && qs.includes('オフィス全体のホストは要るか'), JSON.stringify(qs));
+// RRR1: an edit whose save is still on its way when Claude starts the dive, refused before the page learns of it.
+let releaseSave;
+const saveHeld = new Promise((r) => (releaseSave = r));
+await page.route('**/api/questions', async (r) => { await saveHeld; await r.continue(); });
+let releaseSession;
+const sessionHeld = new Promise((r) => (releaseSession = r));
+await page.route('**/api/session', async (r) => { await sessionHeld; await r.continue(); });
+await page.locator('#q-list .q-row input[type=text]').nth(2).fill('送信中だった問い（RRR1）');
+await page.locator('#q-list .q-row input[type=text]').nth(2).press('Tab');
+// RR2: the person is typing in a question at the moment Claude starts the dive.
+await page.locator('#q-list .q-row input[type=text]').nth(1).click();
+await page.locator('#q-list .q-row input[type=text]').nth(1).fill('入力中だった問い（RR2）');
+await call('start_dive');
+releaseSave();
+await page.waitForTimeout(800);
+releaseSession();
+await page.unroute('**/api/questions');
+await page.unroute('**/api/session');
+await page.waitForTimeout(1800);
+const recovered = (await call('get_talk')).body.data.dives.map((d) => d.text);
+ok('RRR1: the edit refused before the page saw the dive is kept exactly once', recovered.filter((t) => t === '送信中だった問い（RRR1）').length === 1, JSON.stringify(recovered));
+ok('RR2: the question being typed is kept as exactly one new question', (await call('get_talk')).body.data.dives.filter((d) => d.text === '入力中だった問い（RR2）').length === 1);
+ok('Claude starts the dive without voice', (await page.evaluate(() => document.body.dataset.phase)) === 'deep_dive' && /声なしで深掘りを始めました/.test(await page.textContent('#status')), await page.textContent('#status'));
+ok('R3: with the mic open the button offers Gemini', (await page.textContent('#mic')) === 'Gemini と話す');
+// R2: the person is typing a direction when Claude adds a question; the text stays.
+await page.fill('#f-direction', '人が書いている方針');
+await call('add_question', { text: '会議の後半で出た問い' });
+await page.waitForTimeout(1200);
+ok('R2: the direction being typed survives a new question', (await page.inputValue('#f-direction')) === '人が書いている方針');
+await page.click('#mic');
+await page.waitForTimeout(1000);
+ok('R3: pressing it asks for a Gemini token (voice starts)', tokenCalls >= 1, `token requests: ${tokenCalls}`);
+await call('add_whys', { parent_id: 'q1', items: [{ text: 'フロアが部屋（Durable Object）の単位だから', viewpoint: '仕組み・道具' }] });
+await call('add_fact', { node_id: 'q1', summary: '会議で「部屋の単位だから」と説明があった', supports: true });
+await page.waitForTimeout(1200);
+ok('Claude\'s why and fact show with the badge', /フロアが部屋（Durable Object）の単位だから/.test(await page.textContent('body')) && (await page.locator('.by-agent').count()) >= 3);
+await page.screenshot({ path: join(out, 'agent-board.png') });
+const r = await call('add_fact', { node_id: 'q2', summary: '移動するまで記録が残る', supports: true });
+ok('Claude writes to a question that is not being dug', !r.error, JSON.stringify(r.body).slice(0, 120));
+ok('no token in replies', !JSON.stringify((await call('get_talk')).body).match(/[0-9a-f]{64}/));
+
+// The Gemini-voice mute (Gemini is not connected here; the player's gain is what the button controls).
+await page.click('#voice-mute');
+ok('the voice mute sets the player gain to 0', await page.evaluate(() => window.__gains.some((n) => n.gain.value === 0)) && /戻す/.test(await page.textContent('#voice-mute')));
+await page.click('#voice-mute');
+ok('and back to 1', await page.evaluate(() => window.__gains.every((n) => n.gain.value === 1)));
+
+// RR3: Gemini started from the page (深掘りを始める with the mic open) still hears Claude's changes; a fake Live socket.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['microphone'] });
+  const p2 = await ctx.newPage();
+  const sent = [];
+  await p2.route('**/api/token', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ token: 'auth_tokens/e2e', model: 'gemini-e2e', expiresAt: 'x', config: {} }) }));
+  await p2.routeWebSocket(/generativelanguage\.googleapis\.com/, (ws) => {
+    ws.onMessage((m) => {
+      const msg = JSON.parse(typeof m === 'string' ? m : m.toString());
+      sent.push(msg);
+      if (msg.setup) ws.send(JSON.stringify({ setupComplete: {} }));
+    });
+  });
+  const talk2 = spawn('node', ['dist/cli.js', '--no-open', '--out', mkdtempSync(join(tmpdir(), 'why-e2e-out2-'))], { env });
+  const url2 = await new Promise((resolve) => talk2.stderr.on('data', (d) => { const m = /open (http:\/\/127\.0\.0\.1:\d+)/.exec(String(d)); if (m) resolve(m[1]); }));
+  await p2.goto(url2);
+  await p2.waitForSelector('#status');
+  await p2.waitForTimeout(800);
+  const t2 = (await call('list_talks')).body.data.find((t) => t.url === url2).id;
+  await p2.click('#mic');
+  await p2.waitForTimeout(600);
+  await call('add_question', { talk: t2, text: 'ページから始める問い' });
+  await p2.waitForTimeout(1200);
+  await p2.click('#start-dive');
+  await p2.waitForTimeout(2000);
+  await call('add_whys', { talk: t2, parent_id: 'q1', items: [{ text: 'RR3 会議の理由', viewpoint: '検知' }] });
+  await p2.waitForTimeout(1500);
+  const texts = sent.flatMap((m) => m.clientContent?.turns?.flatMap((t) => t.parts.map((x) => x.text)) ?? []);
+  ok('RR3: a page-started Gemini is told about Claude\'s additions', texts.some((t) => /RR3 会議の理由/.test(t)), JSON.stringify(texts).slice(0, 160));
+  await p2.click('#mic');
+  await p2.waitForTimeout(300);
+  ok('RR3: the next mic click mutes the mic', (await p2.textContent('#mic')) === 'ミュート解除', await p2.textContent('#mic'));
+  await ctx.close();
+  talk2.kill('SIGTERM');
+}
+// RRR4: at 20 questions an interrupted edit cannot be added; it must stay on screen, not vanish.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const p3 = await ctx.newPage();
+  const talk3 = spawn('node', ['dist/cli.js', '--no-open', '--out', mkdtempSync(join(tmpdir(), 'why-e2e-out3-'))], { env });
+  const url3 = await new Promise((resolve) => talk3.stderr.on('data', (d) => { const m = /open (http:\/\/127\.0\.0\.1:\d+)/.exec(String(d)); if (m) resolve(m[1]); }));
+  await p3.goto(url3);
+  await p3.waitForSelector('#status');
+  await p3.waitForTimeout(600);
+  const t3 = (await call('list_talks')).body.data.find((t) => t.url === url3).id;
+  for (let i = 0; i < 20; i++) await call('add_question', { talk: t3, text: `上限の問い ${i + 1}` });
+  await p3.waitForTimeout(1500);
+  await p3.locator('#q-list .q-row input[type=text]').first().click();
+  await p3.locator('#q-list .q-row input[type=text]').first().fill('上限で失いたくない入力');
+  await call('start_dive', { talk: t3 });
+  await p3.waitForTimeout(2000);
+  ok('RRR4: at the cap the typed text stays on screen with an error', /上限で失いたくない入力/.test(await p3.textContent('#lost-edits')) && /足せませんでした/.test(await p3.textContent('#status')), await p3.textContent('#status'));
+  await ctx.close();
+  talk3.kill('SIGTERM');
+}
+await browser.close();
+await mcp.close();
+talk.kill('SIGTERM');
+await new Promise((r) => setTimeout(r, 500));
+ok('the talk leaves no registry entry behind', (await import('node:fs')).readdirSync(join(home, 'talks')).length === 0);
+console.log(fails ? `${fails} failed` : 'all ok', talkExit);
+process.exit(fails ? 1 : 0);

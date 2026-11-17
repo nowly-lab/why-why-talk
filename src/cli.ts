@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -8,6 +9,7 @@ import { parseArgs } from "node:util";
 import { DEFAULT_MODEL, DEFAULT_VOICE, mintToken } from "./talk/gemini.ts";
 import { startTalkServer } from "./talk/server.ts";
 import { TalkSession } from "./talk/session.ts";
+import { removeTalkEntry, talksDir, writeTalkEntry } from "./talk/registry.ts";
 import { readAttachment } from "./talk/attachments.ts";
 import { DEFAULT_TEXT_MODEL, geminiTextModel, type FileSummary, type TextModel } from "./talk/text-model.ts";
 import { VERSION } from "./version.ts";
@@ -18,6 +20,8 @@ with Gemini Live. Blocks until the person sends the result.
 
 Usage:
   why-why-talk [--topic "<point>"] [--context <file>] [--attach <file>]... [--out <dir>] [--no-open]
+  why-why-talk mcp     MCP server (stdio) for agents: find running talks, add questions, start the dive without
+                       voice, grow any question's tree, draft directions
 
   Without --topic the page starts with free talk; with it, the question list is made from the topic,
   --context and the attached files at once. --attach takes text, Markdown, PDF or images (10MB each).
@@ -25,7 +29,8 @@ Usage:
 Exit codes: 0 sent (result Markdown on stdout), 1 cancelled or tab closed, 2 failure.
 Env: GEMINI_API_KEY (required), WHY_WHY_LIVE_MODEL (default ${DEFAULT_MODEL}), WHY_WHY_TEXT_MODEL (default ${DEFAULT_TEXT_MODEL}),
      WHY_WHY_VOICE (default ${DEFAULT_VOICE}), WHY_WHY_BROWSER=none,
-     WHY_WHY_FIRST_CONNECT_MS (default 600000: give up when no page connects).
+     WHY_WHY_FIRST_CONNECT_MS (default 600000: give up when no page connects),
+     WHY_WHY_HOME (default ~/.why-why-talk: where running talks are listed for agents).
 `;
 
 type IO = { out: (s: string) => void; err: (s: string) => void };
@@ -34,6 +39,14 @@ type IO = { out: (s: string) => void; err: (s: string) => void };
 export type MainDeps = { text?: (opts: { apiKey: string; model: string }) => TextModel };
 
 export async function main(argv: string[], env: Record<string, string | undefined>, cwd: string, io: IO, deps: MainDeps = {}): Promise<number> {
+  if (argv[0] === "mcp") {
+    const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+    const { createWhyWhyMcp } = await import("./mcp/server.ts");
+    const transport = new StdioServerTransport();
+    const closed = new Promise<number>((r) => (transport.onclose = () => r(0)));
+    await createWhyWhyMcp({ dir: talksDir(env) }).connect(transport);
+    return closed;
+  }
   let values: { topic?: string; context?: string; attach?: string[]; out?: string; "no-open"?: boolean; help?: boolean };
   try {
     ({ values } = parseArgs({
@@ -94,6 +107,9 @@ export async function main(argv: string[], env: Record<string, string | undefine
     io.err(`why-why-talk: WHY_WHY_FIRST_CONNECT_MS must be a positive number of milliseconds, got ${env.WHY_WHY_FIRST_CONNECT_MS}\n`);
     return 2;
   }
+  // Agents (Claude in a meeting, through `why-why-talk mcp`) find this talk in the registry and use this token.
+  const agentToken = randomBytes(32).toString("hex");
+  const registry = talksDir(env);
   let server: Awaited<ReturnType<typeof startTalkServer>>;
   try {
     server = await startTalkServer(session, {
@@ -101,11 +117,15 @@ export async function main(argv: string[], env: Record<string, string | undefine
       mint: (opts) => mintToken({ apiKey, model, voice }, session, opts),
       text,
       firstConnectMs,
+      agentToken,
     });
   } catch (e) {
     io.err(`why-why-talk: cannot start (out dir ${outDir}): ${(e as Error).message}\n`);
     return 2;
   }
+  await writeTalkEntry(registry, { id: session.id, url: server.url, token: agentToken, topic, outDir, startedAt: session.startedAt, pid: process.pid }).catch((e: unknown) =>
+    io.err(`why-why-talk: agents cannot find this talk (${(e as Error).message})\n`),
+  );
   io.err(`why-why-talk: open ${server.url}\n`);
   if (!values["no-open"] && env.WHY_WHY_BROWSER !== "none") openBrowser(server.url);
 
@@ -114,6 +134,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
   process.once("SIGTERM", stop);
 
   const outcome = await server.outcome;
+  await removeTalkEntry(registry, session.id).catch(() => undefined);
   await server.close();
   if (outcome.kind === "sent") {
     io.out(outcome.markdown);

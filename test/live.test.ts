@@ -105,7 +105,7 @@ test("reconnect() opens a fresh connection with the resumption handle and report
 });
 
 // --- role switch restarts (plan v1 Task 2) ---
-type Conn = { cb: Parameters<LiveConnect>[2]; config: { sessionResumption?: { handle?: string } }; texts: string[]; closed: boolean };
+type Conn = { cb: Parameters<LiveConnect>[2]; config: { sessionResumption?: { handle?: string } }; texts: string[]; complete: boolean[]; closed: boolean };
 function fakeLink(opts: { failFirst?: number } = {}) {
   const conns: Conn[] = [];
   const tokenArgs: Array<[boolean, boolean]> = [];
@@ -117,10 +117,13 @@ function fakeLink(opts: { failFirst?: number } = {}) {
       failures--;
       throw new Error("network down");
     }
-    const c: Conn = { cb: callbacks, config: config as Conn["config"], texts: [], closed: false };
+    const c: Conn = { cb: callbacks, config: config as Conn["config"], texts: [], complete: [], closed: false };
     conns.push(c);
     return {
-      sendClientContent: (p) => void c.texts.push(p.turns[0]!.parts[0]!.text),
+      sendClientContent: (p) => {
+        c.texts.push(p.turns[0]!.parts[0]!.text);
+        c.complete.push(p.turnComplete !== false);
+      },
       sendRealtimeInput() {},
       sendToolResponse() {},
       close() {
@@ -256,4 +259,20 @@ test("held text is dropped when the link gives up, not sent minutes later", asyn
   assert.ok(statuses.includes("failed"));
   assert.equal(conns.length, 1);
   assert.equal(live.heldCount(), 0);
+});
+
+test("R7: a quiet text held during a reconnect stays quiet when flushed", async () => {
+  const { live, conns } = fakeLink();
+  try {
+    await live.start();
+    const r = live.restart("交代しました");
+    live.sendText("画面から: 会議の Claude が書き足しました", { quiet: true });
+    await r;
+    const c = conns.at(-1)!;
+    const i = c.texts.indexOf("画面から: 会議の Claude が書き足しました");
+    assert.ok(i >= 0, "the held text is sent on the new connection");
+    assert.equal(c.complete[i], false, "and asks for no reply");
+  } finally {
+    live.close();
+  }
 });

@@ -4,7 +4,8 @@ export type TreeNode = {
   text: string;
   state: string;
   viewpoint?: string | null;
-  facts?: Array<{ summary: string; supports: boolean }>;
+  facts?: Array<{ summary: string; supports: boolean; by?: "agent" }>;
+  by?: "agent";
   reason?: string;
   countermeasure?: string;
   depth?: number;

@@ -35,16 +35,19 @@ function diveSection(s: TalkSession, d: Dive, i: number, section: (t: string, b:
   const nodes = a.nodes
     .filter((n) => n.parentId !== null && ids.has(n.id))
     .map((n) => {
-      const head = `- ${n.id} ${isBacked(n) ? "✓ " : ""}${n.text} — ${STATE_LABEL[n.state]} · ${depth(n.id)} · ${n.viewpoint ?? ""} · 親 ${n.parentId}`;
+      const head = `- ${n.id} ${isBacked(n) ? "✓ " : ""}${n.text}${n.by === "agent" ? "（Claude）" : ""} — ${STATE_LABEL[n.state]} · ${depth(n.id)} · ${n.viewpoint ?? ""} · 親 ${n.parentId}`;
       const lines = [
-        ...n.facts.map((f) => `  - ${f.supports ? "支持" : "否定"}: ${f.summary}`),
+        ...n.facts.map((f) => `  - ${f.supports ? "支持" : "否定"}: ${f.summary}${f.by === "agent" ? "（Claude）" : ""}`),
         ...(n.countermeasure ? [`  - 対策: ${n.countermeasure}`] : []),
         ...(n.reason ? [`  - 理由: ${n.reason}`] : []),
       ];
       return [head, ...lines].join("\n");
     });
+  // Facts put on the question itself (Claude records what the meeting said there).
+  const rootFacts = (a.nodes.find((n) => n.id === d.questionId)?.facts ?? []).map((f) => `- ${f.supports ? "支持" : "否定"}: ${f.summary}${f.by === "agent" ? "（Claude）" : ""}`);
   return [
-    `## 問い ${i + 1}: ${d.text}(${DIVE_LABEL[d.status]})\n`,
+    `## 問い ${i + 1}: ${d.text}${d.by === "agent" ? "（Claude）" : ""}(${DIVE_LABEL[d.status]})\n`,
+    ...(rootFacts.length ? [section("問いへの事実", rootFacts.join("\n"), "###")] : []),
     section("方針", d.draft?.direction, "###"),
     section("理由", d.draft?.reasons, "###"),
     section("見送った案", d.draft?.rejected, "###"),
@@ -57,7 +60,7 @@ function diveSection(s: TalkSession, d: Dive, i: number, section: (t: string, b:
 /** Sent before the deep dive started: the checked questions count as 未着手 dives (with no tree yet). */
 function divesOf(s: TalkSession): Dive[] {
   if (s.dives.length > 0) return s.dives;
-  return s.questions.filter((q) => q.checked).map((q, i) => ({ questionId: `q${i + 1}`, text: q.text, status: "pending", draft: null }));
+  return s.questions.filter((q) => q.checked).map((q, i) => ({ questionId: `q${i + 1}`, text: q.text, status: "pending", draft: null, ...(q.by ? { by: q.by } : {}) }));
 }
 
 function unchecked(s: TalkSession): string[] {
@@ -79,7 +82,9 @@ export function resultJson(s: TalkSession) {
         questionId: d.questionId,
         text: d.text,
         status: d.status,
+        ...(d.by ? { by: d.by } : {}),
         direction: d.draft,
+        facts: s.analysis.nodes.find((n) => n.id === d.questionId)?.facts ?? [],
         tree: summary.filter((n) => n.parentId !== null && ids.has(n.id)).map((n) => {
           const full = s.analysis.nodes.find((x) => x.id === n.id)!;
           return { ...n, shallow: n.state === "leaf" && n.depth < TARGET_DEPTH, facts: full.facts, reason: full.reason, countermeasure: full.countermeasure };

@@ -17,9 +17,9 @@ export type AskedEntry = { at: string; question: string; answer: string; queries
 export type SessionStatus = "talking" | "sent" | "cancelled";
 /** free_talk: the person talks and Gemini only listens; questions: the person picks; deep_dive: Gemini Live digs. */
 export type Phase = "free_talk" | "questions" | "deep_dive";
-export type Question = { text: string; checked: boolean };
+export type Question = { text: string; checked: boolean; by?: "agent" };
 export type DiveStatus = "pending" | "digging" | "done" | "partial";
-export type Dive = { questionId: string; text: string; status: DiveStatus; draft: Direction | null };
+export type Dive = { questionId: string; text: string; status: DiveStatus; draft: Direction | null; by?: "agent" };
 export type CurrentQuestion = { questionId: string; text: string } | null;
 export type AdvanceResult = { moved: boolean; finished: Dive | null; current: CurrentQuestion };
 export type BelowTarget = Array<{ id: string; depth: number }>;
@@ -29,6 +29,11 @@ export type ToolResult =
 
 const MERGE_WINDOW_MS = 4_000;
 const MAX_EVENTS = 5_000;
+/** Questions in all, the person's and those an agent added (the text model's first list stays at MAX_QUESTIONS). */
+export const MAX_TOTAL_QUESTIONS = 20;
+/** What an agent may call through MCP: Gemini's tree tools, on any question. */
+export const AGENT_TOOLS = ["add_whys", "add_fact", "update_branch", "propose_direction"] as const;
+export type AgentToolName = (typeof AGENT_TOOLS)[number];
 
 /** One deep-dive: the tree, the transcript, the draft and how it ended. The result is decided once. */
 export class TalkSession {
@@ -47,6 +52,10 @@ export class TalkSession {
   /** Summaries of attached files (the files themselves are never kept). */
   files: FileSummary[] = [];
   questions: Question[] = [];
+  /** Bumped on every change to the question list; the page sends the one it edited, so a stale list cannot drop an agent's question. */
+  questionsVersion = 0;
+  /** Questions an agent added, with the list version they arrived in. */
+  private agentQuestions: { text: string; version: number }[] = [];
   /** One per checked question, in list order; their roots in the tree are q1, q2, …. */
   dives: Dive[] = [];
   /** Who Gemini is right now: the interviewer, or (after 交代) the one answering the person's questions. */
@@ -86,6 +95,7 @@ export class TalkSession {
       freeTalk: this.freeTalk,
       files: this.files,
       questions: this.questions,
+      questionsVersion: this.questionsVersion,
       dives: this.dives,
       current: this.current(),
       tree: this.analysis.nodes,
@@ -141,17 +151,72 @@ export class TalkSession {
     this.assertTalking();
     this.assertPhase("free_talk", "questions");
     this.questions = texts.map((t) => this.clean(t)).filter((t) => t !== "").slice(0, MAX_QUESTIONS).map((text) => ({ text, checked: false }));
+    this.questionsVersion++;
     this.phase = "questions";
   }
 
   /** The person's edits: checks, rewording, added, removed or reordered questions. */
-  editQuestions(list: Question[]): void {
+  editQuestions(list: Question[], baseVersion?: number): void {
     this.assertTalking();
     this.assertPhase("questions");
-    if (list.length > MAX_QUESTIONS) throw new WhyError("invalid_input", `問いは ${MAX_QUESTIONS} 件までです`);
-    const next = list.map((q) => ({ text: this.clean(q.text), checked: q.checked }));
+    if (list.length > MAX_TOTAL_QUESTIONS) throw new WhyError("invalid_input", `問いは ${MAX_TOTAL_QUESTIONS} 件までです`);
+    const next = list.map((q) => ({ text: this.clean(q.text), checked: q.checked, ...(q.by === "agent" ? { by: q.by } : {}) }));
     if (next.some((q) => q.text === "")) throw new WhyError("invalid_input", "空の問いがあります");
+    // The page edited an older list: keep what an agent added since, which that list could not contain.
+    if (baseVersion !== undefined && baseVersion < this.questionsVersion) {
+      for (const a of this.agentQuestions) {
+        if (a.version <= baseVersion || next.some((q) => q.text === a.text) || !this.questions.some((q) => q.text === a.text)) continue;
+        // No room for the agent's question: refuse rather than silently choose one writer; the page reloads.
+        if (next.length >= MAX_TOTAL_QUESTIONS) throw new WhyError("conflict", `問いが ${MAX_TOTAL_QUESTIONS} 件を超えるため保存できません。Claude が問いを足したので、読み直してから直してください`);
+        next.push({ text: a.text, checked: true, by: "agent" });
+      }
+    }
     this.questions = next;
+    this.questionsVersion++;
+  }
+
+  /**
+   * An agent (Claude in a meeting, through MCP) adds a question worth digging. Before the deep dive it joins the list
+   * checked; during the deep dive it becomes a new question with its own root, dug after the others.
+   */
+  addQuestion(text: string, by: "agent" | "person"): { questionId: string | null; index: number; added: boolean } {
+    const mark = by === "agent" ? { by } : {};
+    // The page may recover the same interrupted edit twice (two paths race): the second add is the first one.
+    if (by === "person") {
+      const t0 = this.clean(text);
+      const di = this.dives.findIndex((d) => d.text === t0);
+      if (this.phase === "deep_dive" && di >= 0) return { questionId: this.dives[di].questionId, index: di, added: false };
+      const qi = this.questions.findIndex((q) => q.text === t0);
+      if (this.phase !== "deep_dive" && qi >= 0) return { questionId: null, index: qi, added: false };
+    }
+    this.assertTalking();
+    const t = this.clean(text);
+    if (t === "") throw new WhyError("invalid_input", "空の問いは足せません");
+    const total = this.phase === "deep_dive" ? this.dives.length : this.questions.length;
+    if (total >= MAX_TOTAL_QUESTIONS) throw new WhyError("invalid_input", `問いは ${MAX_TOTAL_QUESTIONS} 件までです`);
+    if (this.phase !== "deep_dive") {
+      this.phase = "questions";
+      this.questions.push({ text: t, checked: true, ...mark });
+      this.questionsVersion++;
+      if (by === "agent") this.agentQuestions.push({ text: t, version: this.questionsVersion });
+      return { questionId: null, index: this.questions.length - 1, added: true };
+    }
+    let n = this.dives.length + 1;
+    while (this.analysis.nodes.some((x) => x.id === `q${n}`)) n++;
+    const questionId = `q${n}`;
+    this.analysis = addRoot(this.analysis, { id: questionId, text: t }, this.now);
+    // Every question finished: the new one is dug now; otherwise it waits its turn.
+    const status: DiveStatus = this.current() ? "pending" : "digging";
+    this.dives.push({ questionId, text: t, status, draft: null, ...mark });
+    this.questions.push({ text: t, checked: true, ...mark });
+    this.questionsVersion++;
+    if (by === "agent") this.agentQuestions.push({ text: t, version: this.questionsVersion });
+    return { questionId, index: this.dives.length - 1, added: true };
+  }
+
+  /** An agent's tree tools: Gemini's, on any question (not only the one being dug), marked as the agent's. */
+  agentTool(name: AgentToolName, args: unknown): ToolResult {
+    return this.applyTool(name, args, "agent");
   }
 
   backToFreeTalk(): void {
@@ -167,7 +232,7 @@ export class TalkSession {
     const checked = this.questions.filter((q) => q.checked);
     if (checked.length === 0) throw new WhyError("invalid_state", "チェックした問いがありません");
     let a = this.analysis;
-    const dives: Dive[] = checked.map((q, i) => ({ questionId: `q${i + 1}`, text: q.text, status: i === 0 ? "digging" : "pending", draft: null }));
+    const dives: Dive[] = checked.map((q, i) => ({ questionId: `q${i + 1}`, text: q.text, status: i === 0 ? "digging" : "pending", draft: null, ...(q.by ? { by: q.by } : {}) }));
     for (const d of dives) a = addRoot(a, { id: d.questionId, text: d.text }, this.now);
     this.analysis = a;
     this.dives = dives;
@@ -213,11 +278,13 @@ export class TalkSession {
   }
 
   /** Never throws for a bad call from Gemini: the error goes back to Gemini so it can try again. */
-  applyTool(name: string, args: unknown): ToolResult {
+  applyTool(name: string, args: unknown, by: "gemini" | "agent" = "gemini"): ToolResult {
     const fail = (error: string): ToolResult => ({ ok: false, error, tree: treeSummary(this.analysis), belowTarget: this.belowTarget(), current: this.current() });
     if (this.status !== "talking") return fail(`the session is ${this.status}`);
     if (this.phase !== "deep_dive") return fail("the deep dive has not started");
     if (!isToolName(name)) return fail(`unknown function ${name}`);
+    if (by === "agent" && !(AGENT_TOOLS as readonly string[]).includes(name)) return fail(`${name} is Gemini's own; an agent may call ${AGENT_TOOLS.join(", ")}`);
+    const agent = by === "agent";
     const parsed = ToolArgs[name].safeParse(args);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -230,13 +297,13 @@ export class TalkSession {
       // Live trial 2026-11-16: after answering a question Gemini went back to asking why without switch_role.
       // A tree tool from an answerer that a question swapped in means it is interviewing again; the role changes
       // only once the tool succeeds, so a refused call leaves everything as it was (review R3).
-      const backToInterviewing = this.role === "answerer" && this.roleBy === "question" && (name === "add_whys" || name === "add_fact" || name === "update_branch");
+      const backToInterviewing = !agent && this.role === "answerer" && this.roleBy === "question" && (name === "add_whys" || name === "add_fact" || name === "update_branch");
       switch (name) {
         case "add_whys": {
           const a = ToolArgs.add_whys.parse(args);
-          this.assertCurrent(a.parent_id);
+          if (!agent) this.assertCurrent(a.parent_id);
           const r = addWhys(this.analysis, a.parent_id, a.items, this.now);
-          this.analysis = r.analysis;
+          this.analysis = agent ? { ...r.analysis, nodes: r.analysis.nodes.map((n) => (r.added.includes(n.id) ? { ...n, by: "agent" as const } : n)) } : r.analysis;
           added = r.added;
           const notes: string[] = [];
           if (r.skipped.length > 0) notes.push(`already there, skipped: ${r.skipped.join(" / ")}`);
@@ -250,13 +317,13 @@ export class TalkSession {
         }
         case "add_fact": {
           const a = ToolArgs.add_fact.parse(args);
-          this.assertCurrent(a.node_id);
-          this.analysis = addFact(this.analysis, a.node_id, { summary: a.summary, supports: a.supports }, this.now);
+          if (!agent) this.assertCurrent(a.node_id);
+          this.analysis = addFact(this.analysis, a.node_id, { summary: a.summary, supports: a.supports, ...(agent ? { by: "agent" as const } : {}) }, this.now);
           break;
         }
         case "update_branch": {
           const a = ToolArgs.update_branch.parse(args);
-          this.assertCurrent(a.node_id);
+          if (!agent) this.assertCurrent(a.node_id);
           this.analysis = updateNode(this.analysis, a.node_id, { state: a.state, reason: a.reason, countermeasure: a.countermeasure }, this.now);
           break;
         }
@@ -264,7 +331,7 @@ export class TalkSession {
           const a = ToolArgs.propose_direction.parse(args);
           this.setDraft(a.question_id, { direction: a.direction, reasons: a.reasons, rejected: a.rejected, openQuestions: a.open_questions });
           // Live trial 2026-11-16: Gemini drafted a finished question and then waited; say plainly that it may move on.
-          if (this.current()?.questionId === a.question_id && questionReady(this.analysis, a.question_id).ready) {
+          if (!agent && this.current()?.questionId === a.question_id && questionReady(this.analysis, a.question_id).ready) {
             note = `${a.question_id} is ready: call next_question now, without waiting for the person`;
           }
           break;

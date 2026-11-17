@@ -132,8 +132,7 @@
       ],
       "nodes": [
         "pol-goaway"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "方針の下書き",
@@ -227,8 +226,7 @@
           "path": "src/talk/session.ts",
           "symbol": "setRole"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "Gemini に聞いたこと",
@@ -407,6 +405,31 @@
       "nodes": [
         "cmd-next-question"
       ]
+    },
+    {
+      "term": "会議のエージェント",
+      "meaning": "会議の文字起こしを受け取り、MCP の道具で壁打ちに問いを足し、木を育てる Claude。声は使わない",
+      "code": [
+        "agentTool",
+        "whyWhyMcp"
+      ],
+      "nodes": [
+        "agent-meeting",
+        "cmd-agent-tree"
+      ],
+      "changed": true
+    },
+    {
+      "term": "声なしの深掘り",
+      "meaning": "Gemini とつながずに深掘りの段に入った状態。画面は Claude が埋める掲示板になり、「Gemini と話す」で声を始める",
+      "code": [
+        "startDeepDive",
+        "voice"
+      ],
+      "nodes": [
+        "cmd-agent-board"
+      ],
+      "changed": true
     }
   ]
 }

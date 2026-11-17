@@ -16,6 +16,8 @@ export type Role = z.infer<typeof RoleSchema>;
 export const FactSchema = z.object({
   summary: z.string(),
   supports: z.boolean(),
+  /** "agent": added by an agent through MCP (Claude in a meeting), shown as 「Claude」. Absent: Gemini or the person. */
+  by: z.literal("agent").optional(),
 });
 export type Fact = z.infer<typeof FactSchema>;
 
@@ -28,6 +30,7 @@ export const WhyNodeSchema = z.object({
   facts: z.array(FactSchema),
   reason: z.string().optional(),
   countermeasure: z.string().optional(),
+  by: z.literal("agent").optional(),
 });
 export type WhyNode = z.infer<typeof WhyNodeSchema>;
 

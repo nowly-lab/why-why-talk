@@ -94,7 +94,7 @@ export function addFact(a: Analysis, nodeId: string, fact: Fact, now: Clock): An
   const node = findNode(a, nodeId);
   const summary = redactSecrets(fact.summary.trim());
   if (summary === "") throw new WhyError("invalid_input", "a fact needs a summary");
-  return replaceNode(a, { ...node, facts: [...node.facts, { summary, supports: fact.supports }] }, now);
+  return replaceNode(a, { ...node, facts: [...node.facts, { summary, supports: fact.supports, ...(fact.by ? { by: fact.by } : {}) }] }, now);
 }
 
 export function updateNode(

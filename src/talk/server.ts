@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
@@ -5,7 +6,7 @@ import { z } from "zod";
 import { RoleSchema, WhyError } from "../model.ts";
 import type { Seed, TokenInfo } from "./gemini.ts";
 import { renderResultMarkdown } from "./result.ts";
-import type { TalkSession } from "./session.ts";
+import { AGENT_TOOLS, type TalkSession } from "./session.ts";
 import { checkAttachment } from "./attachments.ts";
 import { TextModelError, type TextModel } from "./text-model.ts";
 
@@ -20,6 +21,8 @@ export type ServerDeps = {
   leaseGraceMs?: number;
   /** How long to wait for the first page to connect before giving up. */
   firstConnectMs?: number;
+  /** 64 hex characters: the bearer token for /api/agent/* (written to the talk registry). Absent: no agent routes. */
+  agentToken?: string;
 };
 
 const HEARTBEAT_MS = 15_000;
@@ -65,7 +68,9 @@ const LogBody = z.object({
 const TokenBody = z.object({ fallback: z.boolean().default(false), roleSwitch: z.boolean().default(false) });
 const AudioBody = z.object({ data: z.string().min(1), mimeType: z.literal("audio/wav"), order: z.number().finite().optional() });
 const FileBody = z.object({ name: z.string().min(1).max(300), mimeType: z.string().max(200).default(""), data: z.string().min(1) });
-const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean() })) });
+const AgentQuestionBody = z.object({ text: z.string().min(1).max(2_000) });
+const AgentToolBody = z.object({ name: z.enum(AGENT_TOOLS), args: z.unknown() });
+const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean(), by: z.literal("agent").optional() })), version: z.number().int().nonnegative().optional() });
 const DraftBody = DirectionBody.extend({ questionId: z.string() });
 const SubmitBody = z.object({ directions: z.record(z.string(), DirectionBody) });
 
@@ -89,8 +94,10 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
   const leases = new Set<ServerResponse>();
   let everLeased = false;
   let graceTimer: NodeJS.Timeout | null = null;
+  let closed = false;
   const onLeaseGone = () => {
-    if (leases.size > 0 || settled || graceTimer) return;
+    // After close() the pages' streams end too; that is not a page going away, so no grace timer.
+    if (leases.size > 0 || settled || closed || graceTimer) return;
     graceTimer = setTimeout(() => {
       graceTimer = null;
       if (leases.size === 0 && s.status === "talking") {
@@ -134,6 +141,7 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
       });
       return;
     }
+    if (url.pathname.startsWith("/api/agent/")) return handleAgent(req, res, url.pathname);
     if (req.method === "GET") return serveStatic(url.pathname, res);
     if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
     if (req.headers["x-why-why-session"] !== s.nonce) return json(res, 409, { error: "session_mismatch: this tab belongs to an older talk" });
@@ -206,9 +214,16 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
           return json(res, 200, { questions: s.questions });
         }
         case "/api/questions": {
-          s.editQuestions(QuestionsBody.parse(body).questions);
+          const q = QuestionsBody.parse(body);
+          s.editQuestions(q.questions, q.version);
           await s.persist();
-          return json(res, 200, { questions: s.questions });
+          return json(res, 200, { questions: s.questions, version: s.questionsVersion });
+        }
+        // The person's question during the deep dive: an edit that missed Claude starting the dive becomes a question.
+        case "/api/question": {
+          const r = s.addQuestion(AgentQuestionBody.parse(body).text, "person");
+          await s.persist();
+          return json(res, 200, { ok: true, ...r, dives: s.dives, current: s.current() });
         }
         case "/api/free-talk": {
           s.backToFreeTalk();
@@ -248,6 +263,53 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
     }
   }
 
+  /** Tells every open page that an agent changed the talk, so it reads the session again. */
+  function announce(what: string): void {
+    for (const r of leases) r.write(`event: changed\ndata: ${JSON.stringify({ by: "agent", what })}\n\n`);
+  }
+
+  /**
+   * The agent's way in (the MCP server, for Claude in a meeting): its own bearer token from the talk registry, never
+   * the page's nonce. Without a token configured the routes do not exist.
+   */
+  async function handleAgent(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<void> {
+    const token = deps.agentToken;
+    const given = /^Bearer ([0-9a-f]{64})$/.exec(req.headers.authorization ?? "")?.[1];
+    if (!token || !given || !timingSafeEqual(Buffer.from(given), Buffer.from(token))) return json(res, 401, { error: "agent token required" });
+    try {
+      if (req.method === "GET" && pathname === "/api/agent/state") return json(res, 200, s.snapshot());
+      if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
+      const body = await readJson(req, MAX_BODY);
+      switch (pathname) {
+        case "/api/agent/question": {
+          const r = s.addQuestion(AgentQuestionBody.parse(body).text, "agent");
+          await s.persist();
+          announce("question");
+          return json(res, 200, { ok: true, ...r, phase: s.phase });
+        }
+        case "/api/agent/start-dive": {
+          s.startDeepDive();
+          await s.persist();
+          announce("start-dive");
+          return json(res, 200, { ok: true, dives: s.dives, current: s.current() });
+        }
+        case "/api/agent/tool": {
+          const { name, args } = AgentToolBody.parse(body);
+          const r = s.agentTool(name, args);
+          await s.persist();
+          if (r.ok) announce(name);
+          return json(res, 200, r);
+        }
+        default:
+          return json(res, 404, { error: "not found" });
+      }
+    } catch (e) {
+      if (e instanceof z.ZodError) return json(res, 400, { error: e.issues[0]?.message ?? "bad request" });
+      if (e instanceof WhyError) return json(res, e.code === "conflict" ? 409 : 400, { error: `${e.code}: ${e.message}` });
+      throw e;
+    }
+  }
+
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
     const rel = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
     const file = normalize(join(webRoot, rel));
@@ -281,6 +343,7 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
       void finish({ kind: "cancelled", reason });
     },
     close: async () => {
+      closed = true;
       clearInterval(heartbeat);
       clearTimeout(firstConnect);
       if (graceTimer) clearTimeout(graceTimer);

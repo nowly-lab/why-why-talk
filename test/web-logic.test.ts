@@ -485,3 +485,49 @@ test("ROLE_KICK tells the new session its role", async () => {
   assert.match(ROLE_KICK.interviewer, /聞き手に戻って/);
   assert.equal(ROLE_RESTART_WAIT_MS, 10_000);
 });
+
+import { agentChangeNote } from "../web/questions.ts";
+
+test("agentChangeNote tells Gemini what Claude added, in one line, and nothing when Claude added nothing", () => {
+  const before = { tree: [{ id: "q1", parentId: null, text: "なぜホストはフロアごとか", state: "digging", facts: [] }], questions: [{ text: "なぜホストはフロアごとか", checked: true }] };
+  const after = {
+    tree: [
+      { ...before.tree[0], facts: [{ summary: "会議で「部屋の単位だから」", supports: true, by: "agent" as const }] },
+      { id: "n1", parentId: "q1", text: "フロアが部屋の単位だから", state: "candidate", facts: [], by: "agent" as const },
+      { id: "n2", parentId: "q1", text: "Gemini が足した枝", state: "candidate", facts: [] },
+    ],
+    questions: [...before.questions, { text: "オフィス全体のホストは要るか", checked: true, by: "agent" as const }],
+  };
+  const note = agentChangeNote(before, after)!;
+  assert.match(note, /^画面から: 会議の Claude が書き足しました/);
+  assert.match(note, /問い「オフィス全体のホストは要るか」/);
+  assert.match(note, /n1「フロアが部屋の単位だから」/);
+  assert.match(note, /q1 に事実「会議で「部屋の単位だから」」/);
+  assert.doesNotMatch(note, /Gemini が足した枝/);
+  assert.equal(agentChangeNote(after, after), null);
+});
+
+test("R4: agentChangeNote also reports a branch Claude closed and a direction it drafted", () => {
+  const tree = [{ id: "q1", parentId: null, text: "Q", state: "digging", facts: [] }, { id: "n1", parentId: "q1", text: "枝", state: "candidate", facts: [] }];
+  const before = { tree, questions: [], dives: [{ questionId: "q1", draft: null }] };
+  const after = { tree: [tree[0], { ...tree[1], state: "rejected", reason: "会議で否定された" }], questions: [], dives: [{ questionId: "q1", draft: { direction: "移動で消す", reasons: "", rejected: "", openQuestions: "" } }] };
+  const note = agentChangeNote(before, after)!;
+  assert.match(note, /n1 を「却下」/);
+  assert.match(note, /q1 の方針「移動で消す」/);
+});
+
+test("RR4: agentChangeNote reports a new reason on an unchanged state and a changed draft field", () => {
+  const tree = [{ id: "q1", parentId: null, text: "Q", state: "digging", facts: [] }, { id: "n1", parentId: "q1", text: "枝", state: "rejected", reason: "古い理由", facts: [] }];
+  const d = { direction: "移動で消す", reasons: "", rejected: "", openQuestions: "" };
+  const before = { tree, questions: [], dives: [{ questionId: "q1", draft: d }] };
+  const after = { tree: [tree[0], { ...tree[1], reason: "会議で新しい理由" }], questions: [], dives: [{ questionId: "q1", draft: { ...d, openQuestions: "時間で消すか" } }] };
+  const note = agentChangeNote(before, after)!;
+  assert.match(note, /会議で新しい理由/);
+  assert.match(note, /残った疑問「時間で消すか」/);
+});
+
+test("RRR3: agentChangeNote reports a draft field Claude cleared", () => {
+  const d = { direction: "移動で消す", reasons: "", rejected: "", openQuestions: "時間で消すか" };
+  const note = agentChangeNote({ tree: [], questions: [], dives: [{ questionId: "q1", draft: d }] }, { tree: [], questions: [], dives: [{ questionId: "q1", draft: { ...d, openQuestions: "" } }] })!;
+  assert.match(note, /q1 の残った疑問を消しました/);
+});

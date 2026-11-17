@@ -27,6 +27,7 @@ export function renderTree(container: HTMLElement, nodes: TreeNode[], fresh: Set
     const backed = node.facts?.some((f) => f.supports);
     if (node.parentId !== null) head.append(el("span", backed ? "mark ok" : "mark", backed ? "✓" : "?"));
     head.append(el("span", "text", node.text));
+    if (node.by === "agent") head.append(el("span", "by-agent", "Claude"));
     row.append(head);
     if (node.parentId !== null) {
       const meta = el("div", "meta");
@@ -35,7 +36,11 @@ export function renderTree(container: HTMLElement, nodes: TreeNode[], fresh: Set
       if (node.viewpoint) meta.append(el("span", "tag", node.viewpoint));
       row.append(meta);
     }
-    for (const f of node.facts ?? []) row.append(el("div", f.supports ? "fact sup" : "fact neg", `${f.supports ? "支持" : "否定"}: ${f.summary}`));
+    for (const f of node.facts ?? []) {
+      const fact = el("div", f.supports ? "fact sup" : "fact neg", `${f.supports ? "支持" : "否定"}: ${f.summary}`);
+      if (f.by === "agent") fact.append(el("span", "by-agent", "Claude"));
+      row.append(fact);
+    }
     if (node.countermeasure) row.append(el("div", "cm", `対策: ${node.countermeasure}`));
     if (node.reason) row.append(el("div", shallow ? "reason shallow-reason" : "reason", `${shallow ? "深さ不足の理由" : "理由"}: ${node.reason}`));
     container.append(row);

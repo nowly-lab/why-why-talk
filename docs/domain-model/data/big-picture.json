@@ -286,8 +286,7 @@
           "symbol": "roleBy",
           "role": "rule"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "ev-role-swapped",
@@ -311,8 +310,7 @@
           "symbol": "conversationSoFar",
           "role": "rule"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "hs-history-size",
@@ -322,8 +320,7 @@
       "attach": {
         "to": "ev-role-swapped",
         "pos": "below"
-      },
-      "changed": true
+      }
     },
     {
       "id": "person-ask",
@@ -421,8 +418,7 @@
           "symbol": "retire",
           "role": "rule"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "pol-link-stalled",
@@ -871,6 +867,180 @@
         "to": "cmd-next-question",
         "pos": "above"
       }
+    },
+    {
+      "id": "agent-meeting",
+      "type": "actor",
+      "domain": "talk",
+      "text": "会議のエージェント（Claude）",
+      "note": "会議の文字起こしを受け取り、MCP で壁打ちを操作する。声は使わない。",
+      "changed": true
+    },
+    {
+      "id": "cmd-agent-question",
+      "type": "command",
+      "domain": "gather",
+      "text": "深掘りしたい問いを足す（MCP add_question）",
+      "evidence": [
+        {
+          "path": "src/mcp/server.ts",
+          "symbol": "add_question",
+          "role": "entry"
+        },
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "addQuestion",
+          "role": "rule"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "agg-question-list-agent",
+      "type": "aggregate",
+      "domain": "gather",
+      "text": "問いのリスト",
+      "invariants": [
+        "エージェントが足した問いはチェック済みで末尾に入り、「Claude」と示す",
+        "問いは合わせて20件まで",
+        "深掘りの最中に足した問いは、まだ掘っていない問いとして最後に並ぶ"
+      ],
+      "changed": true
+    },
+    {
+      "id": "ev-agent-question",
+      "type": "event",
+      "domain": "gather",
+      "text": "エージェントが問いを足した",
+      "changed": true
+    },
+    {
+      "id": "cmd-agent-board",
+      "type": "command",
+      "domain": "gather",
+      "text": "声なしで深掘りを始める（MCP start_dive・画面のボタン）",
+      "note": "会議中は Gemini とつながず、画面を Claude が埋める掲示板にする。声の深掘りは後で「Gemini と話す」から始める。",
+      "evidence": [
+        {
+          "path": "src/mcp/server.ts",
+          "symbol": "start_dive",
+          "role": "entry"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "cmd-agent-tree",
+      "type": "command",
+      "domain": "talk",
+      "text": "木を育てる・方針の下書きを書く（MCP・どの問いでも）",
+      "evidence": [
+        {
+          "path": "src/talk/session.ts",
+          "symbol": "agentTool",
+          "role": "rule"
+        },
+        {
+          "path": "src/mcp/server.ts",
+          "symbol": "add_whys",
+          "role": "entry"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "agg-tree-agent",
+      "type": "aggregate",
+      "domain": "talk",
+      "text": "なぜの木",
+      "invariants": [
+        "エージェントはどの問いの木にも書ける（Gemini は今掘っている問いだけ）",
+        "エージェントが足した枝と事実には「Claude」の印が付く"
+      ],
+      "changed": true
+    },
+    {
+      "id": "ev-agent-tree",
+      "type": "event",
+      "domain": "talk",
+      "text": "エージェントが木を育てた",
+      "changed": true
+    },
+    {
+      "id": "pol-agent-push",
+      "type": "policy",
+      "domain": "talk",
+      "execution": "sync",
+      "text": "エージェントが変えたら",
+      "evidence": [
+        {
+          "path": "src/talk/server.ts",
+          "symbol": "event: changed",
+          "role": "rule"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "cmd-push",
+      "type": "command",
+      "domain": "talk",
+      "text": "画面に知らせ、話している Gemini にも伝える",
+      "evidence": [
+        {
+          "path": "web/main.ts",
+          "symbol": "onAgentChange",
+          "role": "ui"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "cmd-mute",
+      "type": "command",
+      "domain": "talk",
+      "text": "Gemini の声を消す・戻す",
+      "note": "消している間も Gemini は聞き取り、木を育て続ける（再生だけ止める）。",
+      "evidence": [
+        {
+          "path": "web/audio.ts",
+          "symbol": "setMuted",
+          "role": "ui"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "hs-agent-discovery",
+      "type": "hotspot",
+      "domain": "invocation",
+      "text": "動いている壁打ちは ~/.why-why-talk/talks/<id>.json（0600、エージェント用の鍵を含む）で見つける。同じ Mac の別ユーザーからは読めないが、同じユーザーのプログラムからは操作できる",
+      "attach": {
+        "to": "agent-meeting",
+        "pos": "below"
+      },
+      "changed": true
+    },
+    {
+      "id": "agent-meeting-g",
+      "type": "actor",
+      "domain": "gather",
+      "text": "会議のエージェント（Claude）",
+      "changed": true
+    },
+    {
+      "id": "ev-pushed",
+      "type": "event",
+      "domain": "talk",
+      "text": "画面と話している Gemini に伝えた",
+      "changed": true
+    },
+    {
+      "id": "ev-muted",
+      "type": "event",
+      "domain": "talk",
+      "text": "Gemini の声を消した・戻した",
+      "changed": true
     }
   ],
   "edges": [
@@ -1197,6 +1367,86 @@
     {
       "from": "ev-next-question",
       "to": "cmd-speak",
+      "kind": "flow"
+    },
+    {
+      "from": "agent-meeting-g",
+      "to": "cmd-agent-question",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-agent-question",
+      "to": "agg-question-list-agent",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-question-list-agent",
+      "to": "ev-agent-question",
+      "kind": "flow"
+    },
+    {
+      "from": "agent-meeting-g",
+      "to": "cmd-agent-board",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-agent-board",
+      "to": "agg-question-list-dive",
+      "kind": "flow"
+    },
+    {
+      "from": "agent-meeting",
+      "to": "cmd-agent-tree",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-agent-tree",
+      "to": "agg-tree-agent",
+      "kind": "flow"
+    },
+    {
+      "from": "agg-tree-agent",
+      "to": "ev-agent-tree",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-agent-tree",
+      "to": "pol-agent-push",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-agent-question",
+      "to": "pol-agent-push",
+      "kind": "flow"
+    },
+    {
+      "from": "pol-agent-push",
+      "to": "cmd-push",
+      "kind": "flow"
+    },
+    {
+      "from": "ev-agent-tree",
+      "to": "rm-tree-view",
+      "kind": "result"
+    },
+    {
+      "from": "ev-agent-question",
+      "to": "rm-question-list",
+      "kind": "result"
+    },
+    {
+      "from": "person",
+      "to": "cmd-mute",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-push",
+      "to": "ev-pushed",
+      "kind": "flow"
+    },
+    {
+      "from": "cmd-mute",
+      "to": "ev-muted",
       "kind": "flow"
     }
   ]

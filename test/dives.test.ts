@@ -71,10 +71,10 @@ test("setQuestions keeps at most 10, all unchecked", async () => {
   assert.ok(s.questions.every((q) => q.checked === false));
 });
 
-test("editQuestions refuses blanks and more than 10", async () => {
+test("editQuestions refuses blanks and more than 20 (the person's and an agent's questions together)", async () => {
   const s = await fresh("論点");
   assert.match(whyCode(() => s.editQuestions([{ text: " ", checked: true }])), /^invalid_input/);
-  assert.match(whyCode(() => s.editQuestions(Array.from({ length: 11 }, (_, i) => ({ text: `q${i}`, checked: false })))), /^invalid_input/);
+  assert.match(whyCode(() => s.editQuestions(Array.from({ length: 21 }, (_, i) => ({ text: `q${i}`, checked: false })))), /^invalid_input/);
 });
 
 test("startDeepDive needs a checked question and roots them in list order", async () => {
