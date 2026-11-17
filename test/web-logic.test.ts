@@ -506,3 +506,12 @@ test("agentChangeNote tells Gemini what Claude added, in one line, and nothing w
   assert.doesNotMatch(note, /Gemini が足した枝/);
   assert.equal(agentChangeNote(after, after), null);
 });
+
+test("R4: agentChangeNote also reports a branch Claude closed and a direction it drafted", () => {
+  const tree = [{ id: "q1", parentId: null, text: "Q", state: "digging", facts: [] }, { id: "n1", parentId: "q1", text: "枝", state: "candidate", facts: [] }];
+  const before = { tree, questions: [], dives: [{ questionId: "q1", draft: null }] };
+  const after = { tree: [tree[0], { ...tree[1], state: "rejected", reason: "会議で否定された" }], questions: [], dives: [{ questionId: "q1", draft: { direction: "移動で消す", reasons: "", rejected: "", openQuestions: "" } }] };
+  const note = agentChangeNote(before, after)!;
+  assert.match(note, /n1 を「却下」/);
+  assert.match(note, /q1 の方針「移動で消す」/);
+});

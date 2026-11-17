@@ -16,8 +16,22 @@ export function createWhyWhyMcp(opts: { dir?: string } = {}): McpServer {
   const dir = opts.dir ?? talksDir();
   const server = new McpServer({ name: "why-why-talk", version: "1" });
 
-  async function pick(id?: string): Promise<TalkEntry | string> {
+  /** A talk counts only when it answers with its own token (a crashed talk's pid may now belong to another process). */
+  async function healthy(): Promise<TalkEntry[]> {
     const talks = await listTalks(dir);
+    const ok = await Promise.all(talks.map(async (t) => {
+      try {
+        const r = await fetch(`${t.url}/api/agent/state`, { headers: { authorization: `Bearer ${t.token}` }, signal: AbortSignal.timeout(1500) });
+        return r.ok;
+      } catch {
+        return false;
+      }
+    }));
+    return talks.filter((_, i) => ok[i]);
+  }
+
+  async function pick(id?: string): Promise<TalkEntry | string> {
+    const talks = await healthy();
     if (id) return talks.find((t) => t.id === id) ?? `no running talk ${id}; list_talks shows the running ones`;
     if (talks.length === 0) return `no why-why-talk is running. ${START}`;
     if (talks.length > 1) return `${talks.length} talks are running; pass talk: one of ${talks.map((t) => `${t.id} (${t.topic ?? "論点なし"})`).join(", ")}`;
@@ -44,7 +58,7 @@ export function createWhyWhyMcp(opts: { dir?: string } = {}): McpServer {
   }
 
   server.registerTool("list_talks", { description: "List the running why-why-talk talks (id, topic, page URL, start time)." }, async () =>
-    data((await listTalks(dir)).map(({ id, topic, url, startedAt, outDir }) => ({ id, topic, url, startedAt, outDir }))),
+    data((await healthy()).map(({ id, topic, url, startedAt, outDir }) => ({ id, topic, url, startedAt, outDir }))),
   );
   server.registerTool(
     "get_talk",

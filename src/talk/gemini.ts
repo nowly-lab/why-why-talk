@@ -84,11 +84,13 @@ export function systemInstruction(s: TalkSession, opts: Seed): string {
     "エージェントが調べた内容:",
     context.trim() || "(なし)",
   ];
+  const tree = boardLines(s);
+  // A board built without voice (Claude filling it in a meeting) is handed over on the first connection too.
+  const board = s.analysis.nodes.some((n) => n.parentId !== null || n.facts.length > 0) || s.dives.some((d) => d.draft);
+  if (!seeded && board) {
+    parts.push("", "会議で書かれた内容（Claude が会議の発言から書いた。これを前提に、同じ枝や事実を聞き直さない）:", "今の木:", tree, "", "問いごとの方針の下書き:", draftLines(s));
+  }
   if (seeded) {
-    const tree = treeSummary(s.analysis)
-      .sort((a, b) => rootOf(s.analysis, a.id).localeCompare(rootOf(s.analysis, b.id), "en", { numeric: true }))
-      .map((n) => `${n.id} (親 ${n.parentId ?? "-"}, ${n.depth}段, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}`)
-      .join("\n");
     const current = s.current()?.questionId ?? "なし";
     parts.push(
       "",
@@ -97,6 +99,9 @@ export function systemInstruction(s: TalkSession, opts: Seed): string {
         : `これまでの会話(接続が切れたので続きから再開する。最初の読み上げは不要。今の問い(${current})から続ける):`,
       "今の木:",
       tree,
+      "",
+      "問いごとの方針の下書き:",
+      draftLines(s),
       "",
       "会話の全文:",
       conversationSoFar(s) || "(なし)",
@@ -181,4 +186,24 @@ export async function mintToken(deps: MintDeps, s: TalkSession, opts: Seed): Pro
   const token = await create(request);
   if (!token.name) throw new Error("Gemini did not return a token");
   return { token: token.name, model: deps.model, expiresAt, config };
+}
+
+/** The tree for Gemini: every node with its state and the facts on it (（Claude） marks what the meeting's agent wrote). */
+function boardLines(s: TalkSession): string {
+  const full = new Map(s.analysis.nodes.map((n) => [n.id, n]));
+  return treeSummary(s.analysis)
+    .sort((a, b) => rootOf(s.analysis, a.id).localeCompare(rootOf(s.analysis, b.id), "en", { numeric: true }))
+    .map((n) => {
+      const node = full.get(n.id)!;
+      const head = `${n.id} (親 ${n.parentId ?? "-"}, ${n.depth}段, ${STATE_LABEL[n.state]}${n.viewpoint ? `, ${n.viewpoint}` : ""}) ${n.text}${node.by === "agent" ? "（Claude）" : ""}`;
+      const facts = node.facts.map((f) => `  事実(${f.supports ? "支持" : "否定"}): ${f.summary}${f.by === "agent" ? "（Claude）" : ""}`);
+      const extra = [...(node.reason ? [`  理由: ${node.reason}`] : []), ...(node.countermeasure ? [`  対策: ${node.countermeasure}`] : [])];
+      return [head, ...facts, ...extra].join("\n");
+    })
+    .join("\n");
+}
+
+function draftLines(s: TalkSession): string {
+  const lines = s.dives.filter((d) => d.draft).map((d) => `${d.questionId}: 方針 ${d.draft!.direction} / 理由 ${d.draft!.reasons} / 見送った案 ${d.draft!.rejected} / 残った疑問 ${d.draft!.openQuestions}`);
+  return lines.join("\n") || "(なし)";
 }

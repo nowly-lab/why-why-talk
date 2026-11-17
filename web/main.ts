@@ -27,6 +27,10 @@ export async function boot(): Promise<void> {
 
   let phase: Phase = view.phase;
   let questions: Question[] = view.questions;
+  // The list version the page last saw; a save sends it so the server keeps questions an agent added meanwhile.
+  let questionsVersion = view.questionsVersion ?? 0;
+  // Whether Gemini Live was started in this page (the mic can be open without it: a dive Claude started).
+  let liveStarted = false;
   let dives: Dive[] = view.dives;
   let current: CurrentQuestion = view.current;
   let files: Array<FileView & { busy?: boolean; error?: string }> = [...view.files];
@@ -184,7 +188,10 @@ export async function boot(): Promise<void> {
   // Set while 深掘りを始める or 送信 is settling: the list cannot change under them.
   let listLocked = false;
   const renderQuestions = () => {
-    renderQuestionList(qListEl, questions, { change: (next) => void saveQuestions(next) }, { locked: listLocked });
+    // Each row's edit carries the list version it was drawn from, so an edit made on a list Claude has since grown
+    // is merged on the server instead of dropping Claude's question.
+    const drawnFrom = questionsVersion;
+    renderQuestionList(qListEl, questions, { change: (next) => void saveQuestions(next, drawnFrom) }, { locked: listLocked });
     $("q-count").textContent = `${questions.length} / ${MAX_QUESTIONS}件`;
     $("q-selected").textContent = selectedLabel(questions);
     startBtn.disabled = listLocked || !canStart(questions);
@@ -195,17 +202,21 @@ export async function boot(): Promise<void> {
     renderQuestions();
   };
   // Saves go in edit order and only the newest answer is applied, so a slow early save cannot undo a later check.
-  const questionSaver = createLatestSaver<Question[]>(async (list) => (await api.questions(list)).questions, (saved) => {
+  const questionSaver = createLatestSaver<{ list: Question[]; base: number }>(async ({ list, base }) => {
+    const r = await api.questions(list, base);
+    questionsVersion = r.version;
+    return { list: r.questions, base: r.version };
+  }, ({ list: saved }) => {
     questions = saved;
     renderQuestions();
   });
-  async function saveQuestions(next: Question[]): Promise<void> {
+  async function saveQuestions(next: Question[], base = questionsVersion): Promise<void> {
     questions = next;
     renderQuestions();
     // A blank row is kept on screen until it has text; the server refuses empty questions.
     if (next.some((q) => q.text.trim() === "")) return;
     try {
-      await questionSaver.save(next);
+      await questionSaver.save({ list: next, base });
     } catch (e) {
       setStatus(`問いを保存できませんでした: ${(e as Error).message}`, "error");
     }
@@ -312,6 +323,8 @@ export async function boot(): Promise<void> {
       fillPick();
     }
     for (const d of dives) if (d.draft && !edited.has(d.questionId)) drafts.set(d.questionId, d.draft);
+    // A new question rebuilds the picker: keep what the person is typing in the direction form first.
+    if (edited.has(shownQuestion)) drafts.set(shownQuestion, readDirection(form));
     if (dives.length > 0 && qPick.options.length !== dives.length) fillPick();
     else if (!edited.has(shownQuestion) && drafts.get(shownQuestion)) fillDirection(form, drafts.get(shownQuestion)!);
     renderDive();
@@ -628,16 +641,30 @@ export async function boot(): Promise<void> {
   });
   async function onAgentChange(): Promise<void> {
     if (finishing) return;
-    const before = { tree, questions };
+    const before = { tree, questions, dives };
     const v = await loadSession();
     if (v.status !== "talking") return;
+    questionsVersion = v.questionsVersion ?? questionsVersion;
     if (v.phase !== "deep_dive") {
       questions = v.questions;
+      // Keep what the person is typing in a question while the list is redrawn.
+      const active = document.activeElement as HTMLInputElement | null;
+      const row = active && qListEl.contains(active) ? [...qListEl.querySelectorAll(".q-row")].findIndex((r) => r.contains(active)) : -1;
+      const typed = row >= 0 && active?.type === "text" ? { row, value: active.value, start: active.selectionStart, end: active.selectionEnd } : null;
       if (phase !== v.phase) {
         freeOpen = false;
         setPhase(v.phase);
       }
       renderQuestions();
+      if (typed) {
+        const input = qListEl.querySelectorAll<HTMLInputElement>(".q-row input[type=text]")[typed.row];
+        if (input) {
+          // Focus first: a value set after focusing still counts as the person's change when they leave the field.
+          input.focus();
+          input.value = typed.value;
+          input.setSelectionRange(typed.start, typed.end);
+        }
+      }
       setStatus("会議の Claude が問いを足しました", "idle");
       return;
     }
@@ -647,11 +674,12 @@ export async function boot(): Promise<void> {
     await refresh(new Set(v.tree.filter((n) => !before.tree.some((o) => o.id === n.id)).map((n) => n.id)));
     if (startedNow) {
       fillPick();
-      setStatus("会議の Claude が声なしで深掘りを始めました。声で続けるときはマイクを開始してください", "idle");
+      if (mics.mic()) micBtn.textContent = "Gemini と話す";
+      setStatus(mics.mic() ? "会議の Claude が声なしで深掘りを始めました。声で続けるときは「Gemini と話す」を押してください" : "会議の Claude が声なしで深掘りを始めました。声で続けるときはマイクを開始してください", "idle");
       return;
     }
     const note = agentChangeNote(before, v);
-    if (note && mics.mic()) live.sendText(note, { quiet: true });
+    if (note && liveStarted) live.sendText(note, { quiet: true });
   }
 
   micBtn.addEventListener("click", async () => {
@@ -662,6 +690,22 @@ export async function boot(): Promise<void> {
       return;
     }
     const mic = mics.mic();
+    // The mic is already open (Claude started the dive without voice): this button now starts Gemini.
+    if (mic && phase === "deep_dive" && !liveStarted) {
+      micBtn.disabled = true;
+      try {
+        await player.resume();
+        await live.start();
+        liveStarted = true;
+        roleBtn.disabled = false;
+        micBtn.textContent = muted ? "ミュート解除" : "ミュート";
+      } catch (e) {
+        setStatus(`Gemini とつなげません: ${(e as Error).message}`, "error");
+      } finally {
+        if (!mics.ended()) micBtn.disabled = false;
+      }
+      return;
+    }
     if (!mic) {
       micBtn.disabled = true;
       try {
@@ -675,6 +719,8 @@ export async function boot(): Promise<void> {
         micBtn.textContent = "ミュート";
         if (phase === "deep_dive") {
           await live.start();
+        liveStarted = true;
+          liveStarted = true;
           if (mics.ended()) return;
           roleBtn.disabled = false;
         } else {

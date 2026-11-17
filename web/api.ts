@@ -16,6 +16,7 @@ export type SessionView = {
   freeTalk: Array<{ at: string; speaker: Speaker; text: string }>;
   files: FileView[];
   questions: Question[];
+  questionsVersion?: number;
   dives: Dive[];
   current: CurrentQuestion;
   tree: TreeNode[];
@@ -87,7 +88,7 @@ export function createApi(nonce: string, opts: { toolTimeoutMs?: number } = {}) 
     audio: (data: string, order: number) => post<{ ok: true; text: string }>("/api/audio", { data, mimeType: "audio/wav", order }),
     file: (name: string, mimeType: string, data: string) => post<{ ok: true; file: FileView }>("/api/file", { name, mimeType, data }),
     split: () => post<{ questions: Question[] }>("/api/questions/split", {}),
-    questions: (questions: Question[]) => post<{ questions: Question[] }>("/api/questions", { questions }),
+    questions: (questions: Question[], version?: number) => post<{ questions: Question[]; version: number }>("/api/questions", { questions, version }),
     freeTalk: () => post<{ ok: true }>("/api/free-talk", {}),
     diveStart: () => post<DivesView>("/api/dive/start", {}),
     diveNext: () => post<DivesView>("/api/dive/next", {}),

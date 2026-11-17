@@ -4,7 +4,8 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TalkSession } from "../src/talk/session.ts";
-import { renderResultMarkdown } from "../src/talk/result.ts";
+import { renderResultMarkdown, resultJson } from "../src/talk/result.ts";
+import { systemInstruction } from "../src/talk/gemini.ts";
 import { WhyError } from "../src/model.ts";
 
 const now = () => "2026-11-17T03:00:00.000Z";
@@ -80,4 +81,46 @@ test("the result marks what the agent added", async () => {
 test("questions an agent added before the dive keep its mark on their dives", async () => {
   const s = await diving();
   assert.deepEqual(s.dives.map((d) => d.by), ["agent", "agent"]);
+});
+
+test("R1: a stale list from the page does not drop a question an agent added after it", async () => {
+  const s = await fresh();
+  s.addQuestion("一つめ", "agent");
+  const base = s.snapshot().questionsVersion;
+  s.addQuestion("あとから足した問い", "agent");
+  s.editQuestions([{ text: "一つめ（直した）", checked: true, by: "agent" }], base);
+  assert.deepEqual(s.questions.map((q) => q.text), ["一つめ（直した）", "あとから足した問い"]);
+  // A current list replaces as before (the person deleted a question on purpose).
+  s.editQuestions([{ text: "一つめ（直した）", checked: true }], s.snapshot().questionsVersion);
+  assert.deepEqual(s.questions.map((q) => q.text), ["一つめ（直した）"]);
+});
+
+test("R5/R6: root facts and the agent's questions are in the result (Markdown and JSON)", async () => {
+  const s = await diving();
+  s.agentTool("add_fact", { node_id: "q1", summary: "ROOT MEETING FACT", supports: true });
+  s.submit({});
+  const md = renderResultMarkdown(s);
+  assert.match(md, /ROOT MEETING FACT（Claude）/);
+  assert.match(md, /## 問い 1: なぜホストはフロアごとなのか（Claude）/);
+  const j = resultJson(s);
+  assert.equal(j.questions[0].by, "agent");
+  assert.deepEqual(j.questions[0].facts, [{ summary: "ROOT MEETING FACT", supports: true, by: "agent" }]);
+});
+
+test("R6: questions an agent added are marked in a result sent before the dive", async () => {
+  const s = await fresh();
+  s.addQuestion("会議で出た問い", "agent");
+  s.submit({});
+  assert.match(renderResultMarkdown(s), /会議で出た問い（Claude）/);
+});
+
+test("R4: Gemini's opening instruction carries the board an agent built, with facts and drafts", async () => {
+  const s = await diving();
+  s.agentTool("add_whys", { parent_id: "q1", items: [{ text: "AGENT REASON", viewpoint: "仕組み・道具" }] });
+  s.agentTool("add_fact", { node_id: "q1", summary: "AGENT ROOT FACT", supports: true });
+  s.agentTool("propose_direction", { question_id: "q2", direction: "AGENT DIRECTION", reasons: "r", rejected: "", open_questions: "" });
+  const text = systemInstruction(s, { fallback: false, roleSwitch: false });
+  assert.match(text, /AGENT REASON/);
+  assert.match(text, /AGENT ROOT FACT/);
+  assert.match(text, /AGENT DIRECTION/);
 });

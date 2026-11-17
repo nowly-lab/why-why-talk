@@ -49,7 +49,7 @@ export function connectLive(
   // The latest role-switch kick asked for while another open was running; it runs once that open settles.
   let pendingRestart: string | null = null;
   // Text the page sends while no connection is in service (during an open); delivered once the next one is up.
-  let heldTexts: string[] = [];
+  let heldTexts: { text: string; quiet: boolean }[] = [];
   const budget = createRetryBudget();
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -95,7 +95,7 @@ export function connectLive(
     }
     const held = heldTexts;
     heldTexts = [];
-    for (const text of held) mine.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: true });
+    for (const h of held) mine.sendClientContent({ turns: [{ role: "user", parts: [{ text: h.text }] }], turnComplete: !h.quiet });
   }
 
   // Messages from an older connection that is still draining are handled too (a tool call there must still land).
@@ -229,7 +229,7 @@ export function connectLive(
     /** `quiet`: tell Gemini without asking for a reply (Claude's additions from a meeting). */
     sendText(text: string, opts: { quiet?: boolean } = {}) {
       // During an open the connection in service is about to be retired: hold the text for the next one.
-      if (busy) heldTexts.push(text);
+      if (busy) heldTexts.push({ text, quiet: !!opts.quiet });
       else current?.sendClientContent({ turns: [{ role: "user", parts: [{ text }] }], turnComplete: !opts.quiet });
     },
     close() {

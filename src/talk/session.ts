@@ -52,6 +52,10 @@ export class TalkSession {
   /** Summaries of attached files (the files themselves are never kept). */
   files: FileSummary[] = [];
   questions: Question[] = [];
+  /** Bumped on every change to the question list; the page sends the one it edited, so a stale list cannot drop an agent's question. */
+  questionsVersion = 0;
+  /** Questions an agent added, with the list version they arrived in. */
+  private agentQuestions: { text: string; version: number }[] = [];
   /** One per checked question, in list order; their roots in the tree are q1, q2, …. */
   dives: Dive[] = [];
   /** Who Gemini is right now: the interviewer, or (after 交代) the one answering the person's questions. */
@@ -91,6 +95,7 @@ export class TalkSession {
       freeTalk: this.freeTalk,
       files: this.files,
       questions: this.questions,
+      questionsVersion: this.questionsVersion,
       dives: this.dives,
       current: this.current(),
       tree: this.analysis.nodes,
@@ -146,17 +151,25 @@ export class TalkSession {
     this.assertTalking();
     this.assertPhase("free_talk", "questions");
     this.questions = texts.map((t) => this.clean(t)).filter((t) => t !== "").slice(0, MAX_QUESTIONS).map((text) => ({ text, checked: false }));
+    this.questionsVersion++;
     this.phase = "questions";
   }
 
   /** The person's edits: checks, rewording, added, removed or reordered questions. */
-  editQuestions(list: Question[]): void {
+  editQuestions(list: Question[], baseVersion?: number): void {
     this.assertTalking();
     this.assertPhase("questions");
     if (list.length > MAX_TOTAL_QUESTIONS) throw new WhyError("invalid_input", `問いは ${MAX_TOTAL_QUESTIONS} 件までです`);
     const next = list.map((q) => ({ text: this.clean(q.text), checked: q.checked, ...(q.by === "agent" ? { by: q.by } : {}) }));
     if (next.some((q) => q.text === "")) throw new WhyError("invalid_input", "空の問いがあります");
+    // The page edited an older list: keep what an agent added since, which that list could not contain.
+    if (baseVersion !== undefined && baseVersion < this.questionsVersion) {
+      for (const a of this.agentQuestions) {
+        if (a.version > baseVersion && !next.some((q) => q.text === a.text) && next.length < MAX_TOTAL_QUESTIONS) next.push({ text: a.text, checked: true, by: "agent" });
+      }
+    }
     this.questions = next;
+    this.questionsVersion++;
   }
 
   /**
@@ -172,6 +185,8 @@ export class TalkSession {
     if (this.phase !== "deep_dive") {
       this.phase = "questions";
       this.questions.push({ text: t, checked: true, by });
+      this.questionsVersion++;
+      this.agentQuestions.push({ text: t, version: this.questionsVersion });
       return { questionId: null, index: this.questions.length - 1 };
     }
     let n = this.dives.length + 1;
@@ -182,6 +197,8 @@ export class TalkSession {
     const status: DiveStatus = this.current() ? "pending" : "digging";
     this.dives.push({ questionId, text: t, status, draft: null, by });
     this.questions.push({ text: t, checked: true, by });
+    this.questionsVersion++;
+    this.agentQuestions.push({ text: t, version: this.questionsVersion });
     return { questionId, index: this.dives.length - 1 };
   }
 

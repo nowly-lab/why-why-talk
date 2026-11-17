@@ -38,13 +38,39 @@ await page.waitForSelector('#status');
 await page.waitForTimeout(800);
 
 ok('list_talks finds the talk', (await call('list_talks')).body.data.length === 1);
+// Count token requests without calling Gemini: the voice start is refused here on purpose.
+let tokenCalls = 0;
+await page.route('**/api/token', (r) => { tokenCalls++; return r.fulfill({ status: 503, body: JSON.stringify({ error: 'e2e: no Gemini' }) }); });
+// The mic is opened before Claude starts the dive (R3).
+await page.click('#mic');
+await page.waitForTimeout(800);
 await call('add_question', { text: 'なぜホストはフロアごとなのか' });
 await call('add_question', { text: '退室した人の席をいつ消すか' });
 await page.waitForTimeout(1200);
 ok('the page moves to the question list with Claude badges', (await page.evaluate(() => document.body.dataset.phase)) === 'questions' && (await page.locator('#q-list .by-agent').count()) === 2);
+// R1: the person is typing in a question when Claude adds another; both survive.
+const firstInput = page.locator('#q-list .q-row input[type=text]').first();
+await firstInput.click();
+await firstInput.fill('なぜホストはフロアごとなのか（人が直した）');
+await call('add_question', { text: 'オフィス全体のホストは要るか' });
+await page.waitForTimeout(1200);
+ok('R1: the typed text is kept on screen', (await page.locator('#q-list .q-row input[type=text]').first().inputValue()) === 'なぜホストはフロアごとなのか（人が直した）');
+await page.locator('#q-list .q-row input[type=text]').first().press('Tab');
+await page.waitForTimeout(1200);
+const qs = (await call('get_talk')).body.data.questions.map((q) => q.text);
+ok('R1: the edit and Claude\'s new question are both saved', qs.length === 3 && qs[0].endsWith('（人が直した）') && qs.includes('オフィス全体のホストは要るか'), JSON.stringify(qs));
 await call('start_dive');
 await page.waitForTimeout(1200);
 ok('Claude starts the dive without voice', (await page.evaluate(() => document.body.dataset.phase)) === 'deep_dive' && /声なしで深掘りを始めました/.test(await page.textContent('#status')), await page.textContent('#status'));
+ok('R3: with the mic open the button offers Gemini', (await page.textContent('#mic')) === 'Gemini と話す');
+// R2: the person is typing a direction when Claude adds a question; the text stays.
+await page.fill('#f-direction', '人が書いている方針');
+await call('add_question', { text: '会議の後半で出た問い' });
+await page.waitForTimeout(1200);
+ok('R2: the direction being typed survives a new question', (await page.inputValue('#f-direction')) === '人が書いている方針');
+await page.click('#mic');
+await page.waitForTimeout(1000);
+ok('R3: pressing it asks for a Gemini token (voice starts)', tokenCalls >= 1, `token requests: ${tokenCalls}`);
 await call('add_whys', { parent_id: 'q1', items: [{ text: 'フロアが部屋（Durable Object）の単位だから', viewpoint: '仕組み・道具' }] });
 await call('add_fact', { node_id: 'q1', summary: '会議で「部屋の単位だから」と説明があった', supports: true });
 await page.waitForTimeout(1200);

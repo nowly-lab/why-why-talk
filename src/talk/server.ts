@@ -70,7 +70,7 @@ const AudioBody = z.object({ data: z.string().min(1), mimeType: z.literal("audio
 const FileBody = z.object({ name: z.string().min(1).max(300), mimeType: z.string().max(200).default(""), data: z.string().min(1) });
 const AgentQuestionBody = z.object({ text: z.string().min(1).max(2_000) });
 const AgentToolBody = z.object({ name: z.enum(AGENT_TOOLS), args: z.unknown() });
-const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean(), by: z.literal("agent").optional() })) });
+const QuestionsBody = z.object({ questions: z.array(z.object({ text: z.string().max(2_000), checked: z.boolean(), by: z.literal("agent").optional() })), version: z.number().int().nonnegative().optional() });
 const DraftBody = DirectionBody.extend({ questionId: z.string() });
 const SubmitBody = z.object({ directions: z.record(z.string(), DirectionBody) });
 
@@ -214,9 +214,10 @@ export async function startTalkServer(s: TalkSession, deps: ServerDeps): Promise
           return json(res, 200, { questions: s.questions });
         }
         case "/api/questions": {
-          s.editQuestions(QuestionsBody.parse(body).questions);
+          const q = QuestionsBody.parse(body);
+          s.editQuestions(q.questions, q.version);
           await s.persist();
-          return json(res, 200, { questions: s.questions });
+          return json(res, 200, { questions: s.questions, version: s.questionsVersion });
         }
         case "/api/free-talk": {
           s.backToFreeTalk();

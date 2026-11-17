@@ -80,3 +80,17 @@ test("talk selection: none running, one, or several", async () => {
     await b.srv.close();
   }
 });
+
+test("R8: a registry entry whose process lives but whose talk does not answer is not offered", async () => {
+  const dir = join(await mkdtemp(join(tmpdir(), "why-mcp-reg-")), "talks");
+  await writeTalkEntry(dir, { id: "stale", url: "http://127.0.0.1:9", token: TOKEN, topic: "古い", outDir: "/x", startedAt: "2026-11-17T00:00:00.000Z", pid: process.pid });
+  const real = await talk(dir, "今の論点");
+  const { call } = await client(dir);
+  try {
+    const list = await call("list_talks");
+    assert.deepEqual(list.body.data.map((t: { id: string }) => t.id), [real.s.id]);
+    assert.equal((await call("get_talk")).body.data.topic, "今の論点", "the only healthy talk is picked without talk:");
+  } finally {
+    await real.srv.close();
+  }
+});
